@@ -6,7 +6,7 @@ import '../models/category_statistic.dart';
 
 class AIService {
   final AppSettingsRepository _settings;
-  static const String _defaultModel = 'gemini-3.0-flash';
+  static const String _defaultModel = 'gemini-flash-latest';
 
   AIService(this._settings);
 
