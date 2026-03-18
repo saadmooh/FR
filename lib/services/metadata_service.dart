@@ -1,5 +1,5 @@
+import 'package:metadata_fetch/metadata_fetch.dart';
 import '../services/ai_service.dart';
-import '../repositories/app_settings_repository.dart';
 
 class MetadataResult {
   final String? title;
@@ -33,8 +33,28 @@ class MetadataService {
   }
 
   Future<MetadataResult> fetchMetadata(String url) async {
+    try {
+      final data = await MetadataFetch.extract(url);
+
+      if (data != null && data.title != null && data.title!.isNotEmpty) {
+        return MetadataResult(
+          title: data.title,
+          description: data.description,
+          imageUrl: data.image,
+          ogTitle: data.title,
+          ogDescription: data.description,
+          ogImage: data.image,
+          siteName: data.url != null ? Uri.parse(data.url!).host : '',
+          language: 'en',
+          canonicalUrl: url,
+        );
+      }
+    } catch (e) {
+      // Fall through to AI fallback
+    }
+
     if (_aiService == null) {
-      throw Exception('AI Service not initialized');
+      throw Exception('AI Service not initialized and metadata_fetch failed');
     }
 
     final result = await _aiService!.fetchMetadata(url);
