@@ -40,12 +40,21 @@ class _RemindersScreenState extends State<RemindersScreen> {
   List<Reminder> _readReminders = [];
   bool _isLoading = true;
 
+  void _showResult(bool success, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(success ? '✅ $message' : '❌ $message'),
+        backgroundColor: success ? AppColors.accent : AppColors.error,
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: 0);
     _loadReminders();
-    
+
     // Listen for pending shared URL
     widget.pendingSharedUrl.addListener(_onPendingSharedUrlChanged);
   }
@@ -105,7 +114,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.schedule, color: AppColors.accent),
-              title: const Text('Reschedule', style: TextStyle(color: AppColors.textPrimary)),
+              title: const Text(
+                'Reschedule',
+                style: TextStyle(color: AppColors.textPrimary),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 _rescheduleReminder(reminder);
@@ -113,7 +125,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.delete, color: AppColors.error),
-              title: const Text('Delete', style: TextStyle(color: AppColors.error)),
+              title: const Text(
+                'Delete',
+                style: TextStyle(color: AppColors.error),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 _deleteReminder(reminder);
@@ -126,30 +141,39 @@ class _RemindersScreenState extends State<RemindersScreen> {
   }
 
   Future<void> _rescheduleReminder(Reminder reminder) async {
-    final freeTimes = widget.freeTimeRepository.getAllAsJson();
-    final result = await widget.aiService.reschedulePost(
-      previousAttemptsJson: '[]',
-      category: reminder.categoryEn ?? 'Other',
-      complexity: reminder.complexityEn ?? 'Medium',
-      importance: reminder.importance,
-      userFreeTimesJson: freeTimes.isNotEmpty ? '{"free_times": $freeTimes}' : null,
-    );
+    try {
+      final freeTimes = widget.freeTimeRepository.getAllAsJson();
+      final result = await widget.aiService.reschedulePost(
+        previousAttemptsJson: '[]',
+        category: reminder.categoryEn ?? 'Other',
+        complexity: reminder.complexityEn ?? 'Medium',
+        importance: reminder.importance,
+        userFreeTimesJson: freeTimes.isNotEmpty
+            ? '{"free_times": $freeTimes}'
+            : null,
+      );
+      _showResult(true, 'Rescheduled: ${result['newTime']}');
 
-    if (result['newTime'] != null) {
-      reminder.scheduledAt = result['newTime'];
-      widget.reminderRepository.save(reminder);
-      
-      await widget.notificationService.cancelReminder(reminder.id);
-      await widget.notificationService.scheduleReminder(reminder);
-      
+      if (result['newTime'] != null) {
+        reminder.scheduledAt = result['newTime'];
+        widget.reminderRepository.save(reminder);
+
+        await widget.notificationService.cancelReminder(reminder.id);
+        await widget.notificationService.scheduleReminder(reminder);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Rescheduled to ${reminder.scheduledAt}'),
+              backgroundColor: AppColors.accent,
+            ),
+          );
+          _loadReminders();
+        }
+      }
+    } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Rescheduled to ${reminder.scheduledAt}'),
-            backgroundColor: AppColors.accent,
-          ),
-        );
-        _loadReminders();
+        _showResult(false, 'Error: $e');
       }
     }
   }
@@ -159,8 +183,14 @@ class _RemindersScreenState extends State<RemindersScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.surface,
-        title: const Text('Delete Post?', style: TextStyle(color: AppColors.textPrimary)),
-        content: const Text('This action cannot be undone.', style: TextStyle(color: AppColors.textSecondary)),
+        title: const Text(
+          'Delete Post?',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: const Text(
+          'This action cannot be undone.',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -168,7 +198,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete', style: TextStyle(color: AppColors.error)),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: AppColors.error),
+            ),
           ),
         ],
       ),
@@ -188,7 +221,11 @@ class _RemindersScreenState extends State<RemindersScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            const Icon(Icons.bookmark_rounded, color: AppColors.accent, size: 26),
+            const Icon(
+              Icons.bookmark_rounded,
+              color: AppColors.accent,
+              size: 26,
+            ),
             const SizedBox(width: 8),
             Text(
               'Flex Reminder',
@@ -230,7 +267,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                     ],
                   ),
                 ),
-                
+
                 // Page indicator
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
@@ -258,16 +295,23 @@ class _RemindersScreenState extends State<RemindersScreen> {
       width: _currentPage == index ? 24 : 8,
       height: 8,
       decoration: BoxDecoration(
-        color: _currentPage == index ? AppColors.accent : AppColors.textSecondary,
+        color: _currentPage == index
+            ? AppColors.accent
+            : AppColors.textSecondary,
         borderRadius: BorderRadius.circular(4),
       ),
     );
   }
 
-  Widget _buildReminderList(List<Reminder> reminders, {required bool isUnread}) {
+  Widget _buildReminderList(
+    List<Reminder> reminders, {
+    required bool isUnread,
+  }) {
     if (reminders.isEmpty) {
       return EmptyState(
-        icon: isUnread ? Icons.bookmark_add_outlined : Icons.check_circle_outline,
+        icon: isUnread
+            ? Icons.bookmark_add_outlined
+            : Icons.check_circle_outline,
         title: isUnread ? 'No saved posts yet' : 'No read posts yet',
         subtitle: isUnread ? 'Tap + to save your first post' : null,
       );

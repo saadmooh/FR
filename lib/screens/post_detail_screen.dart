@@ -38,6 +38,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   bool _isLoading = true;
   bool _isRescheduling = false;
 
+  void _showResult(bool success, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(success ? '✅ $message' : '❌ $message'),
+        backgroundColor: success ? AppColors.accent : AppColors.error,
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -78,31 +87,42 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
     setState(() => _isRescheduling = true);
 
-    final freeTimes = widget.freeTimeRepository.getAllAsJson();
-    final result = await widget.aiService.reschedulePost(
-      previousAttemptsJson: '[]',
-      category: _reminder!.categoryEn ?? 'Other',
-      complexity: _reminder!.complexityEn ?? 'Medium',
-      importance: _reminder!.importance,
-      userFreeTimesJson: freeTimes.isNotEmpty ? '{"free_times": $freeTimes}' : null,
-    );
+    try {
+      final freeTimes = widget.freeTimeRepository.getAllAsJson();
+      final result = await widget.aiService.reschedulePost(
+        previousAttemptsJson: '[]',
+        category: _reminder!.categoryEn ?? 'Other',
+        complexity: _reminder!.complexityEn ?? 'Medium',
+        importance: _reminder!.importance,
+        userFreeTimesJson: freeTimes.isNotEmpty
+            ? '{"free_times": $freeTimes}'
+            : null,
+      );
+      _showResult(true, 'Rescheduled: ${result['newTime']}');
 
-    if (result['newTime'] != null && mounted) {
-      _reminder!.scheduledAt = result['newTime'];
-      widget.reminderRepository.save(_reminder!);
+      if (result['newTime'] != null && mounted) {
+        _reminder!.scheduledAt = result['newTime'];
+        widget.reminderRepository.save(_reminder!);
 
-      // Reschedule notification
-      await widget.notificationService.cancelReminder(_reminder!.id);
-      await widget.notificationService.scheduleReminder(_reminder!);
+        // Reschedule notification
+        await widget.notificationService.cancelReminder(_reminder!.id);
+        await widget.notificationService.scheduleReminder(_reminder!);
 
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Rescheduled to ${DateFormat('MMM d, h:mm a').format(_reminder!.scheduledAt)}',
+              ),
+              backgroundColor: AppColors.accent,
+            ),
+          );
+          _loadReminder();
+        }
+      }
+    } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Rescheduled to ${DateFormat('MMM d, h:mm a').format(_reminder!.scheduledAt)}'),
-            backgroundColor: AppColors.accent,
-          ),
-        );
-        _loadReminder();
+        _showResult(false, 'Error: $e');
       }
     }
 
@@ -116,8 +136,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.surface,
-        title: const Text('Delete Post?', style: TextStyle(color: AppColors.textPrimary)),
-        content: const Text('This action cannot be undone.', style: TextStyle(color: AppColors.textSecondary)),
+        title: const Text(
+          'Delete Post?',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: const Text(
+          'This action cannot be undone.',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -125,7 +151,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete', style: TextStyle(color: AppColors.error)),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: AppColors.error),
+            ),
           ),
         ],
       ),
@@ -163,7 +192,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           ),
         ),
         body: const Center(
-          child: Text('Post not found', style: TextStyle(color: AppColors.textPrimary)),
+          child: Text(
+            'Post not found',
+            style: TextStyle(color: AppColors.textPrimary),
+          ),
         ),
       );
     }
@@ -202,12 +234,20 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       ),
                       errorWidget: (context, url, error) => Container(
                         color: AppColors.surfaceLight,
-                        child: const Icon(Icons.image_not_supported, color: AppColors.textSecondary, size: 64),
+                        child: const Icon(
+                          Icons.image_not_supported,
+                          color: AppColors.textSecondary,
+                          size: 64,
+                        ),
                       ),
                     )
                   : Container(
                       color: AppColors.surfaceLight,
-                      child: const Icon(Icons.link, color: AppColors.textSecondary, size: 64),
+                      child: const Icon(
+                        Icons.link,
+                        color: AppColors.textSecondary,
+                        size: 64,
+                      ),
                     ),
             ),
           ),
@@ -231,7 +271,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   const SizedBox(height: 16),
 
                   // Description
-                  if (_reminder!.description != null && _reminder!.description!.isNotEmpty)
+                  if (_reminder!.description != null &&
+                      _reminder!.description!.isNotEmpty)
                     Text(
                       _reminder!.description!,
                       style: const TextStyle(
@@ -251,18 +292,44 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     ),
                     child: Column(
                       children: [
-                        _buildMetadataRow('📂 Category', '${_reminder!.categoryEn ?? "N/A"} / ${_reminder!.categoryAr ?? ""}'),
-                        const Divider(color: AppColors.textSecondary, height: 24),
-                        _buildMetadataRow('🎯 Complexity', '${_reminder!.complexityEn ?? "N/A"} / ${_reminder!.complexityAr ?? ""}'),
-                        const Divider(color: AppColors.textSecondary, height: 24),
-                        _buildMetadataRow('📅 Importance', _reminder!.importance),
-                        const Divider(color: AppColors.textSecondary, height: 24),
-                        _buildMetadataRow('⏰ Scheduled', dateFormat.format(_reminder!.scheduledAt)),
-                        const Divider(color: AppColors.textSecondary, height: 24),
+                        _buildMetadataRow(
+                          '📂 Category',
+                          '${_reminder!.categoryEn ?? "N/A"} / ${_reminder!.categoryAr ?? ""}',
+                        ),
+                        const Divider(
+                          color: AppColors.textSecondary,
+                          height: 24,
+                        ),
+                        _buildMetadataRow(
+                          '🎯 Complexity',
+                          '${_reminder!.complexityEn ?? "N/A"} / ${_reminder!.complexityAr ?? ""}',
+                        ),
+                        const Divider(
+                          color: AppColors.textSecondary,
+                          height: 24,
+                        ),
+                        _buildMetadataRow(
+                          '📅 Importance',
+                          _reminder!.importance,
+                        ),
+                        const Divider(
+                          color: AppColors.textSecondary,
+                          height: 24,
+                        ),
+                        _buildMetadataRow(
+                          '⏰ Scheduled',
+                          dateFormat.format(_reminder!.scheduledAt),
+                        ),
+                        const Divider(
+                          color: AppColors.textSecondary,
+                          height: 24,
+                        ),
                         _buildMetadataRow(
                           '✅ Status',
                           _reminder!.isOpened ? 'Read' : 'Unread',
-                          valueColor: _reminder!.isOpened ? AppColors.success : AppColors.warning,
+                          valueColor: _reminder!.isOpened
+                              ? AppColors.success
+                              : AppColors.warning,
                         ),
                       ],
                     ),
@@ -270,7 +337,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   const SizedBox(height: 24),
 
                   // AI Explanation
-                  if (_reminder!.aiExplanation != null && _reminder!.aiExplanation!.isNotEmpty)
+                  if (_reminder!.aiExplanation != null &&
+                      _reminder!.aiExplanation!.isNotEmpty)
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -282,7 +350,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         children: [
                           const Row(
                             children: [
-                              Icon(Icons.auto_awesome, color: AppColors.accent, size: 20),
+                              Icon(
+                                Icons.auto_awesome,
+                                color: AppColors.accent,
+                                size: 20,
+                              ),
                               SizedBox(width: 8),
                               Text(
                                 'AI Analysis',
@@ -321,7 +393,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       ),
                       child: const Text(
                         'Open Post',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -348,7 +423,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             )
                           : const Text(
                               'Reschedule',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                     ),
                   ),

@@ -37,11 +37,12 @@ class AIService {
       final provider = _settings.getProvider();
       if (provider == 'google') {
         final model = GenerativeModel(model: _defaultModel, apiKey: key);
-        final response = await model.generateContent([Content.text('Say OK')]);
+        final response = await model.generateContent([
+          Content.text('Say HAHA'),
+        ]);
 
-        if (response.text != null &&
-            response.text!.toLowerCase().contains('ok')) {
-          return {'success': true, 'message': 'API key works!'};
+        if (response.text != null) {
+          return {'success': true, 'message': response.text};
         }
         return {'success': false, 'message': 'Invalid response from API'};
       }
@@ -110,7 +111,7 @@ Rules:
     ], maxTokens: 400);
 
     if (result == null) {
-      return _fallbackMetadata(url);
+      throw Exception('Failed to fetch metadata from API');
     }
 
     try {
@@ -121,37 +122,10 @@ Rules:
         return json.decode(jsonMatch.group(0)!);
       }
     } catch (e) {
-      // Fall through to fallback
+      throw Exception('Failed to parse metadata response: $e');
     }
 
-    return _fallbackMetadata(url);
-  }
-
-  Map<String, dynamic> _fallbackMetadata(String url) {
-    final uri = Uri.parse(url);
-    final pathSegments = uri.pathSegments;
-    final title = pathSegments.isNotEmpty
-        ? pathSegments.last
-              .replaceAll(RegExp(r'[_-]'), ' ')
-              .split(' ')
-              .map(
-                (w) => w.isNotEmpty
-                    ? '${w[0].toUpperCase()}${w.substring(1)}'
-                    : '',
-              )
-              .join(' ')
-        : uri.host;
-
-    return {
-      'title': title.isNotEmpty ? title : 'Unknown Post',
-      'description': '',
-      'og_title': '',
-      'og_description': '',
-      'og_image': '',
-      'site_name': uri.host,
-      'language': 'en',
-      'canonical_url': url,
-    };
+    throw Exception('Failed to extract metadata from API response');
   }
 
   Future<Map<String, dynamic>> classifyContent({
@@ -195,7 +169,7 @@ Respond with exactly this JSON structure:
     ], maxTokens: 300);
 
     if (result == null) {
-      return _defaultClassification();
+      throw Exception('Failed to classify content - API error');
     }
 
     try {
@@ -214,21 +188,10 @@ Respond with exactly this JSON structure:
         };
       }
     } catch (e) {
-      // Fall through to default
+      throw Exception('Failed to parse classification response: $e');
     }
 
-    return _defaultClassification();
-  }
-
-  Map<String, dynamic> _defaultClassification() {
-    return {
-      'categoryEn': 'Other',
-      'categoryAr': 'أخرى',
-      'complexityEn': 'Medium',
-      'complexityAr': 'متوسط',
-      'isEthical': true,
-      'ethicalReasoning': 'Default classification',
-    };
+    throw Exception('Failed to extract classification from API response');
   }
 
   Future<Map<String, dynamic>> estimateBestTime({
@@ -275,7 +238,7 @@ Return only:
     ], maxTokens: 120);
 
     if (result == null) {
-      return _fallbackBestTime(importance, currentTime);
+      throw Exception('Failed to estimate best time - API error');
     }
 
     try {
@@ -290,27 +253,10 @@ Return only:
         };
       }
     } catch (e) {
-      // Fall through to fallback
+      throw Exception('Failed to parse time estimation response: $e');
     }
 
-    return _fallbackBestTime(importance, currentTime);
-  }
-
-  Map<String, dynamic> _fallbackBestTime(
-    String importance,
-    DateTime currentTime,
-  ) {
-    final hours = switch (importance) {
-      'Day' => 4,
-      'Week' => 48,
-      'Month' => 168,
-      _ => 24,
-    };
-
-    return {
-      'bestTime': currentTime.add(Duration(hours: hours)),
-      'explanation': 'Default scheduling based on importance',
-    };
+    throw Exception('Failed to extract time estimation from API response');
   }
 
   Future<String> analyzeStats(Map<String, dynamic> stats) async {
@@ -336,10 +282,10 @@ Write only the formatted string. No JSON, no extra text.''';
     ], maxTokens: 250);
 
     if (result == null) {
-      return 'Unable to analyze statistics | تعذر تحليل الإحصائيات | 无法分析统计数据';
+      throw Exception('Failed to analyze statistics - API error');
     }
 
-    return result['content'] ?? 'Analysis unavailable';
+    return result['content'] ?? '';
   }
 
   Future<Map<String, dynamic>> analyzeCategoryStatistics(
@@ -382,12 +328,7 @@ Return this exact JSON:
     ], maxTokens: 700);
 
     if (result == null) {
-      return {
-        'analysis': 'Unable to analyze',
-        'preferred_times': [],
-        'confidence_score': 0.0,
-        'insights': [],
-      };
+      throw Exception('Failed to analyze category statistics - API error');
     }
 
     try {
@@ -398,15 +339,10 @@ Return this exact JSON:
         return json.decode(jsonMatch.group(0)!);
       }
     } catch (e) {
-      // Fall through to default
+      throw Exception('Failed to parse category statistics response: $e');
     }
 
-    return {
-      'analysis': 'Analysis unavailable',
-      'preferred_times': [],
-      'confidence_score': 0.0,
-      'insights': [],
-    };
+    throw Exception('Failed to extract category statistics from API response');
   }
 
   Future<Map<String, dynamic>> reschedulePost({
@@ -443,7 +379,7 @@ Return only:
     ], maxTokens: 150);
 
     if (result == null) {
-      return _fallbackBestTime(importance, DateTime.now());
+      throw Exception('Failed to reschedule post - API error');
     }
 
     try {
@@ -458,9 +394,9 @@ Return only:
         };
       }
     } catch (e) {
-      // Fall through to default
+      throw Exception('Failed to parse reschedule response: $e');
     }
 
-    return _fallbackBestTime(importance, DateTime.now());
+    throw Exception('Failed to extract reschedule time from API response');
   }
 }

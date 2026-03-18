@@ -38,7 +38,7 @@ class SavePostSheet extends StatefulWidget {
 class _SavePostSheetState extends State<SavePostSheet> {
   final _urlController = TextEditingController();
   final _metadataService = MetadataService();
-  
+
   String _importance = 'Day';
   bool _isLoading = false;
   String _loadingStatus = '';
@@ -50,12 +50,22 @@ class _SavePostSheetState extends State<SavePostSheet> {
     if (widget.initialUrl != null) {
       _urlController.text = widget.initialUrl!;
     }
+    _metadataService.setAIService(widget.aiService);
   }
 
   @override
   void dispose() {
     _urlController.dispose();
     super.dispose();
+  }
+
+  void _showResult(bool success, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(success ? '✅ $message' : '❌ $message'),
+        backgroundColor: success ? AppColors.accent : AppColors.error,
+      ),
+    );
   }
 
   Future<void> _save() async {
@@ -79,7 +89,8 @@ class _SavePostSheetState extends State<SavePostSheet> {
     try {
       // Step 1: Fetch metadata
       final metadata = await _metadataService.fetchMetadata(url);
-      
+      _showResult(true, 'Metadata: ${metadata.title}');
+
       if (!mounted) return;
       setState(() => _loadingStatus = '🧠 Classifying content...');
 
@@ -89,13 +100,18 @@ class _SavePostSheetState extends State<SavePostSheet> {
         description: metadata.description,
         availableCategories: AppConstants.availableCategories,
       );
+      _showResult(
+        true,
+        'Classification: ${classification['categoryEn']} - ${classification['complexityEn']}',
+      );
 
       if (!mounted) return;
       setState(() => _loadingStatus = '⏰ Finding best time...');
 
       // Step 3: Get free times and pending reminders
       final freeTimes = widget.freeTimeRepository.getAllAsJson();
-      final pendingReminders = widget.reminderRepository.getPendingReminders()
+      final pendingReminders = widget.reminderRepository
+          .getPendingReminders()
           .map((r) => {'scheduledAt': r.scheduledAt.toIso8601String()})
           .toList();
 
@@ -118,10 +134,12 @@ class _SavePostSheetState extends State<SavePostSheet> {
         userFreeTimesJson: jsonEncode(freeTimes),
         pendingRemindersJson: jsonEncode(pendingReminders),
       );
+      _showResult(true, 'Best time: $bestTimeResult');
 
       if (!mounted) return;
 
-      final scheduledAt = bestTimeResult['bestTime'] ?? now.add(const Duration(hours: 24));
+      final scheduledAt =
+          bestTimeResult['bestTime'] ?? now.add(const Duration(hours: 24));
       final explanation = bestTimeResult['explanation'] ?? '';
 
       // Step 5: Save reminder
@@ -160,13 +178,15 @@ class _SavePostSheetState extends State<SavePostSheet> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('✅ Reminder scheduled for ${_formatDateTime(scheduledAt)}'),
+          content: Text(
+            '✅ Reminder scheduled for ${_formatDateTime(scheduledAt)}',
+          ),
           backgroundColor: AppColors.accent,
         ),
       );
-
     } catch (e) {
       if (mounted) {
+        _showResult(false, 'Error: $e');
         setState(() {
           _error = 'Error saving post: $e';
           _isLoading = false;
@@ -238,13 +258,17 @@ class _SavePostSheetState extends State<SavePostSheet> {
               value: _importance,
               dropdownColor: AppColors.surface,
               style: const TextStyle(color: AppColors.textPrimary),
-              decoration: const InputDecoration(
-                labelText: 'When to remind',
-              ),
+              decoration: const InputDecoration(labelText: 'When to remind'),
               items: const [
                 DropdownMenuItem(value: 'Day', child: Text('Today (اليوم)')),
-                DropdownMenuItem(value: 'Week', child: Text('This Week (هذا الأسبوع)')),
-                DropdownMenuItem(value: 'Month', child: Text('This Month (هذا الشهر)')),
+                DropdownMenuItem(
+                  value: 'Week',
+                  child: Text('This Week (هذا الأسبوع)'),
+                ),
+                DropdownMenuItem(
+                  value: 'Month',
+                  child: Text('This Month (هذا الشهر)'),
+                ),
               ],
               onChanged: (value) {
                 if (value != null) {
@@ -274,7 +298,9 @@ class _SavePostSheetState extends State<SavePostSheet> {
                     height: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.accent,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -300,10 +326,7 @@ class _SavePostSheetState extends State<SavePostSheet> {
               ),
               child: const Text(
                 'Save',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
           ],

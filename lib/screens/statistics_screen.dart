@@ -27,6 +27,15 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   String _aiAnalysis = '';
   bool _isLoading = true;
 
+  void _showResult(bool success, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(success ? '✅ $message' : '❌ $message'),
+        backgroundColor: success ? AppColors.accent : AppColors.error,
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -49,14 +58,21 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 
   Future<void> _loadAIAnalysis(int total, int opened, int missed) async {
-    final analysis = await widget.aiService.analyzeStats({
-      'total': total,
-      'opened': opened,
-      'missed': missed,
-    });
+    try {
+      final analysis = await widget.aiService.analyzeStats({
+        'total': total,
+        'opened': opened,
+        'missed': missed,
+      });
+      _showResult(true, 'Stats: $analysis');
 
-    if (mounted) {
-      setState(() => _aiAnalysis = analysis);
+      if (mounted) {
+        setState(() => _aiAnalysis = analysis);
+      }
+    } catch (e) {
+      if (mounted) {
+        _showResult(false, 'Error: $e');
+      }
     }
   }
 
@@ -80,7 +96,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent)),
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent),
+              ),
             )
           : RefreshIndicator(
               onRefresh: () async => _loadStats(),
@@ -145,7 +163,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                           children: [
                             const Row(
                               children: [
-                                Icon(Icons.auto_awesome, color: AppColors.accent, size: 20),
+                                Icon(
+                                  Icons.auto_awesome,
+                                  color: AppColors.accent,
+                                  size: 20,
+                                ),
                                 SizedBox(width: 8),
                                 Text(
                                   'AI Insights',
@@ -163,7 +185,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                                 padding: const EdgeInsets.only(bottom: 8),
                                 child: Text(
                                   part.trim(),
-                                  style: const TextStyle(color: AppColors.textSecondary),
+                                  style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                  ),
                                 ),
                               );
                             }),
@@ -203,7 +227,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 
   Widget _buildCategoryRow(CategoryStatistic stat) {
-    final openRate = stat.totalCount > 0 ? stat.openedCount / stat.totalCount : 0.0;
+    final openRate = stat.totalCount > 0
+        ? stat.openedCount / stat.totalCount
+        : 0.0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -239,7 +265,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               value: openRate,
               backgroundColor: AppColors.surfaceLight,
               valueColor: AlwaysStoppedAnimation<Color>(
-                openRate > 0.7 ? AppColors.success : openRate > 0.4 ? AppColors.warning : AppColors.error,
+                openRate > 0.7
+                    ? AppColors.success
+                    : openRate > 0.4
+                    ? AppColors.warning
+                    : AppColors.error,
               ),
               minHeight: 8,
             ),

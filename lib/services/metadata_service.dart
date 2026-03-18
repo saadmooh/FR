@@ -1,3 +1,6 @@
+import '../services/ai_service.dart';
+import '../repositories/app_settings_repository.dart';
+
 class MetadataResult {
   final String? title;
   final String? description;
@@ -23,44 +26,29 @@ class MetadataResult {
 }
 
 class MetadataService {
+  AIService? _aiService;
+
+  void setAIService(AIService aiService) {
+    _aiService = aiService;
+  }
+
   Future<MetadataResult> fetchMetadata(String url) async {
-    try {
-      final uri = Uri.parse(url);
-      return _fallbackMetadata(url, uri);
-    } catch (e) {
-      return _fallbackMetadata(url, null);
+    if (_aiService == null) {
+      throw Exception('AI Service not initialized');
     }
-  }
 
-  String _extractTitleFromUrl(String url) {
-    try {
-      final uri = Uri.parse(url);
-      final pathSegments = uri.pathSegments;
-      if (pathSegments.isNotEmpty) {
-        return pathSegments.last
-            .replaceAll(RegExp(r'[_-]'), ' ')
-            .split(' ')
-            .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
-            .join(' ');
-      }
-      return uri.host;
-    } catch (e) {
-      return 'Unknown Post';
-    }
-  }
+    final result = await _aiService!.fetchMetadata(url);
 
-  MetadataResult _fallbackMetadata(String url, Uri? uri) {
-    final title = uri != null ? _extractTitleFromUrl(url) : 'Unknown Post';
     return MetadataResult(
-      title: title,
-      description: '',
-      imageUrl: null,
-      ogTitle: title,
-      ogDescription: '',
-      ogImage: '',
-      siteName: uri?.host ?? '',
-      language: 'en',
-      canonicalUrl: url,
+      title: result['title'],
+      description: result['description'],
+      imageUrl: result['og_image'],
+      ogTitle: result['og_title'],
+      ogDescription: result['og_description'],
+      ogImage: result['og_image'],
+      siteName: result['site_name'],
+      language: result['language'],
+      canonicalUrl: result['canonical_url'],
     );
   }
 }
