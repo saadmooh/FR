@@ -1,0 +1,213 @@
+{
+  "_note1": "KEEP THIS FILE! Check it into a version control system (VCS) like git.",
+  "_note2": "ObjectBox manages crucial IDs for your object model. See docs for details.",
+  "_note3": "If you have VCS merge conflicts, you must resolve them according to ObjectBox docs.",
+  "entities": [
+    {
+      "id": "1:8391305720767107248",
+      "lastPropertyId": "4:8229507221035340727",
+      "name": "FreeTimeSlot",
+      "properties": [
+        {
+          "id": "1:6976839060275640967",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:8011756357796347632",
+          "name": "dayOfWeek",
+          "type": 6
+        },
+        {
+          "id": "3:91074731690441541",
+          "name": "startTime",
+          "type": 9
+        },
+        {
+          "id": "4:8229507221035340727",
+          "name": "endTime",
+          "type": 9
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "2:2467552958308754850",
+      "lastPropertyId": "19:5688975550288732113",
+      "name": "Reminder",
+      "properties": [
+        {
+          "id": "1:5065033350240028397",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:5533952059487614277",
+          "name": "url",
+          "type": 9
+        },
+        {
+          "id": "3:8333439630692358589",
+          "name": "title",
+          "type": 9
+        },
+        {
+          "id": "4:3102023776887761994",
+          "name": "description",
+          "type": 9
+        },
+        {
+          "id": "5:3690836291949707873",
+          "name": "imageUrl",
+          "type": 9
+        },
+        {
+          "id": "8:564003022156517493",
+          "name": "importance",
+          "type": 9
+        },
+        {
+          "id": "9:5898340908090500740",
+          "name": "scheduledAt",
+          "type": 10
+        },
+        {
+          "id": "10:6893949958700736561",
+          "name": "createdAt",
+          "type": 10
+        },
+        {
+          "id": "11:4383945327753081948",
+          "name": "isOpened",
+          "type": 1
+        },
+        {
+          "id": "12:5584951653186768395",
+          "name": "openedAt",
+          "type": 10
+        },
+        {
+          "id": "13:8748440234240307710",
+          "name": "aiExplanation",
+          "type": 9
+        },
+        {
+          "id": "14:2002966607196827423",
+          "name": "categoryEn",
+          "type": 9
+        },
+        {
+          "id": "15:5374404121842304787",
+          "name": "categoryAr",
+          "type": 9
+        },
+        {
+          "id": "16:4900016881022313226",
+          "name": "complexityEn",
+          "type": 9
+        },
+        {
+          "id": "17:3957910534601843264",
+          "name": "complexityAr",
+          "type": 9
+        },
+        {
+          "id": "18:8428746412670309728",
+          "name": "isEthical",
+          "type": 1
+        },
+        {
+          "id": "19:5688975550288732113",
+          "name": "ethicalReasoning",
+          "type": 9
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "3:5558201076700029749",
+      "lastPropertyId": "12:476757389788043514",
+      "name": "CategoryStatistic",
+      "properties": [
+        {
+          "id": "1:2775659467839446326",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:1076798253833412995",
+          "name": "categoryEn",
+          "type": 9
+        },
+        {
+          "id": "3:3753862427159586139",
+          "name": "complexityEn",
+          "type": 9
+        },
+        {
+          "id": "4:1629367029688522289",
+          "name": "totalCount",
+          "type": 6
+        },
+        {
+          "id": "5:960385327034205957",
+          "name": "openedCount",
+          "type": 6
+        },
+        {
+          "id": "6:5703710819172563485",
+          "name": "notOpenedCount",
+          "type": 6
+        },
+        {
+          "id": "7:4377567802903910931",
+          "name": "avgSecondsToOpen",
+          "type": 8
+        },
+        {
+          "id": "8:5414399194519381966",
+          "name": "openedHoursJson",
+          "type": 9
+        },
+        {
+          "id": "9:5510517105731074338",
+          "name": "openedDaysJson",
+          "type": 9
+        },
+        {
+          "id": "10:5299121973323168192",
+          "name": "notOpenedHoursJson",
+          "type": 9
+        },
+        {
+          "id": "11:637451293399895644",
+          "name": "notOpenedDaysJson",
+          "type": 9
+        },
+        {
+          "id": "12:476757389788043514",
+          "name": "lastUpdated",
+          "type": 10
+        }
+      ],
+      "relations": []
+    }
+  ],
+  "lastEntityId": "3:5558201076700029749",
+  "lastIndexId": "0:0",
+  "lastRelationId": "0:0",
+  "lastSequenceId": "0:0",
+  "modelVersion": 5,
+  "modelVersionParserMinimum": 5,
+  "retiredEntityUids": [],
+  "retiredIndexUids": [],
+  "retiredPropertyUids": [
+    1339181294488918853,
+    4257658286914796969
+  ],
+  "retiredRelationUids": [],
+  "version": 1
+}

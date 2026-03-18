@@ -1,0 +1,142 @@
+import 'package:flutter/material.dart';
+import 'package:objectbox/objectbox.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/data/latest.dart' as tz_data;
+
+import 'objectbox.g.dart';
+import 'core/app_theme.dart';
+import 'core/app_router.dart';
+import 'core/constants.dart';
+import 'repositories/reminder_repository.dart';
+import 'repositories/free_time_repository.dart';
+import 'repositories/category_statistic_repository.dart';
+import 'repositories/app_settings_repository.dart';
+import 'services/ai_service.dart';
+import 'services/notification_service.dart';
+
+late Store store;
+late ReminderRepository reminderRepository;
+late FreeTimeRepository freeTimeRepository;
+late CategoryStatisticRepository categoryStatRepository;
+late AppSettingsRepository settingsRepository;
+late AIService aiService;
+late NotificationService notificationService;
+late AppRouter appRouter;
+
+final ValueNotifier<String?> pendingSharedUrl = ValueNotifier<String?>(null);
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize timezone
+  tz_data.initializeTimeZones();
+  tz.setLocalLocation(tz.UTC);
+
+  // Initialize ObjectBox
+  store = await openStore();
+
+  // Initialize SharedPreferences
+  final prefs = await SharedPreferences.getInstance();
+
+  // Set default provider if not set
+  if (!prefs.containsKey(AppConstants.aiProviderKey)) {
+    await prefs.setString(AppConstants.aiProviderKey, AppConstants.defaultProvider);
+  }
+
+  // Initialize repositories
+  settingsRepository = AppSettingsRepository(prefs);
+  reminderRepository = ReminderRepository(store);
+  freeTimeRepository = FreeTimeRepository(store);
+  categoryStatRepository = CategoryStatisticRepository(store);
+
+  // Initialize services
+  aiService = AIService(settingsRepository);
+  notificationService = NotificationService();
+  
+  await notificationService.initialize(
+    reminderRepository: reminderRepository,
+    categoryStatRepository: categoryStatRepository,
+  );
+
+  // Handle cold-start shared URL
+  String? initialSharedUrl;
+  try {
+    final initial = await ReceiveSharingIntent.instance.getInitialMedia();
+    if (initial.isNotEmpty) {
+      final text = initial.first.path ?? '';
+      if (text.startsWith('http')) {
+        initialSharedUrl = text;
+      }
+      ReceiveSharingIntent.instance.reset();
+    }
+  } catch (e) {
+    // Platform might not support this
+  }
+
+  // Create app router
+  appRouter = AppRouter(
+    reminderRepository: reminderRepository,
+    freeTimeRepository: freeTimeRepository,
+    categoryStatRepository: categoryStatRepository,
+    notificationService: notificationService,
+    aiService: aiService,
+    settingsRepository: settingsRepository,
+    pendingSharedUrl: pendingSharedUrl,
+  );
+
+  // Set router in notification service
+  notificationService.setRouter(appRouter.router);
+
+  runApp(FlexReminderApp(
+    initialSharedUrl: initialSharedUrl,
+  ));
+}
+
+class FlexReminderApp extends StatefulWidget {
+  final String? initialSharedUrl;
+
+  const FlexReminderApp({
+    super.key,
+    this.initialSharedUrl,
+  });
+
+  @override
+  State<FlexReminderApp> createState() => _FlexReminderAppState();
+}
+
+class _FlexReminderAppState extends State<FlexReminderApp> {
+  @override
+  void initState() {
+    super.initState();
+    
+    // Set initial shared URL
+    if (widget.initialSharedUrl != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        pendingSharedUrl.value = widget.initialSharedUrl;
+      });
+    }
+
+    // Listen to incoming shared intents while app is open
+    ReceiveSharingIntent.instance.getMediaStream().listen((sharedMedia) {
+      if (sharedMedia.isNotEmpty) {
+        final text = sharedMedia.first.path ?? '';
+        if (text.startsWith('http')) {
+          pendingSharedUrl.value = text;
+        }
+        ReceiveSharingIntent.instance.reset();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp.router(
+      title: AppConstants.appName,
+      debugShowCheckedModeBanner: false,
+      theme: buildTheme(),
+      routerConfig: appRouter.router,
+    );
+  }
+}
