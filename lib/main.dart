@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:objectbox/objectbox.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
@@ -9,6 +8,7 @@ import 'objectbox.g.dart';
 import 'core/app_theme.dart';
 import 'core/app_router.dart';
 import 'core/constants.dart';
+import 'core/locale_manager.dart';
 import 'repositories/reminder_repository.dart';
 import 'repositories/free_time_repository.dart';
 import 'repositories/category_statistic_repository.dart';
@@ -29,7 +29,7 @@ final ValueNotifier<String?> pendingSharedUrl = ValueNotifier<String?>(null);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize timezone
   tz_data.initializeTimeZones();
   tz.setLocalLocation(tz.UTC);
@@ -42,7 +42,10 @@ void main() async {
 
   // Set default provider if not set
   if (!prefs.containsKey(AppConstants.aiProviderKey)) {
-    await prefs.setString(AppConstants.aiProviderKey, AppConstants.defaultProvider);
+    await prefs.setString(
+      AppConstants.aiProviderKey,
+      AppConstants.defaultProvider,
+    );
   }
 
   // Initialize repositories
@@ -51,10 +54,13 @@ void main() async {
   freeTimeRepository = FreeTimeRepository(store);
   categoryStatRepository = CategoryStatisticRepository(store);
 
+  // Initialize locale manager
+  LocaleManager.instance.initialize(settingsRepository);
+
   // Initialize services
   aiService = AIService(settingsRepository);
   notificationService = NotificationService();
-  
+
   await notificationService.initialize(
     reminderRepository: reminderRepository,
     categoryStatRepository: categoryStatRepository,
@@ -65,7 +71,7 @@ void main() async {
   try {
     final initial = await ReceiveSharingIntent.instance.getInitialMedia();
     if (initial.isNotEmpty) {
-      final text = initial.first.path ?? '';
+      final text = initial.first.path;
       if (text.startsWith('http')) {
         initialSharedUrl = text;
       }
@@ -89,18 +95,13 @@ void main() async {
   // Set router in notification service
   notificationService.setRouter(appRouter.router);
 
-  runApp(FlexReminderApp(
-    initialSharedUrl: initialSharedUrl,
-  ));
+  runApp(FlexReminderApp(initialSharedUrl: initialSharedUrl));
 }
 
 class FlexReminderApp extends StatefulWidget {
   final String? initialSharedUrl;
 
-  const FlexReminderApp({
-    super.key,
-    this.initialSharedUrl,
-  });
+  const FlexReminderApp({super.key, this.initialSharedUrl});
 
   @override
   State<FlexReminderApp> createState() => _FlexReminderAppState();
@@ -110,7 +111,7 @@ class _FlexReminderAppState extends State<FlexReminderApp> {
   @override
   void initState() {
     super.initState();
-    
+
     // Set initial shared URL
     if (widget.initialSharedUrl != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -118,10 +119,13 @@ class _FlexReminderAppState extends State<FlexReminderApp> {
       });
     }
 
+    // Listen to locale changes
+    LocaleManager.instance.localeNotifier.addListener(_onLocaleChanged);
+
     // Listen to incoming shared intents while app is open
     ReceiveSharingIntent.instance.getMediaStream().listen((sharedMedia) {
       if (sharedMedia.isNotEmpty) {
-        final text = sharedMedia.first.path ?? '';
+        final text = sharedMedia.first.path;
         if (text.startsWith('http')) {
           pendingSharedUrl.value = text;
         }
@@ -131,12 +135,25 @@ class _FlexReminderAppState extends State<FlexReminderApp> {
   }
 
   @override
+  void dispose() {
+    LocaleManager.instance.localeNotifier.removeListener(_onLocaleChanged);
+    super.dispose();
+  }
+
+  void _onLocaleChanged() {
+    // Rebuild when locale changes
+    setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
-      theme: buildTheme(),
+      theme: buildWhiteTheme(),
       routerConfig: appRouter.router,
+      locale: LocaleManager.instance.currentAppLocale,
+      supportedLocales: LocaleManager.supportedLocales,
     );
   }
 }

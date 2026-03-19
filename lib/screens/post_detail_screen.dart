@@ -10,6 +10,7 @@ import '../services/notification_service.dart';
 import '../services/ai_service.dart';
 import '../models/reminder.dart';
 import '../core/app_theme.dart';
+import '../core/locale_manager.dart';
 
 class PostDetailScreen extends StatefulWidget {
   final int id;
@@ -37,6 +38,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   Reminder? _reminder;
   bool _isLoading = true;
   bool _isRescheduling = false;
+  final ValueNotifier<bool> _refreshNotifier = ValueNotifier<bool>(false);
 
   void _showResult(bool success, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -51,6 +53,26 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   void initState() {
     super.initState();
     _loadReminder();
+    _refreshNotifier.addListener(_onRefresh);
+  }
+
+  @override
+  void dispose() {
+    _refreshNotifier.removeListener(_onRefresh);
+    _refreshNotifier.dispose();
+    super.dispose();
+  }
+
+  void _onRefresh() {
+    _loadReminder();
+  }
+
+  @override
+  void didUpdateWidget(PostDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.id != widget.id) {
+      _loadReminder();
+    }
   }
 
   void _loadReminder() {
@@ -135,14 +157,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface,
+        backgroundColor: AppColors.whiteSurface,
         title: const Text(
           'Delete Post?',
-          style: TextStyle(color: AppColors.textPrimary),
+          style: TextStyle(color: AppColors.whiteTextPrimary),
         ),
         content: const Text(
           'This action cannot be undone.',
-          style: TextStyle(color: AppColors.textSecondary),
+          style: TextStyle(color: AppColors.whiteTextSecondary),
         ),
         actions: [
           TextButton(
@@ -173,7 +195,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.whiteBackground,
         body: Center(
           child: CircularProgressIndicator(
             valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent),
@@ -184,17 +206,32 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
     if (_reminder == null) {
       return Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.whiteBackground,
         appBar: AppBar(
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+            icon: const Icon(
+              Icons.arrow_back,
+              color: AppColors.whiteTextPrimary,
+            ),
             onPressed: () => context.pop(),
           ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.edit, color: AppColors.accent),
+              onPressed: () async {
+                await context.push('/post/${widget.id}/edit');
+                Future.microtask(() {
+                  _loadReminder();
+                  _refreshNotifier.value = !_refreshNotifier.value;
+                });
+              },
+            ),
+          ],
         ),
         body: const Center(
           child: Text(
             'Post not found',
-            style: TextStyle(color: AppColors.textPrimary),
+            style: TextStyle(color: AppColors.whiteTextPrimary),
           ),
         ),
       );
@@ -204,48 +241,67 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final imageUrl = _reminder!.imageUrl;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.whiteBackground,
       body: CustomScrollView(
         slivers: [
           // App bar with image
           SliverAppBar(
             expandedHeight: imageUrl != null && imageUrl.isNotEmpty ? 220 : 100,
             pinned: true,
-            backgroundColor: AppColors.background,
+            backgroundColor: AppColors.whiteBackground,
             leading: IconButton(
               icon: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.5),
+                  color: Colors.black.withValues(alpha: 0.5),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.arrow_back, color: Colors.white),
               ),
               onPressed: () => context.pop(),
             ),
+            actions: [
+              IconButton(
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.edit, color: Colors.white),
+                ),
+                onPressed: () async {
+                  await context.push('/post/${widget.id}/edit');
+                  Future.microtask(() {
+                    _loadReminder();
+                    _refreshNotifier.value = !_refreshNotifier.value;
+                  });
+                },
+              ),
+            ],
             flexibleSpace: FlexibleSpaceBar(
               background: imageUrl != null && imageUrl.isNotEmpty
                   ? CachedNetworkImage(
                       imageUrl: imageUrl,
                       fit: BoxFit.cover,
                       placeholder: (context, url) => Container(
-                        color: AppColors.surfaceLight,
+                        color: AppColors.whiteSurface,
                         child: const Center(child: CircularProgressIndicator()),
                       ),
                       errorWidget: (context, url, error) => Container(
-                        color: AppColors.surfaceLight,
+                        color: AppColors.whiteSurface,
                         child: const Icon(
                           Icons.image_not_supported,
-                          color: AppColors.textSecondary,
+                          color: AppColors.whiteTextSecondary,
                           size: 64,
                         ),
                       ),
                     )
                   : Container(
-                      color: AppColors.surfaceLight,
+                      color: AppColors.whiteSurface,
                       child: const Icon(
                         Icons.link,
-                        color: AppColors.textSecondary,
+                        color: AppColors.whiteTextSecondary,
                         size: 64,
                       ),
                     ),
@@ -265,7 +321,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                      color: AppColors.whiteTextPrimary,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -278,42 +334,60 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       style: const TextStyle(
                         fontSize: 14,
                         height: 1.5,
-                        color: AppColors.textSecondary,
+                        color: AppColors.whiteTextSecondary,
                       ),
                     ),
                   const SizedBox(height: 24),
 
                   // Metadata section
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(16),
+                      color: AppColors.whiteSurface,
+                      borderRadius: BorderRadius.zero,
+                      border: Border.all(
+                        color: AppColors.whiteBorder,
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Column(
                       children: [
                         _buildMetadataRow(
                           '📂 Category',
-                          '${_reminder!.categoryEn ?? "N/A"} / ${_reminder!.categoryAr ?? ""}',
+                          LocaleManager.instance.getCategory(
+                            _reminder!.categoryEn,
+                            _reminder!.categoryAr,
+                            _reminder!.categoryFr,
+                          ),
                         ),
-                        const Divider(
-                          color: AppColors.textSecondary,
-                          height: 24,
-                        ),
+                        const Divider(color: AppColors.whiteBorder, height: 24),
                         _buildMetadataRow(
                           '🎯 Complexity',
-                          '${_reminder!.complexityEn ?? "N/A"} / ${_reminder!.complexityAr ?? ""}',
+                          LocaleManager.instance.getComplexity(
+                            _reminder!.complexityEn,
+                            _reminder!.complexityAr,
+                            _reminder!.complexityFr,
+                          ),
                         ),
                         const Divider(
-                          color: AppColors.textSecondary,
+                          color: AppColors.whiteTextSecondary,
                           height: 24,
                         ),
                         _buildMetadataRow(
                           '📅 Importance',
-                          _reminder!.importance,
+                          LocaleManager.instance.getImportance(
+                            _reminder!.importance,
+                          ),
                         ),
                         const Divider(
-                          color: AppColors.textSecondary,
+                          color: AppColors.whiteTextSecondary,
                           height: 24,
                         ),
                         _buildMetadataRow(
@@ -321,7 +395,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           dateFormat.format(_reminder!.scheduledAt),
                         ),
                         const Divider(
-                          color: AppColors.textSecondary,
+                          color: AppColors.whiteTextSecondary,
                           height: 24,
                         ),
                         _buildMetadataRow(
@@ -340,10 +414,21 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   if (_reminder!.aiExplanation != null &&
                       _reminder!.aiExplanation!.isNotEmpty)
                     Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: AppColors.accentDim,
-                        borderRadius: BorderRadius.circular(16),
+                        color: AppColors.whiteSurface,
+                        borderRadius: BorderRadius.zero,
+                        border: Border.all(
+                          color: AppColors.whiteBorder,
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -367,10 +452,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            _reminder!.aiExplanation!,
+                            LocaleManager.instance.getExplanation(
+                              _reminder!.aiExplanation,
+                              _reminder!.aiExplanationAr,
+                              _reminder!.aiExplanationFr,
+                            ),
                             style: const TextStyle(
                               fontStyle: FontStyle.italic,
-                              color: AppColors.textSecondary,
+                              color: AppColors.whiteTextSecondary,
                             ),
                           ),
                         ],
@@ -385,10 +474,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       onPressed: _openPost,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.accent,
-                        foregroundColor: AppColors.background,
+                        foregroundColor: AppColors.whiteBackground,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.zero,
                         ),
                       ),
                       child: const Text(
@@ -412,7 +501,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         side: const BorderSide(color: AppColors.accent),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.zero,
                         ),
                       ),
                       child: _isRescheduling
@@ -456,11 +545,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.textSecondary)),
+        Text(
+          label,
+          style: const TextStyle(color: AppColors.whiteTextSecondary),
+        ),
         Text(
           value,
           style: TextStyle(
-            color: valueColor ?? AppColors.textPrimary,
+            color: valueColor ?? AppColors.whiteTextPrimary,
             fontWeight: FontWeight.w600,
           ),
         ),

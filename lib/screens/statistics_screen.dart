@@ -26,12 +26,14 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   List<CategoryStatistic> _categoryStats = [];
   String _aiAnalysis = '';
   bool _isLoading = true;
+  String? _analyzingCategoryId;
+  final Map<int, Map<String, dynamic>> _categoryAnalysis = {};
 
   void _showResult(bool success, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(success ? '✅ $message' : '❌ $message'),
-        backgroundColor: success ? AppColors.accent : AppColors.error,
+        backgroundColor: success ? AppColors.whiteAccent : AppColors.error,
       ),
     );
   }
@@ -76,6 +78,29 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     }
   }
 
+  Future<void> _analyzeCategory(CategoryStatistic stat) async {
+    if (_analyzingCategoryId != null) return;
+
+    setState(() => _analyzingCategoryId = stat.id.toString());
+
+    try {
+      final result = await widget.aiService.analyzeCategoryStatistics(stat);
+
+      if (mounted) {
+        setState(() {
+          _categoryAnalysis[stat.id] = result;
+          _analyzingCategoryId = null;
+        });
+        _showResult(true, 'Analysis complete');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _analyzingCategoryId = null);
+        _showResult(false, 'Analysis failed: $e');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final total = widget.reminderRepository.getTotalCount();
@@ -83,50 +108,55 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     final pending = widget.reminderRepository.getUnread().length;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.whiteBackground,
       appBar: AppBar(
         title: const Text(
           'Statistics',
           style: TextStyle(
-            color: AppColors.textPrimary,
+            color: AppColors.whiteTextPrimary,
             fontWeight: FontWeight.w700,
             fontSize: 22,
           ),
         ),
+        backgroundColor: AppColors.whiteBackground,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: AppColors.whiteAccent),
       ),
       body: _isLoading
-          ? const Center(
+          ? Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppColors.whiteAccent,
+                ),
               ),
             )
           : RefreshIndicator(
               onRefresh: () async => _loadStats(),
-              color: AppColors.accent,
+              color: AppColors.whiteAccent,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Summary row
+                    const SizedBox(height: 8),
                     SizedBox(
-                      height: 130,
+                      height: 140,
                       child: ListView(
                         scrollDirection: Axis.horizontal,
                         children: [
                           SizedBox(
-                            width: 110,
+                            width: 115,
                             child: StatCard(
                               icon: Icons.bookmark,
                               value: total.toString(),
                               label: 'Total',
-                              color: AppColors.accent,
+                              color: AppColors.whiteAccent,
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 14),
                           SizedBox(
-                            width: 110,
+                            width: 115,
                             child: StatCard(
                               icon: Icons.check_circle,
                               value: opened.toString(),
@@ -134,9 +164,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                               color: AppColors.success,
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 14),
                           SizedBox(
-                            width: 110,
+                            width: 115,
                             child: StatCard(
                               icon: Icons.schedule,
                               value: pending.toString(),
@@ -147,46 +177,62 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 28),
 
-                    // AI Analysis
                     if (_aiAnalysis.isNotEmpty)
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(16),
+                          color: AppColors.whiteSurface,
+                          borderRadius: BorderRadius.zero,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Row(
+                            Row(
                               children: [
-                                Icon(
-                                  Icons.auto_awesome,
-                                  color: AppColors.accent,
-                                  size: 20,
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.whiteAccent.withValues(
+                                      alpha: 0.1,
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.auto_awesome,
+                                    color: AppColors.whiteAccent,
+                                    size: 18,
+                                  ),
                                 ),
-                                SizedBox(width: 8),
-                                Text(
+                                const SizedBox(width: 10),
+                                const Text(
                                   'AI Insights',
                                   style: TextStyle(
-                                    color: AppColors.accent,
+                                    color: AppColors.whiteTextPrimary,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 14),
                             ..._aiAnalysis.split('|').map((part) {
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 8),
                                 child: Text(
                                   part.trim(),
                                   style: const TextStyle(
-                                    color: AppColors.textSecondary,
+                                    color: AppColors.whiteTextSecondary,
+                                    height: 1.5,
                                   ),
                                 ),
                               );
@@ -194,31 +240,63 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                           ],
                         ),
                       ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 28),
 
-                    // Category breakdown
-                    const Text(
-                      'Category Breakdown',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.whiteAccent.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.pie_chart,
+                            color: AppColors.whiteAccent,
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Text(
+                          'Category Breakdown',
+                          style: TextStyle(
+                            color: AppColors.whiteTextPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 18),
 
                     if (_categoryStats.isEmpty)
-                      const Center(
+                      Center(
                         child: Padding(
-                          padding: EdgeInsets.all(32),
-                          child: Text(
-                            'No data yet',
-                            style: TextStyle(color: AppColors.textSecondary),
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.inbox_outlined,
+                                size: 48,
+                                color: AppColors.whiteTextSecondary.withValues(
+                                  alpha: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              const Text(
+                                'No data yet',
+                                style: TextStyle(
+                                  color: AppColors.whiteTextSecondary,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       )
                     else
                       ..._categoryStats.map((stat) => _buildCategoryRow(stat)),
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
@@ -230,13 +308,22 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     final openRate = stat.totalCount > 0
         ? stat.openedCount / stat.totalCount
         : 0.0;
+    final analysis = _categoryAnalysis[stat.id];
+    final isAnalyzing = _analyzingCategoryId == stat.id.toString();
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.whiteSurface,
         borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -247,23 +334,59 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                 child: Text(
                   '${stat.categoryEn} (${stat.complexityEn})',
                   style: const TextStyle(
-                    color: AppColors.textPrimary,
+                    color: AppColors.whiteTextPrimary,
                     fontWeight: FontWeight.w600,
+                    fontSize: 15,
                   ),
                 ),
               ),
-              Text(
-                '${stat.openedCount}/${stat.totalCount}',
-                style: const TextStyle(color: AppColors.textSecondary),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.whiteAccent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${stat.openedCount}/${stat.totalCount}',
+                  style: const TextStyle(
+                    color: AppColors.whiteAccent,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
               ),
+              const SizedBox(width: 8),
+              if (isAnalyzing)
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.whiteAccent,
+                    ),
+                  ),
+                )
+              else
+                IconButton(
+                  icon: const Icon(
+                    Icons.analytics_outlined,
+                    color: AppColors.whiteAccent,
+                  ),
+                  onPressed: () => _analyzeCategory(stat),
+                  tooltip: 'Analyze',
+                ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 14),
           ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
               value: openRate,
-              backgroundColor: AppColors.surfaceLight,
+              backgroundColor: AppColors.whiteBorder,
               valueColor: AlwaysStoppedAnimation<Color>(
                 openRate > 0.7
                     ? AppColors.success
@@ -274,16 +397,177 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               minHeight: 8,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Text(
             '${(openRate * 100).toStringAsFixed(0)}% opened',
             style: const TextStyle(
-              color: AppColors.textSecondary,
+              color: AppColors.whiteTextSecondary,
               fontSize: 12,
             ),
           ),
+          if (analysis != null) ...[
+            const SizedBox(height: 16),
+            Divider(color: AppColors.whiteBorder, height: 1),
+            const SizedBox(height: 14),
+            _buildAnalysisResults(analysis),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildAnalysisResults(Map<String, dynamic> analysis) {
+    final analysisText = analysis['analysis'] as String? ?? '';
+    final preferredTimes = analysis['preferred_times'] as List<dynamic>? ?? [];
+    final confidenceScore = analysis['confidence_score'] as num? ?? 0.0;
+    final insights = analysis['insights'] as List<dynamic>? ?? [];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppColors.whiteAccent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(
+                Icons.auto_awesome,
+                color: AppColors.whiteAccent,
+                size: 14,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'Analysis',
+              style: TextStyle(
+                color: AppColors.whiteTextPrimary,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+        if (analysisText.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text(
+            analysisText,
+            style: const TextStyle(
+              color: AppColors.whiteTextSecondary,
+              fontSize: 13,
+              height: 1.5,
+            ),
+          ),
+        ],
+        if (preferredTimes.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          const Text(
+            'Preferred Times',
+            style: TextStyle(
+              color: AppColors.whiteTextPrimary,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: preferredTimes
+                .map(
+                  (time) => Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.whiteAccent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      time.toString(),
+                      style: const TextStyle(
+                        color: AppColors.whiteAccent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+        if (confidenceScore > 0) ...[
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              const Text(
+                'Confidence: ',
+                style: TextStyle(
+                  color: AppColors.whiteTextSecondary,
+                  fontSize: 12,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${(confidenceScore * 100).toStringAsFixed(0)}%',
+                  style: const TextStyle(
+                    color: AppColors.success,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+        if (insights.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          const Text(
+            'Insights',
+            style: TextStyle(
+              color: AppColors.whiteTextPrimary,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...insights.map(
+            (insight) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '• ',
+                    style: TextStyle(
+                      color: AppColors.whiteAccent,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      insight.toString(),
+                      style: const TextStyle(
+                        color: AppColors.whiteTextSecondary,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

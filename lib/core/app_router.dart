@@ -1,8 +1,8 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../screens/reminders_screen.dart';
 import '../screens/post_detail_screen.dart';
+import '../screens/edit_reminder_screen.dart';
 import '../screens/statistics_screen.dart';
 import '../screens/free_times_screen.dart';
 import '../screens/settings_screen.dart';
@@ -66,9 +66,7 @@ class AppRouter {
             GoRoute(
               path: '/free-times',
               pageBuilder: (context, state) => NoTransitionPage(
-                child: FreeTimesScreen(
-                  freeTimeRepository: freeTimeRepository,
-                ),
+                child: FreeTimesScreen(freeTimeRepository: freeTimeRepository),
               ),
             ),
           ],
@@ -84,6 +82,29 @@ class AppRouter {
               categoryStatRepository: categoryStatRepository,
               notificationService: notificationService,
               aiService: aiService,
+            );
+          },
+        ),
+        GoRoute(
+          path: '/post/:id/edit',
+          redirect: (context, state) {
+            final id = int.parse(state.pathParameters['id']!);
+            final reminder = reminderRepository.getById(id);
+            if (reminder == null) {
+              return '/post/$id';
+            }
+            return null;
+          },
+          builder: (context, state) {
+            final id = int.parse(state.pathParameters['id']!);
+            final reminder = reminderRepository.getById(id)!;
+            return EditReminderScreen(
+              reminder: reminder,
+              reminderRepository: reminderRepository,
+              freeTimeRepository: freeTimeRepository,
+              notificationService: notificationService,
+              aiService: aiService,
+              onSaved: () => context.go('/post/$id'),
             );
           },
         ),
@@ -139,10 +160,7 @@ class _MainShellState extends State<MainShell> {
             }
           },
           items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.bookmark),
-              label: 'Posts',
-            ),
+            BottomNavigationBarItem(icon: Icon(Icons.bookmark), label: 'Posts'),
             BottomNavigationBarItem(
               icon: Icon(Icons.bar_chart),
               label: 'Stats',

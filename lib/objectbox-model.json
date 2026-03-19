@@ -34,7 +34,7 @@
     },
     {
       "id": "2:2467552958308754850",
-      "lastPropertyId": "19:5688975550288732113",
+      "lastPropertyId": "25:6645167268792357502",
       "name": "Reminder",
       "properties": [
         {
@@ -121,6 +121,36 @@
         {
           "id": "19:5688975550288732113",
           "name": "ethicalReasoning",
+          "type": 9
+        },
+        {
+          "id": "20:5190634068976515636",
+          "name": "categoryFr",
+          "type": 9
+        },
+        {
+          "id": "21:1918227050185131452",
+          "name": "complexityFr",
+          "type": 9
+        },
+        {
+          "id": "22:5109539699443776352",
+          "name": "ethicalReasoningAr",
+          "type": 9
+        },
+        {
+          "id": "23:7180512601247276094",
+          "name": "ethicalReasoningFr",
+          "type": 9
+        },
+        {
+          "id": "24:8597590637455557837",
+          "name": "aiExplanationAr",
+          "type": 9
+        },
+        {
+          "id": "25:6645167268792357502",
+          "name": "aiExplanationFr",
           "type": 9
         }
       ],

@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
+import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:url_launcher/url_launcher.dart';
 import '../models/reminder.dart';
 import '../repositories/reminder_repository.dart';
@@ -13,8 +15,9 @@ class NotificationService {
   factory NotificationService() => _instance;
   NotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
-  
+  final FlutterLocalNotificationsPlugin _plugin =
+      FlutterLocalNotificationsPlugin();
+
   ReminderRepository? _reminderRepository;
   CategoryStatisticRepository? _categoryStatRepository;
   GoRouter? _router;
@@ -59,22 +62,27 @@ class NotificationService {
         // Continue without initialization
       }
     }
-    
+
     // Create notification channel
     _createNotificationChannel();
-    
+
     // Request permissions
     _requestPermissions();
-    
+
+    // Initialize timezone
+    tz_data.initializeTimeZones();
+
     _initialized = true;
   }
 
   /// Create Android notification channel
   void _createNotificationChannel() {
     try {
-      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
-      
+      final androidPlugin = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+
       if (androidPlugin != null) {
         const channel = AndroidNotificationChannel(
           _channelId,
@@ -82,7 +90,7 @@ class NotificationService {
           description: _channelDescription,
           importance: Importance.high,
         );
-        
+
         androidPlugin.createNotificationChannel(channel);
       }
     } catch (e) {}
@@ -91,22 +99,22 @@ class NotificationService {
   /// Request notification permissions
   void _requestPermissions() {
     try {
-      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
-      
+      final androidPlugin = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+
       androidPlugin?.requestNotificationsPermission();
       androidPlugin?.requestExactAlarmsPermission();
     } catch (e) {}
 
     try {
-      final iosPlugin = _plugin.resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin>();
-      
-      iosPlugin?.requestPermissions(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
+      final iosPlugin = _plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >();
+
+      iosPlugin?.requestPermissions(alert: true, badge: true, sound: true);
     } catch (e) {}
   }
 
@@ -144,17 +152,20 @@ class NotificationService {
     _router?.go('/post/$reminderId');
   }
 
-  /// Schedule a reminder notification
+  /// Schedule a reminder notification at a specific time
   Future<bool> scheduleReminder(Reminder reminder) async {
     if (!_initialized) return false;
 
     try {
       await cancelReminder(reminder.id);
-      
-      await _plugin.show(
+
+      // Use zonedSchedule to schedule for a specific time
+      await _plugin.zonedSchedule(
         id: reminder.id,
         title: '📖 Time to read: ${reminder.title}',
-        body: '${reminder.categoryEn ?? "General"} · ${reminder.complexityAr ?? "متوسط"}',
+        body:
+            '${reminder.categoryEn ?? "General"} · ${reminder.complexityAr ?? "متوسط"}',
+        scheduledDate: tz.TZDateTime.from(reminder.scheduledAt, tz.local),
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
@@ -175,6 +186,8 @@ class NotificationService {
             categoryIdentifier: 'REMINDER',
           ),
         ),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        payload: reminder.id.toString(),
       );
 
       return true;
@@ -245,8 +258,10 @@ class NotificationService {
   /// Check if notifications are enabled
   Future<bool> areNotificationsEnabled() async {
     try {
-      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
+      final androidPlugin = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
       if (androidPlugin != null) {
         return await androidPlugin.areNotificationsEnabled() ?? false;
       }
@@ -297,10 +312,10 @@ class NotificationService {
     String? payload,
   }) async {
     if (!_initialized) return;
-    
+
     final now = DateTime.now();
     var scheduledDate = DateTime(now.year, now.month, now.day, hour, minute);
-    
+
     if (scheduledDate.isBefore(now)) {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }
@@ -343,7 +358,7 @@ class NotificationService {
 
     final now = DateTime.now();
     var scheduledDate = DateTime(now.year, now.month, now.day, hour, minute);
-    
+
     while (scheduledDate.weekday != dayOfWeek) {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }

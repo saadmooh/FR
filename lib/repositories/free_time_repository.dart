@@ -1,4 +1,3 @@
-import 'package:objectbox/objectbox.dart';
 import '../models/free_time_slot.dart';
 import '../objectbox.g.dart';
 
@@ -32,11 +31,15 @@ class FreeTimeRepository {
 
   List<Map<String, dynamic>> getAllAsJson() {
     final slots = getAll();
-    return slots.map((slot) => {
-      'dayOfWeek': slot.dayOfWeek,
-      'startTime': slot.startTime,
-      'endTime': slot.endTime,
-    }).toList();
+    return slots
+        .map(
+          (slot) => {
+            'dayOfWeek': slot.dayOfWeek,
+            'startTime': slot.startTime,
+            'endTime': slot.endTime,
+          },
+        )
+        .toList();
   }
 
   Map<int, List<FreeTimeSlot>> getGroupedByDay() {

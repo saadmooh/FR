@@ -149,18 +149,15 @@ Available Categories: [$categoriesStr]
 Classification rules:
 - Choose the single most relevant category from the available list
 - Evaluate complexity based on vocabulary, sentence structure, concept difficulty, and required background knowledge
-- Do NOT default to Medium complexity — evaluate carefully:
-  * Low (بسيط): basic vocabulary, simple sentences, well-known topics, no background needed
-  * Medium (متوسط): some specialized terms, moderate complexity, some background helpful
-  * High (معقد): advanced terminology, complex structures, significant background required
+- Do NOT default to Medium complexity — evaluate carefully
 - Note: gambling, explicit content, and harmful topics are unethical
 
-Respond with exactly this JSON structure:
+Respond with exactly this JSON structure with ALL THREE languages:
 {
-  "category": { "en": "Productivity", "ar": "إنتاجية" },
-  "complexity_level": { "en": "Low", "ar": "بسيط" },
+  "category": { "en": "Productivity", "ar": "إنتاجية", "fr": "Productivité" },
+  "complexity_level": { "en": "Low", "ar": "بسيط", "fr": "Faible" },
   "is_ethical": true,
-  "ethical_reasoning": "Reason in English | السبب بالعربية"
+  "ethical_reasoning": "Reason in English | Reason in Arabic | Reason in French"
 }''';
 
     final result = await _callAI([
@@ -181,8 +178,10 @@ Respond with exactly this JSON structure:
         return {
           'categoryEn': data['category']?['en'] ?? 'Other',
           'categoryAr': data['category']?['ar'] ?? 'أخرى',
+          'categoryFr': data['category']?['fr'] ?? 'Autre',
           'complexityEn': data['complexity_level']?['en'] ?? 'Medium',
           'complexityAr': data['complexity_level']?['ar'] ?? 'متوسط',
+          'complexityFr': data['complexity_level']?['fr'] ?? 'Moyen',
           'isEthical': data['is_ethical'] ?? true,
           'ethicalReasoning': data['ethical_reasoning'] ?? '',
         };
@@ -229,8 +228,8 @@ Scheduling rules (apply in this priority order):
 6. For complex content, prefer morning hours (8–11 AM) when focus is high
 7. For entertainment/social, prefer evening (7–10 PM)
 
-Return only:
-{"best_time": "YYYY-MM-DD HH:MM:SS", "explanation": "one line reason in English"}''';
+Return only with ALL THREE languages:
+{"best_time": "YYYY-MM-DD HH:MM:SS", "explanation": "Reason in English | Reason in Arabic | Reason in French"}''';
 
     final result = await _callAI([
       {'role': 'system', 'content': systemPrompt},
@@ -247,9 +246,15 @@ Return only:
       ).firstMatch(result['content'] ?? '');
       if (jsonMatch != null) {
         final data = json.decode(jsonMatch.group(0)!);
+        final explanation = data['explanation'] ?? '';
+        final parts = explanation.split(' | ');
         return {
           'bestTime': DateTime.tryParse(data['best_time'] ?? ''),
-          'explanation': data['explanation'] ?? '',
+          'explanationEn': parts.length > 0 ? parts[0] : explanation,
+          'explanationAr': parts.length > 1 ? parts[1] : explanation,
+          'explanationFr': parts.length > 2
+              ? parts[2]
+              : (parts.length > 1 ? parts[1] : explanation),
         };
       }
     } catch (e) {

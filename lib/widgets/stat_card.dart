@@ -18,14 +18,25 @@ class StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      elevation: 2,
+      shadowColor: Colors.black.withValues(alpha: 0.1),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      color: AppColors.whiteCard,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            Icon(
-              icon,
-              size: 28,
-              color: color ?? AppColors.accent,
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: (color ?? AppColors.whiteAccent).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                size: 24,
+                color: color ?? AppColors.whiteAccent,
+              ),
             ),
             const SizedBox(height: 12),
             Text(
@@ -33,7 +44,7 @@ class StatCard extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+                color: AppColors.whiteTextPrimary,
               ),
             ),
             const SizedBox(height: 4),
@@ -41,7 +52,7 @@ class StatCard extends StatelessWidget {
               label,
               style: const TextStyle(
                 fontSize: 12,
-                color: AppColors.textSecondary,
+                color: AppColors.whiteTextSecondary,
               ),
               textAlign: TextAlign.center,
             ),

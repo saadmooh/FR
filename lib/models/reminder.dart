@@ -13,13 +13,17 @@ class Reminder {
   // AI-generated classification
   String? categoryEn;
   String? categoryAr;
+  String? categoryFr;
   String? complexityEn;
   String? complexityAr;
+  String? complexityFr;
   bool isEthical = true;
   String? ethicalReasoning;
+  String? ethicalReasoningAr;
+  String? ethicalReasoningFr;
 
   String importance;
-  
+
   @Property(type: PropertyType.date)
   DateTime scheduledAt;
 
@@ -31,6 +35,8 @@ class Reminder {
 
   bool isOpened = false;
   String? aiExplanation;
+  String? aiExplanationAr;
+  String? aiExplanationFr;
 
   Reminder({
     this.id = 0,
@@ -40,15 +46,21 @@ class Reminder {
     this.imageUrl,
     this.categoryEn,
     this.categoryAr,
+    this.categoryFr,
     this.complexityEn,
     this.complexityAr,
+    this.complexityFr,
     this.isEthical = true,
     this.ethicalReasoning,
+    this.ethicalReasoningAr,
+    this.ethicalReasoningFr,
     required this.importance,
     required this.scheduledAt,
     required this.createdAt,
     this.openedAt,
     this.isOpened = false,
     this.aiExplanation,
+    this.aiExplanationAr,
+    this.aiExplanationFr,
   });
 }

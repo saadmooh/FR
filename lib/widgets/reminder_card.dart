@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import '../models/reminder.dart';
 import '../core/app_theme.dart';
+import '../core/locale_manager.dart';
 
 class ReminderCard extends StatelessWidget {
   final Reminder reminder;
@@ -27,7 +28,7 @@ class ReminderCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         onLongPress: onLongPress,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         child: Row(
           children: [
             // Left teal accent border
@@ -42,7 +43,7 @@ class ReminderCard extends StatelessWidget {
                 ),
               ),
             ),
-            
+
             // Thumbnail
             SizedBox(
               width: 90,
@@ -59,15 +60,21 @@ class ReminderCard extends StatelessWidget {
                       ),
                       errorWidget: (context, url, error) => Container(
                         color: AppColors.surfaceLight,
-                        child: const Icon(Icons.image_not_supported, color: AppColors.textSecondary),
+                        child: const Icon(
+                          Icons.image_not_supported,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     )
                   : Container(
                       color: AppColors.surfaceLight,
-                      child: const Icon(Icons.link, color: AppColors.textSecondary),
+                      child: const Icon(
+                        Icons.link,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
             ),
-            
+
             // Content
             Expanded(
               child: Padding(
@@ -87,31 +94,42 @@ class ReminderCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    
+
                     // Description
-                    if (reminder.description != null && reminder.description!.isNotEmpty)
+                    if (reminder.description != null &&
+                        reminder.description!.isNotEmpty)
                       Text(
                         reminder.description!,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
-                    
+
                     const SizedBox(height: 8),
-                    
+
                     // Chips and time
                     Row(
                       children: [
                         // Category chip
                         if (reminder.categoryEn != null)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.accentDim,
-                              borderRadius: BorderRadius.circular(6),
+                              borderRadius: BorderRadius.zero,
                             ),
                             child: Text(
-                              reminder.categoryEn!,
+                              LocaleManager.instance.getCategory(
+                                reminder.categoryEn,
+                                reminder.categoryAr,
+                                reminder.categoryFr,
+                              ),
                               style: const TextStyle(
                                 color: AppColors.accent,
                                 fontSize: 10,
@@ -119,25 +137,35 @@ class ReminderCard extends StatelessWidget {
                               ),
                             ),
                           ),
-                        
+
                         const SizedBox(width: 4),
-                        
+
                         // Complexity chip
-                        if (reminder.complexityAr != null)
+                        if (reminder.complexityEn != null)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.surfaceLight,
-                              borderRadius: BorderRadius.circular(6),
+                              borderRadius: BorderRadius.zero,
                             ),
                             child: Text(
-                              reminder.complexityAr!,
-                              style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                              LocaleManager.instance.getComplexity(
+                                reminder.complexityEn,
+                                reminder.complexityAr,
+                                reminder.complexityFr,
+                              ),
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                           ),
-                        
+
                         const Spacer(),
-                        
+
                         // Time
                         Text(
                           dateFormat.format(reminder.scheduledAt),

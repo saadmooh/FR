@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../services/ai_service.dart';
 import '../services/metadata_service.dart';
 import '../services/notification_service.dart';
@@ -140,7 +139,44 @@ class _SavePostSheetState extends State<SavePostSheet> {
 
       final scheduledAt =
           bestTimeResult['bestTime'] ?? now.add(const Duration(hours: 24));
-      final explanation = bestTimeResult['explanation'] ?? '';
+
+      // Get category in all languages
+      final categoryData = classification['category'] ?? {};
+      final categoryEnVal =
+          categoryData['en'] ?? classification['categoryEn'] ?? 'Other';
+      final categoryArVal =
+          categoryData['ar'] ?? classification['categoryAr'] ?? 'أخرى';
+      final categoryFrVal =
+          categoryData['fr'] ?? classification['categoryFr'] ?? 'Autre';
+
+      // Get complexity in all languages
+      final complexityData = classification['complexity_level'] ?? {};
+      final complexityEnVal =
+          complexityData['en'] ?? classification['complexityEn'] ?? 'Medium';
+      final complexityArVal =
+          complexityData['ar'] ?? classification['complexityAr'] ?? 'متوسط';
+      final complexityFrVal =
+          complexityData['fr'] ?? classification['complexityFr'] ?? 'Moyen';
+
+      // Get ethical reasoning in all languages
+      final ethicalData = classification['ethical_reasoning'] ?? '';
+      final ethicalParts = ethicalData.toString().split(' | ');
+      final ethicalEn = ethicalParts.isNotEmpty ? ethicalParts[0] : '';
+      final ethicalAr = ethicalParts.length > 1 ? ethicalParts[1] : '';
+      final ethicalFr = ethicalParts.length > 2 ? ethicalParts[2] : '';
+
+      // Get explanation in all languages
+      final explanationData = bestTimeResult['explanation'] ?? '';
+      final explanationParts = explanationData.toString().split(' | ');
+      final explanationEn = explanationParts.isNotEmpty
+          ? explanationParts[0]
+          : '';
+      final explanationAr = explanationParts.length > 1
+          ? explanationParts[1]
+          : '';
+      final explanationFr = explanationParts.length > 2
+          ? explanationParts[2]
+          : '';
 
       // Step 5: Save reminder
       final reminder = Reminder(
@@ -148,16 +184,23 @@ class _SavePostSheetState extends State<SavePostSheet> {
         title: metadata.title ?? 'Untitled',
         description: metadata.description,
         imageUrl: metadata.ogImage,
-        categoryEn: classification['categoryEn'],
-        categoryAr: classification['categoryAr'],
-        complexityEn: classification['complexityEn'],
-        complexityAr: classification['complexityAr'],
-        isEthical: classification['isEthical'] ?? true,
-        ethicalReasoning: classification['ethicalReasoning'],
+        categoryEn: categoryEnVal,
+        categoryAr: categoryArVal,
+        categoryFr: categoryFrVal,
+        complexityEn: complexityEnVal,
+        complexityAr: complexityArVal,
+        complexityFr: complexityFrVal,
+        isEthical:
+            classification['is_ethical'] ?? classification['isEthical'] ?? true,
+        ethicalReasoning: ethicalEn,
+        ethicalReasoningAr: ethicalAr,
+        ethicalReasoningFr: ethicalFr,
         importance: _importance,
         scheduledAt: scheduledAt,
         createdAt: now,
-        aiExplanation: explanation,
+        aiExplanation: explanationEn,
+        aiExplanationAr: explanationAr,
+        aiExplanationFr: explanationFr,
       );
 
       final id = widget.reminderRepository.save(reminder);
@@ -222,7 +265,7 @@ class _SavePostSheetState extends State<SavePostSheet> {
                 height: 4,
                 decoration: BoxDecoration(
                   color: AppColors.textSecondary.withAlpha(128),
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius: BorderRadius.zero,
                 ),
               ),
             ),
@@ -320,9 +363,7 @@ class _SavePostSheetState extends State<SavePostSheet> {
                 backgroundColor: AppColors.accent,
                 foregroundColor: AppColors.background,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
               ),
               child: const Text(
                 'Save',

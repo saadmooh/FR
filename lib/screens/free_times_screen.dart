@@ -7,10 +7,7 @@ import '../core/app_theme.dart';
 class FreeTimesScreen extends StatefulWidget {
   final FreeTimeRepository freeTimeRepository;
 
-  const FreeTimesScreen({
-    super.key,
-    required this.freeTimeRepository,
-  });
+  const FreeTimesScreen({super.key, required this.freeTimeRepository});
 
   @override
   State<FreeTimesScreen> createState() => _FreeTimesScreenState();
@@ -61,20 +58,52 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
     );
   }
 
+  IconData _getDayIcon(int dayOfWeek) {
+    switch (dayOfWeek) {
+      case 1:
+        return Icons.looks_one;
+      case 2:
+        return Icons.looks_two;
+      case 3:
+        return Icons.looks_3;
+      case 4:
+        return Icons.looks_4;
+      case 5:
+        return Icons.looks_5;
+      case 6:
+        return Icons.looks_6;
+      case 7:
+        return Icons.looks_one;
+      default:
+        return Icons.calendar_today;
+    }
+  }
+
   String _getDayName(int dayOfWeek) {
-    const days = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const days = [
+      '',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
     return days[dayOfWeek];
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.whiteBackground,
       appBar: AppBar(
+        backgroundColor: AppColors.whiteBackground,
+        elevation: 0,
         title: const Text(
           'Free Times',
           style: TextStyle(
-            color: AppColors.textPrimary,
+            color: AppColors.whiteTextPrimary,
             fontWeight: FontWeight.w700,
             fontSize: 22,
           ),
@@ -82,7 +111,9 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent)),
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent),
+              ),
             )
           : ListView.builder(
               padding: const EdgeInsets.all(16),
@@ -93,9 +124,13 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
                 final isExpanded = _expandedDays[dayOfWeek] ?? true;
 
                 return Card(
-                  color: AppColors.surface,
-                  margin: const EdgeInsets.only(bottom: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  color: AppColors.whiteSurface,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  elevation: 2,
+                  shadowColor: Colors.black.withOpacity(0.1),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.zero,
+                  ),
                   child: Column(
                     children: [
                       InkWell(
@@ -104,7 +139,7 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
                             _expandedDays[dayOfWeek] = !isExpanded;
                           });
                         },
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.zero,
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Row(
@@ -113,39 +148,52 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
                                 width: 40,
                                 height: 40,
                                 decoration: BoxDecoration(
-                                  color: AppColors.accentDim,
-                                  borderRadius: BorderRadius.circular(8),
+                                  color: AppColors.accent.withOpacity(0.1),
+                                  borderRadius: BorderRadius.zero,
                                 ),
                                 child: Icon(
-                                  isExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
+                                  _getDayIcon(dayOfWeek),
                                   color: AppColors.accent,
+                                  size: 20,
                                 ),
                               ),
                               const SizedBox(width: 12),
                               Text(
                                 _getDayName(dayOfWeek),
                                 style: const TextStyle(
-                                  color: AppColors.textPrimary,
+                                  color: AppColors.whiteTextPrimary,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16,
                                 ),
                               ),
                               const Spacer(),
-                              if (slots.isNotEmpty)
+                              Icon(
+                                isExpanded
+                                    ? Icons.keyboard_arrow_down
+                                    : Icons.keyboard_arrow_right,
+                                color: AppColors.whiteTextSecondary,
+                              ),
+                              if (slots.isNotEmpty) ...[
+                                const SizedBox(width: 8),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: AppColors.accentDim,
-                                    borderRadius: BorderRadius.circular(12),
+                                    color: AppColors.accent.withOpacity(0.1),
+                                    borderRadius: BorderRadius.zero,
                                   ),
                                   child: Text(
                                     '${slots.length}',
                                     style: const TextStyle(
                                       color: AppColors.accent,
                                       fontWeight: FontWeight.bold,
+                                      fontSize: 12,
                                     ),
                                   ),
                                 ),
+                              ],
                             ],
                           ),
                         ),
@@ -160,14 +208,32 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
                           }).toList(),
                         ),
                       if (isExpanded && slots.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.only(left: 68, right: 16, bottom: 16),
-                          child: Text(
-                            'No free times set',
-                            style: TextStyle(
-                              color: AppColors.textSecondary,
-                              fontStyle: FontStyle.italic,
-                            ),
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            left: 68,
+                            right: 16,
+                            bottom: 16,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.event_available,
+                                size: 16,
+                                color: AppColors.whiteTextSecondary.withOpacity(
+                                  0.5,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'No free times set',
+                                style: TextStyle(
+                                  color: AppColors.whiteTextSecondary
+                                      .withOpacity(0.7),
+                                  fontStyle: FontStyle.italic,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                     ],
@@ -177,6 +243,9 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddDialog,
+        backgroundColor: AppColors.accent,
+        foregroundColor: Colors.white,
+        elevation: 4,
         child: const Icon(Icons.add),
       ),
     );
@@ -203,12 +272,24 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
   TimeOfDay _endTime = const TimeOfDay(hour: 11, minute: 0);
 
   String _getDayName(int dayOfWeek) {
-    const days = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const days = [
+      '',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
     return days[dayOfWeek];
   }
 
   Future<void> _selectStartTime() async {
-    final time = await showTimePicker(context: context, initialTime: _startTime);
+    final time = await showTimePicker(
+      context: context,
+      initialTime: _startTime,
+    );
     if (time != null) setState(() => _startTime = time);
   }
 
@@ -226,15 +307,20 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
   void _save() {
     if (!_validateTimes()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('End time must be after start time'), backgroundColor: AppColors.error),
+        const SnackBar(
+          content: Text('End time must be after start time'),
+          backgroundColor: AppColors.error,
+        ),
       );
       return;
     }
 
     final slot = FreeTimeSlot(
       dayOfWeek: _selectedDay,
-      startTime: '${_startTime.hour.toString().padLeft(2, '0')}:${_startTime.minute.toString().padLeft(2, '0')}',
-      endTime: '${_endTime.hour.toString().padLeft(2, '0')}:${_endTime.minute.toString().padLeft(2, '0')}',
+      startTime:
+          '${_startTime.hour.toString().padLeft(2, '0')}:${_startTime.minute.toString().padLeft(2, '0')}',
+      endTime:
+          '${_endTime.hour.toString().padLeft(2, '0')}:${_endTime.minute.toString().padLeft(2, '0')}',
     );
 
     widget.freeTimeRepository.save(slot);
@@ -242,28 +328,88 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
     widget.onSave();
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Time slot added'), backgroundColor: AppColors.accent),
+      const SnackBar(
+        content: Text('Time slot added'),
+        backgroundColor: AppColors.accent,
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: AppColors.surface,
-      title: const Text('Add Free Time', style: TextStyle(color: AppColors.textPrimary)),
-      content: SingleChildScrollView(
+    return Dialog(
+      backgroundColor: AppColors.whiteSurface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      elevation: 8,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withOpacity(0.1),
+                    borderRadius: BorderRadius.zero,
+                  ),
+                  child: Icon(
+                    Icons.schedule,
+                    color: AppColors.accent,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Add Free Time',
+                  style: TextStyle(
+                    color: AppColors.whiteTextPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 20,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
             DropdownButtonFormField<int>(
               value: _selectedDay,
-              dropdownColor: AppColors.surface,
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: const InputDecoration(labelText: 'Day'),
+              dropdownColor: AppColors.whiteSurface,
+              style: const TextStyle(color: AppColors.whiteTextPrimary),
+              decoration: InputDecoration(
+                labelText: 'Day',
+                labelStyle: const TextStyle(
+                  color: AppColors.whiteTextSecondary,
+                ),
+                filled: true,
+                fillColor: AppColors.whiteBackground,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.zero,
+                  borderSide: BorderSide(
+                    color: AppColors.whiteTextSecondary.withOpacity(0.3),
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.zero,
+                  borderSide: BorderSide(
+                    color: AppColors.whiteTextSecondary.withOpacity(0.3),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(
+                    color: AppColors.accent,
+                    width: 2,
+                  ),
+                ),
+              ),
               items: List.generate(7, (index) {
                 final day = index + 1;
-                return DropdownMenuItem(value: day, child: Text(_getDayName(day)));
+                return DropdownMenuItem(
+                  value: day,
+                  child: Text(_getDayName(day)),
+                );
               }),
               onChanged: (value) {
                 if (value != null) setState(() => _selectedDay = value);
@@ -273,35 +419,113 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
             InkWell(
               onTap: _selectStartTime,
               child: InputDecorator(
-                decoration: const InputDecoration(labelText: 'Start Time'),
-                child: Text(_startTime.format(context), style: const TextStyle(color: AppColors.textPrimary)),
+                decoration: InputDecoration(
+                  labelText: 'Start Time',
+                  labelStyle: const TextStyle(
+                    color: AppColors.whiteTextSecondary,
+                  ),
+                  filled: true,
+                  fillColor: AppColors.whiteBackground,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: AppColors.whiteTextSecondary.withOpacity(0.3),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: AppColors.whiteTextSecondary.withOpacity(0.3),
+                    ),
+                  ),
+                  suffixIcon: const Icon(
+                    Icons.access_time,
+                    color: AppColors.accent,
+                  ),
+                ),
+                child: Text(
+                  _startTime.format(context),
+                  style: const TextStyle(
+                    color: AppColors.whiteTextPrimary,
+                    fontSize: 16,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 16),
             InkWell(
               onTap: _selectEndTime,
               child: InputDecorator(
-                decoration: const InputDecoration(labelText: 'End Time'),
-                child: Text(_endTime.format(context), style: const TextStyle(color: AppColors.textPrimary)),
+                decoration: InputDecoration(
+                  labelText: 'End Time',
+                  labelStyle: const TextStyle(
+                    color: AppColors.whiteTextSecondary,
+                  ),
+                  filled: true,
+                  fillColor: AppColors.whiteBackground,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: AppColors.whiteTextSecondary.withOpacity(0.3),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: AppColors.whiteTextSecondary.withOpacity(0.3),
+                    ),
+                  ),
+                  suffixIcon: const Icon(
+                    Icons.access_time,
+                    color: AppColors.accent,
+                  ),
+                ),
+                child: Text(
+                  _endTime.format(context),
+                  style: const TextStyle(
+                    color: AppColors.whiteTextPrimary,
+                    fontSize: 16,
+                  ),
+                ),
               ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.whiteTextSecondary,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: _save,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    foregroundColor: Colors.white,
+                    elevation: 2,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text('Save'),
+                ),
+              ],
             ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: _save,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.accent,
-            foregroundColor: AppColors.background,
-          ),
-          child: const Text('Save'),
-        ),
-      ],
     );
   }
 }

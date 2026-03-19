@@ -13,6 +13,14 @@ class AppColors {
   static const warning = Color(0xFFF59E0B);
   static const error = Color(0xFFEF4444);
   static const read = Color(0xFF2A3545);
+
+  static const whiteBackground = Color(0xFFFFFFFF);
+  static const whiteSurface = Color(0xFFF8FAFC);
+  static const whiteCard = Color(0xFFFFFFFF);
+  static const whiteTextPrimary = Color(0xFF1E293B);
+  static const whiteTextSecondary = Color(0xFF64748B);
+  static const whiteBorder = Color(0xFFE2E8F0);
+  static const whiteAccent = Color(0xFF00D4C8);
 }
 
 TextStyle get spaceGrotesk => GoogleFonts.spaceGrotesk();
@@ -27,10 +35,7 @@ ThemeData buildTheme() {
       primary: AppColors.accent,
       surface: AppColors.surface,
     ),
-    cardTheme: const CardThemeData(
-      color: AppColors.surface,
-      elevation: 0,
-    ),
+    cardTheme: const CardThemeData(color: AppColors.surface, elevation: 0),
     appBarTheme: AppBarTheme(
       backgroundColor: AppColors.background,
       elevation: 0,
@@ -58,15 +63,64 @@ ThemeData buildTheme() {
       filled: true,
       fillColor: AppColors.surfaceLight,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.zero,
         borderSide: BorderSide.none,
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.zero,
         borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
       ),
       labelStyle: const TextStyle(color: AppColors.textSecondary),
       hintStyle: const TextStyle(color: AppColors.textSecondary),
+    ),
+  );
+}
+
+ThemeData buildWhiteTheme() {
+  return ThemeData(
+    brightness: Brightness.light,
+    scaffoldBackgroundColor: AppColors.whiteBackground,
+    colorScheme: const ColorScheme.light(
+      primary: AppColors.whiteAccent,
+      surface: AppColors.whiteSurface,
+    ),
+    cardTheme: CardThemeData(
+      color: AppColors.whiteCard,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.zero,
+        side: const BorderSide(color: AppColors.whiteBorder),
+      ),
+    ),
+    appBarTheme: const AppBarTheme(
+      backgroundColor: AppColors.whiteBackground,
+      elevation: 0,
+      centerTitle: false,
+      titleTextStyle: TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.w700,
+        color: AppColors.whiteTextPrimary,
+      ),
+      iconTheme: IconThemeData(color: AppColors.whiteAccent),
+    ),
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: AppColors.whiteAccent,
+      foregroundColor: Colors.white,
+      elevation: 2,
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: AppColors.whiteSurface,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.zero,
+        borderSide: const BorderSide(color: AppColors.whiteBorder),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.zero,
+        borderSide: const BorderSide(color: AppColors.whiteAccent, width: 1.5),
+      ),
+      labelStyle: const TextStyle(color: AppColors.whiteTextSecondary),
+      hintStyle: const TextStyle(color: AppColors.whiteTextSecondary),
     ),
   );
 }

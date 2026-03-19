@@ -58,7 +58,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
     id: const obx_int.IdUid(2, 2467552958308754850),
     name: 'Reminder',
-    lastPropertyId: const obx_int.IdUid(19, 5688975550288732113),
+    lastPropertyId: const obx_int.IdUid(25, 6645167268792357502),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
@@ -160,6 +160,42 @@ final _entities = <obx_int.ModelEntity>[
       obx_int.ModelProperty(
         id: const obx_int.IdUid(19, 5688975550288732113),
         name: 'ethicalReasoning',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(20, 5190634068976515636),
+        name: 'categoryFr',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(21, 1918227050185131452),
+        name: 'complexityFr',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(22, 5109539699443776352),
+        name: 'ethicalReasoningAr',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(23, 7180512601247276094),
+        name: 'ethicalReasoningFr',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(24, 8597590637455557837),
+        name: 'aiExplanationAr',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(25, 6645167268792357502),
+        name: 'aiExplanationFr',
         type: 9,
         flags: 0,
       ),
@@ -394,7 +430,25 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final ethicalReasoningOffset = object.ethicalReasoning == null
             ? null
             : fbb.writeString(object.ethicalReasoning!);
-        fbb.startTable(20);
+        final categoryFrOffset = object.categoryFr == null
+            ? null
+            : fbb.writeString(object.categoryFr!);
+        final complexityFrOffset = object.complexityFr == null
+            ? null
+            : fbb.writeString(object.complexityFr!);
+        final ethicalReasoningArOffset = object.ethicalReasoningAr == null
+            ? null
+            : fbb.writeString(object.ethicalReasoningAr!);
+        final ethicalReasoningFrOffset = object.ethicalReasoningFr == null
+            ? null
+            : fbb.writeString(object.ethicalReasoningFr!);
+        final aiExplanationArOffset = object.aiExplanationAr == null
+            ? null
+            : fbb.writeString(object.aiExplanationAr!);
+        final aiExplanationFrOffset = object.aiExplanationFr == null
+            ? null
+            : fbb.writeString(object.aiExplanationFr!);
+        fbb.startTable(26);
         fbb.addInt64(0, object.id);
         fbb.addOffset(1, urlOffset);
         fbb.addOffset(2, titleOffset);
@@ -412,6 +466,12 @@ obx_int.ModelDefinition getObjectBoxModel() {
         fbb.addOffset(16, complexityArOffset);
         fbb.addBool(17, object.isEthical);
         fbb.addOffset(18, ethicalReasoningOffset);
+        fbb.addOffset(19, categoryFrOffset);
+        fbb.addOffset(20, complexityFrOffset);
+        fbb.addOffset(21, ethicalReasoningArOffset);
+        fbb.addOffset(22, ethicalReasoningFrOffset);
+        fbb.addOffset(23, aiExplanationArOffset);
+        fbb.addOffset(24, aiExplanationFrOffset);
         fbb.finish(fbb.endTable());
         return object.id;
       },
@@ -447,12 +507,18 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final categoryArParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGetNullable(buffer, rootOffset, 32);
+        final categoryFrParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 42);
         final complexityEnParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGetNullable(buffer, rootOffset, 34);
         final complexityArParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGetNullable(buffer, rootOffset, 36);
+        final complexityFrParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 44);
         final isEthicalParam = const fb.BoolReader().vTableGet(
           buffer,
           rootOffset,
@@ -462,6 +528,12 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final ethicalReasoningParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGetNullable(buffer, rootOffset, 40);
+        final ethicalReasoningArParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 46);
+        final ethicalReasoningFrParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 48);
         final importanceParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGet(buffer, rootOffset, 18, '');
@@ -483,6 +555,12 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final aiExplanationParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGetNullable(buffer, rootOffset, 28);
+        final aiExplanationArParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 50);
+        final aiExplanationFrParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 52);
         final object = Reminder(
           id: idParam,
           url: urlParam,
@@ -491,16 +569,22 @@ obx_int.ModelDefinition getObjectBoxModel() {
           imageUrl: imageUrlParam,
           categoryEn: categoryEnParam,
           categoryAr: categoryArParam,
+          categoryFr: categoryFrParam,
           complexityEn: complexityEnParam,
           complexityAr: complexityArParam,
+          complexityFr: complexityFrParam,
           isEthical: isEthicalParam,
           ethicalReasoning: ethicalReasoningParam,
+          ethicalReasoningAr: ethicalReasoningArParam,
+          ethicalReasoningFr: ethicalReasoningFrParam,
           importance: importanceParam,
           scheduledAt: scheduledAtParam,
           createdAt: createdAtParam,
           openedAt: openedAtParam,
           isOpened: isOpenedParam,
           aiExplanation: aiExplanationParam,
+          aiExplanationAr: aiExplanationArParam,
+          aiExplanationFr: aiExplanationFrParam,
         );
 
         return object;
@@ -730,6 +814,36 @@ class Reminder_ {
   /// See [Reminder.ethicalReasoning].
   static final ethicalReasoning = obx.QueryStringProperty<Reminder>(
     _entities[1].properties[16],
+  );
+
+  /// See [Reminder.categoryFr].
+  static final categoryFr = obx.QueryStringProperty<Reminder>(
+    _entities[1].properties[17],
+  );
+
+  /// See [Reminder.complexityFr].
+  static final complexityFr = obx.QueryStringProperty<Reminder>(
+    _entities[1].properties[18],
+  );
+
+  /// See [Reminder.ethicalReasoningAr].
+  static final ethicalReasoningAr = obx.QueryStringProperty<Reminder>(
+    _entities[1].properties[19],
+  );
+
+  /// See [Reminder.ethicalReasoningFr].
+  static final ethicalReasoningFr = obx.QueryStringProperty<Reminder>(
+    _entities[1].properties[20],
+  );
+
+  /// See [Reminder.aiExplanationAr].
+  static final aiExplanationAr = obx.QueryStringProperty<Reminder>(
+    _entities[1].properties[21],
+  );
+
+  /// See [Reminder.aiExplanationFr].
+  static final aiExplanationFr = obx.QueryStringProperty<Reminder>(
+    _entities[1].properties[22],
   );
 }
 
