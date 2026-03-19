@@ -184,6 +184,15 @@ class AppTranslations {
     'dateFormat': 'MMM d, yyyy',
     'timeFormat': 'h:mm a',
     'dateTimeFormat': 'EEEE, MMMM d, yyyy · h:mm a',
+
+    // Time Display (for cards)
+    'cardToday': 'Today',
+    'cardTomorrow': 'Tomorrow',
+    'cardOverdue': 'Overdue',
+    'cardInDays': 'In {days} days',
+    'cardInWeeks': 'In {weeks} weeks',
+    'cardInMonths': 'In {months} months',
+    'cardDaysAgo': '{days} days ago',
   };
 
   static const Map<String, String> _arabicStrings = {
@@ -363,6 +372,15 @@ class AppTranslations {
     'dateFormat': 'd MMM, yyyy',
     'timeFormat': 'h:mm a',
     'dateTimeFormat': 'EEEE، d MMMM yyyy · h:mm a',
+
+    // Time Display (for cards)
+    'cardToday': 'اليوم',
+    'cardTomorrow': 'غدًا',
+    'cardOverdue': 'متأخر',
+    'cardInDays': 'خلال {days} يوم',
+    'cardInWeeks': 'خلال {weeks} أسبوع',
+    'cardInMonths': 'خلال {months} شهر',
+    'cardDaysAgo': 'منذ {days} يوم',
   };
 
   static const Map<String, String> _frenchStrings = {
@@ -544,6 +562,15 @@ class AppTranslations {
     'dateFormat': 'd MMM yyyy',
     'timeFormat': 'HH:mm',
     'dateTimeFormat': 'EEEE d MMMM yyyy · HH:mm',
+
+    // Time Display (for cards)
+    'cardToday': 'Aujourd\'hui',
+    'cardTomorrow': 'Demain',
+    'cardOverdue': 'En retard',
+    'cardInDays': 'Dans {days} jours',
+    'cardInWeeks': 'Dans {weeks} semaines',
+    'cardInMonths': 'Dans {months} mois',
+    'cardDaysAgo': 'Il y a {days} jours',
   };
 
   static String getString(String key, {String? locale}) {

@@ -32,7 +32,8 @@ void main() async {
 
   // Initialize timezone
   tz_data.initializeTimeZones();
-  tz.setLocalLocation(tz.UTC);
+  // Use local timezone instead of UTC
+  tz.setLocalLocation(tz.local);
 
   // Initialize ObjectBox
   store = await openStore();

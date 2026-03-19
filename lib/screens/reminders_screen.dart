@@ -11,6 +11,8 @@ import '../widgets/save_post_sheet.dart';
 import '../widgets/empty_state.dart';
 import '../core/app_theme.dart';
 import '../core/constants.dart';
+import '../core/locale_manager.dart';
+import '../core/translations.dart';
 
 class RemindersScreen extends StatefulWidget {
   final ReminderRepository reminderRepository;
@@ -46,6 +48,30 @@ class _RemindersScreenState extends State<RemindersScreen> {
   List<Reminder> _allReminders = [];
   bool _isLoading = true;
   bool _isSearchVisible = false;
+
+  String get _locale => LocaleManager.instance.getLocale();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReminders();
+    widget.pendingSharedUrl.addListener(_onPendingSharedUrlChanged);
+    LocaleManager.instance.localeNotifier.addListener(_onLocaleChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.pendingSharedUrl.removeListener(_onPendingSharedUrlChanged);
+    LocaleManager.instance.localeNotifier.removeListener(_onLocaleChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onLocaleChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
 
   bool get _hasActiveFilters =>
       _searchQuery.isNotEmpty ||
@@ -90,20 +116,6 @@ class _RemindersScreenState extends State<RemindersScreen> {
         backgroundColor: success ? AppColors.accent : AppColors.error,
       ),
     );
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _loadReminders();
-    widget.pendingSharedUrl.addListener(_onPendingSharedUrlChanged);
-  }
-
-  @override
-  void dispose() {
-    widget.pendingSharedUrl.removeListener(_onPendingSharedUrlChanged);
-    _searchController.dispose();
-    super.dispose();
   }
 
   void _onPendingSharedUrlChanged() {
@@ -217,9 +229,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 ),
                 child: const Icon(Icons.schedule, color: Color(0xFF00D4C8)),
               ),
-              title: const Text(
-                'Reschedule',
-                style: TextStyle(
+              title: Text(
+                Translations.reschedule(_locale),
+                style: const TextStyle(
                   color: Color(0xFF1E293B),
                   fontWeight: FontWeight.w500,
                 ),
@@ -238,9 +250,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 ),
                 child: const Icon(Icons.delete, color: Color(0xFFEF4444)),
               ),
-              title: const Text(
-                'Delete',
-                style: TextStyle(
+              title: Text(
+                Translations.delete(_locale),
+                style: const TextStyle(
                   color: Color(0xFFEF4444),
                   fontWeight: FontWeight.w500,
                 ),
@@ -301,27 +313,27 @@ class _RemindersScreenState extends State<RemindersScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Delete Post?',
-          style: TextStyle(color: Color(0xFF1E293B)),
+        title: Text(
+          Translations.deletePost(_locale),
+          style: const TextStyle(color: Color(0xFF1E293B)),
         ),
-        content: const Text(
-          'This action cannot be undone.',
-          style: TextStyle(color: Color(0xFF64748B)),
+        content: Text(
+          Translations.deleteWarning(_locale),
+          style: const TextStyle(color: Color(0xFF64748B)),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Color(0xFF64748B)),
+            child: Text(
+              Translations.cancel(_locale),
+              style: const TextStyle(color: Color(0xFF64748B)),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: Color(0xFFEF4444)),
+            child: Text(
+              Translations.delete(_locale),
+              style: const TextStyle(color: Color(0xFFEF4444)),
             ),
           ),
         ],
@@ -353,9 +365,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Filters',
-                      style: TextStyle(
+                    Text(
+                      Translations.filters(_locale),
+                      style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF1E293B),
@@ -367,17 +379,17 @@ class _RemindersScreenState extends State<RemindersScreen> {
                           _clearFilters();
                           Navigator.pop(context);
                         },
-                        child: const Text(
-                          'Clear All',
-                          style: TextStyle(color: Color(0xFF00D4C8)),
+                        child: Text(
+                          Translations.clearAll(_locale),
+                          style: const TextStyle(color: Color(0xFF00D4C8)),
                         ),
                       ),
                   ],
                 ),
                 const SizedBox(height: 20),
-                const Text(
-                  'Category',
-                  style: TextStyle(
+                Text(
+                  Translations.category(_locale),
+                  style: const TextStyle(
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF475569),
                   ),
@@ -388,7 +400,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   runSpacing: 8,
                   children: [
                     _buildFilterChip(
-                      label: 'All',
+                      label: Translations.all(_locale),
                       isSelected: _selectedCategory == null,
                       onSelected: () {
                         setModalState(() => _selectedCategory = null);
@@ -408,9 +420,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'Complexity',
-                  style: TextStyle(
+                Text(
+                  Translations.complexity(_locale),
+                  style: const TextStyle(
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF475569),
                   ),
@@ -421,7 +433,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   runSpacing: 8,
                   children: [
                     _buildFilterChip(
-                      label: 'All',
+                      label: Translations.all(_locale),
                       isSelected: _selectedComplexity == null,
                       onSelected: () {
                         setModalState(() => _selectedComplexity = null);
@@ -429,7 +441,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       },
                     ),
                     _buildFilterChip(
-                      label: 'Low',
+                      label: Translations.complexityLow(_locale),
                       isSelected: _selectedComplexity == 'Low',
                       onSelected: () {
                         setModalState(() => _selectedComplexity = 'Low');
@@ -437,7 +449,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       },
                     ),
                     _buildFilterChip(
-                      label: 'Medium',
+                      label: Translations.complexityMedium(_locale),
                       isSelected: _selectedComplexity == 'Medium',
                       onSelected: () {
                         setModalState(() => _selectedComplexity = 'Medium');
@@ -445,7 +457,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       },
                     ),
                     _buildFilterChip(
-                      label: 'High',
+                      label: Translations.complexityHigh(_locale),
                       isSelected: _selectedComplexity == 'High',
                       onSelected: () {
                         setModalState(() => _selectedComplexity = 'High');
@@ -455,9 +467,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'Importance',
-                  style: TextStyle(
+                Text(
+                  Translations.importance(_locale),
+                  style: const TextStyle(
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF475569),
                   ),
@@ -468,7 +480,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   runSpacing: 8,
                   children: [
                     _buildFilterChip(
-                      label: 'All',
+                      label: Translations.all(_locale),
                       isSelected: _selectedImportance == null,
                       onSelected: () {
                         setModalState(() => _selectedImportance = null);
@@ -476,7 +488,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       },
                     ),
                     _buildFilterChip(
-                      label: 'Day',
+                      label: Translations.importanceDay(_locale),
                       isSelected: _selectedImportance == 'Day',
                       onSelected: () {
                         setModalState(() => _selectedImportance = 'Day');
@@ -484,7 +496,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       },
                     ),
                     _buildFilterChip(
-                      label: 'Week',
+                      label: Translations.importanceWeek(_locale),
                       isSelected: _selectedImportance == 'Week',
                       onSelected: () {
                         setModalState(() => _selectedImportance = 'Week');
@@ -492,7 +504,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       },
                     ),
                     _buildFilterChip(
-                      label: 'Month',
+                      label: Translations.importanceMonth(_locale),
                       isSelected: _selectedImportance == 'Month',
                       onSelected: () {
                         setModalState(() => _selectedImportance = 'Month');
@@ -515,9 +527,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       ),
                       elevation: 0,
                     ),
-                    child: const Text(
-                      'Apply Filters',
-                      style: TextStyle(fontWeight: FontWeight.w600),
+                    child: Text(
+                      Translations.applyFilters(_locale),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
                 ),
@@ -584,9 +596,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Text(
-                    'Flex Reminder',
-                    style: TextStyle(
+                  Text(
+                    Translations.appName(_locale),
+                    style: const TextStyle(
                       color: Color(0xFF1E293B),
                       fontWeight: FontWeight.w700,
                       fontSize: 20,
@@ -662,7 +674,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
         },
         style: const TextStyle(color: Color(0xFF1E293B)),
         decoration: InputDecoration(
-          hintText: 'Search posts...',
+          hintText: Translations.searchPosts(_locale),
           hintStyle: TextStyle(color: Colors.grey.shade500),
           prefixIcon: const Icon(Icons.search, color: Color(0xFF64748B)),
           suffixIcon: _searchQuery.isNotEmpty
@@ -738,9 +750,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
                               color: Color(0xFFEF4444),
                             ),
                             const SizedBox(width: 4),
-                            const Text(
-                              'Clear',
-                              style: TextStyle(
+                            Text(
+                              Translations.clearAll(_locale),
+                              style: const TextStyle(
                                 color: Color(0xFFEF4444),
                                 fontWeight: FontWeight.w600,
                                 fontSize: 13,
@@ -754,26 +766,26 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 ),
               ),
             _buildQuickFilterChip(
-              label: _selectedCategory ?? 'Category',
+              label: _selectedCategory ?? Translations.category(_locale),
               isActive: _selectedCategory != null,
               onTap: () => _showQuickFilterDialog('category'),
             ),
             const SizedBox(width: 10),
             _buildQuickFilterChip(
-              label: _selectedComplexity ?? 'Complexity',
+              label: _selectedComplexity ?? Translations.complexity(_locale),
               isActive: _selectedComplexity != null,
               onTap: () => _showQuickFilterDialog('complexity'),
             ),
             const SizedBox(width: 10),
             _buildQuickFilterChip(
-              label: _selectedImportance ?? 'Importance',
+              label: _selectedImportance ?? Translations.importance(_locale),
               isActive: _selectedImportance != null,
               onTap: () => _showQuickFilterDialog('importance'),
             ),
             if (_availableDomains.isNotEmpty) ...[
               const SizedBox(width: 10),
               _buildQuickFilterChip(
-                label: _selectedDomain ?? 'Domain',
+                label: _selectedDomain ?? Translations.domain(_locale),
                 isActive: _selectedDomain != null,
                 onTap: () => _showQuickFilterDialog('domain'),
               ),
@@ -852,12 +864,12 @@ class _RemindersScreenState extends State<RemindersScreen> {
             children: [
               Text(
                 type == 'category'
-                    ? 'Select Category'
+                    ? Translations.category(_locale)
                     : type == 'complexity'
-                    ? 'Select Complexity'
+                    ? Translations.complexity(_locale)
                     : type == 'domain'
-                    ? 'Select Domain'
-                    : 'Select Importance',
+                    ? Translations.domain(_locale)
+                    : Translations.importance(_locale),
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -871,7 +883,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   child: ListView(
                     children: [
                       ListTile(
-                        title: const Text('All'),
+                        title: Text(Translations.all(_locale)),
                         leading: Radio<String?>(
                           value: null,
                           groupValue: _selectedCategory,
@@ -914,7 +926,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 Column(
                   children: [
                     ListTile(
-                      title: const Text('All'),
+                      title: Text(Translations.all(_locale)),
                       leading: Radio<String?>(
                         value: null,
                         groupValue: _selectedComplexity,
@@ -930,7 +942,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       },
                     ),
                     ListTile(
-                      title: const Text('Low'),
+                      title: Text(Translations.complexityLow(_locale)),
                       leading: Radio<String?>(
                         value: 'Low',
                         groupValue: _selectedComplexity,
@@ -946,7 +958,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       },
                     ),
                     ListTile(
-                      title: const Text('Medium'),
+                      title: Text(Translations.complexityMedium(_locale)),
                       leading: Radio<String?>(
                         value: 'Medium',
                         groupValue: _selectedComplexity,
@@ -962,7 +974,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       },
                     ),
                     ListTile(
-                      title: const Text('High'),
+                      title: Text(Translations.complexityHigh(_locale)),
                       leading: Radio<String?>(
                         value: 'High',
                         groupValue: _selectedComplexity,
@@ -985,7 +997,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   child: ListView(
                     children: [
                       ListTile(
-                        title: const Text('All'),
+                        title: Text(Translations.all(_locale)),
                         leading: Radio<String?>(
                           value: null,
                           groupValue: _selectedDomain,
@@ -1025,7 +1037,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 Column(
                   children: [
                     ListTile(
-                      title: const Text('All'),
+                      title: Text(Translations.all(_locale)),
                       leading: Radio<String?>(
                         value: null,
                         groupValue: _selectedImportance,
@@ -1041,7 +1053,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       },
                     ),
                     ListTile(
-                      title: const Text('Day'),
+                      title: Text(Translations.importanceDay(_locale)),
                       leading: Radio<String?>(
                         value: 'Day',
                         groupValue: _selectedImportance,
@@ -1057,7 +1069,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       },
                     ),
                     ListTile(
-                      title: const Text('Week'),
+                      title: Text(Translations.importanceWeek(_locale)),
                       leading: Radio<String?>(
                         value: 'Week',
                         groupValue: _selectedImportance,
@@ -1073,7 +1085,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       },
                     ),
                     ListTile(
-                      title: const Text('Month'),
+                      title: Text(Translations.importanceMonth(_locale)),
                       leading: Radio<String?>(
                         value: 'Month',
                         groupValue: _selectedImportance,
@@ -1104,14 +1116,14 @@ class _RemindersScreenState extends State<RemindersScreen> {
       if (_hasActiveFilters) {
         return EmptyState(
           icon: Icons.search_off_rounded,
-          title: 'No results found',
-          subtitle: 'Try adjusting your filters',
+          title: Translations.noResultsFound(_locale),
+          subtitle: Translations.noResultsSubtitle(_locale),
         );
       }
-      return const EmptyState(
+      return EmptyState(
         icon: Icons.bookmark_add_outlined,
-        title: 'No saved posts yet',
-        subtitle: 'Tap + to save your first post',
+        title: Translations.noSavedPosts(_locale),
+        subtitle: Translations.noSavedPostsSubtitle(_locale),
       );
     }
 

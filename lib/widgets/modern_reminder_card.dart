@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../core/locale_manager.dart';
+import '../core/translations.dart';
 
 class ModernReminderCard extends StatefulWidget {
   const ModernReminderCard({super.key, required this.reminder, this.onTap});
@@ -17,6 +18,8 @@ class _ModernReminderCardState extends State<ModernReminderCard>
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
 
+  String get _locale => LocaleManager.instance.getLocale();
+
   @override
   void initState() {
     super.initState();
@@ -28,30 +31,28 @@ class _ModernReminderCardState extends State<ModernReminderCard>
       begin: 1.0,
       end: 0.98,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    LocaleManager.instance.localeNotifier.addListener(_onLocaleChanged);
+  }
+
+  void _onLocaleChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    LocaleManager.instance.localeNotifier.removeListener(_onLocaleChanged);
     _controller.dispose();
     super.dispose();
   }
 
   Color _getImportanceBackgroundColor() {
-    final importance = LocaleManager.instance.getImportance(
-      widget.reminder.importance,
-    );
-    switch (importance.toLowerCase()) {
-      case 'day':
-      case 'اليوم':
-      case "aujourd'hui":
+    final importance = widget.reminder.importance;
+    switch (importance) {
+      case 'Day':
         return const Color(0xFFFFEDD5);
-      case 'week':
-      case 'هذا الأسبوع':
-      case 'cette semaine':
+      case 'Week':
         return const Color(0xFFDBEAFE);
-      case 'month':
-      case 'هذا الشهر':
-      case 'ce mois':
+      case 'Month':
         return const Color(0xFFDCFCE7);
       default:
         return const Color(0xFFDCFCE7);
@@ -59,21 +60,13 @@ class _ModernReminderCardState extends State<ModernReminderCard>
   }
 
   Color _getImportanceTextColor() {
-    final importance = LocaleManager.instance.getImportance(
-      widget.reminder.importance,
-    );
-    switch (importance.toLowerCase()) {
-      case 'day':
-      case 'اليوم':
-      case "aujourd'hui":
+    final importance = widget.reminder.importance;
+    switch (importance) {
+      case 'Day':
         return const Color(0xFFEA580C);
-      case 'week':
-      case 'هذا الأسبوع':
-      case 'cette semaine':
+      case 'Week':
         return const Color(0xFF2563EB);
-      case 'month':
-      case 'هذا الشهر':
-      case 'ce mois':
+      case 'Month':
         return const Color(0xFF16A34A);
       default:
         return const Color(0xFF16A34A);
@@ -83,21 +76,22 @@ class _ModernReminderCardState extends State<ModernReminderCard>
   String _formatScheduledTime() {
     final now = DateTime.now();
     final difference = widget.reminder.scheduledAt.difference(now);
+    final locale = _locale;
 
     if (difference.isNegative) {
-      return 'Overdue';
+      return Translations.cardOverdue(locale);
     } else if (difference.inDays == 0) {
-      return 'Today';
+      return Translations.cardToday(locale);
     } else if (difference.inDays == 1) {
-      return 'Tomorrow';
+      return Translations.cardTomorrow(locale);
     } else if (difference.inDays < 7) {
-      return 'In ${difference.inDays} days';
+      return Translations.cardInDays(locale, difference.inDays);
     } else if (difference.inDays < 30) {
       final weeks = (difference.inDays / 7).floor();
-      return 'In $weeks week${weeks > 1 ? 's' : ''}';
+      return Translations.cardInWeeks(locale, weeks);
     } else {
       final months = (difference.inDays / 30).floor();
-      return 'In $months month${months > 1 ? 's' : ''}';
+      return Translations.cardInMonths(locale, months);
     }
   }
 

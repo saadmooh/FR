@@ -13,6 +13,8 @@ import '../repositories/app_settings_repository.dart';
 import '../services/notification_service.dart';
 import '../services/ai_service.dart';
 import 'app_theme.dart';
+import 'locale_manager.dart';
+import 'translations.dart';
 
 class AppRouter {
   final ReminderRepository reminderRepository;
@@ -133,6 +135,24 @@ class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
 
   @override
+  void initState() {
+    super.initState();
+    LocaleManager.instance.localeNotifier.addListener(_onLocaleChanged);
+  }
+
+  @override
+  void dispose() {
+    LocaleManager.instance.localeNotifier.removeListener(_onLocaleChanged);
+    super.dispose();
+  }
+
+  void _onLocaleChanged() {
+    if (mounted) setState(() {});
+  }
+
+  String get _locale => LocaleManager.instance.getLocale();
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: widget.child,
@@ -159,15 +179,18 @@ class _MainShellState extends State<MainShell> {
                 break;
             }
           },
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.bookmark), label: 'Posts'),
+          items: [
             BottomNavigationBarItem(
-              icon: Icon(Icons.bar_chart),
-              label: 'Stats',
+              icon: const Icon(Icons.bookmark),
+              label: Translations.navPosts(_locale),
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.access_time),
-              label: 'Free Time',
+              icon: const Icon(Icons.bar_chart),
+              label: Translations.navStats(_locale),
+            ),
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.access_time),
+              label: Translations.navFreeTime(_locale),
             ),
           ],
         ),

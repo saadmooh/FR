@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../services/ai_service.dart';
 import '../services/metadata_service.dart';
 import '../services/notification_service.dart';
@@ -9,6 +10,8 @@ import '../repositories/category_statistic_repository.dart';
 import '../models/reminder.dart';
 import '../core/app_theme.dart';
 import '../core/constants.dart';
+import '../core/locale_manager.dart';
+import '../core/translations.dart';
 
 class SavePostSheet extends StatefulWidget {
   final String? initialUrl;
@@ -43,6 +46,8 @@ class _SavePostSheetState extends State<SavePostSheet> {
   String _loadingStatus = '';
   String? _error;
 
+  String get _locale => LocaleManager.instance.getLocale();
+
   @override
   void initState() {
     super.initState();
@@ -50,18 +55,24 @@ class _SavePostSheetState extends State<SavePostSheet> {
       _urlController.text = widget.initialUrl!;
     }
     _metadataService.setAIService(widget.aiService);
+    LocaleManager.instance.localeNotifier.addListener(_onLocaleChanged);
   }
 
   @override
   void dispose() {
     _urlController.dispose();
+    LocaleManager.instance.localeNotifier.removeListener(_onLocaleChanged);
     super.dispose();
+  }
+
+  void _onLocaleChanged() {
+    if (mounted) setState(() {});
   }
 
   void _showResult(bool success, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(success ? '✅ $message' : '❌ $message'),
+        content: Text(message),
         backgroundColor: success ? AppColors.accent : AppColors.error,
       ),
     );
@@ -70,28 +81,27 @@ class _SavePostSheetState extends State<SavePostSheet> {
   Future<void> _save() async {
     final url = _urlController.text.trim();
     if (url.isEmpty) {
-      setState(() => _error = 'Please enter a URL');
+      setState(() => _error = Translations.pleaseEnterUrl(_locale));
       return;
     }
 
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      setState(() => _error = 'Please enter a valid URL');
+      setState(() => _error = Translations.pleaseEnterValidUrl(_locale));
       return;
     }
 
     setState(() {
       _isLoading = true;
       _error = null;
-      _loadingStatus = '🔍 Fetching post info...';
+      _loadingStatus = Translations.fetchingPostInfo(_locale);
     });
 
     try {
       // Step 1: Fetch metadata
       final metadata = await _metadataService.fetchMetadata(url);
-      _showResult(true, 'Metadata: ${metadata.title}');
 
       if (!mounted) return;
-      setState(() => _loadingStatus = '🧠 Classifying content...');
+      setState(() => _loadingStatus = Translations.classifyingContent(_locale));
 
       // Step 2: AI classification
       final classification = await widget.aiService.classifyContent(
@@ -99,13 +109,9 @@ class _SavePostSheetState extends State<SavePostSheet> {
         description: metadata.description,
         availableCategories: AppConstants.availableCategories,
       );
-      _showResult(
-        true,
-        'Classification: ${classification['categoryEn']} - ${classification['complexityEn']}',
-      );
 
       if (!mounted) return;
-      setState(() => _loadingStatus = '⏰ Finding best time...');
+      setState(() => _loadingStatus = Translations.findingBestTime(_locale));
 
       // Step 3: Get free times and pending reminders
       final freeTimes = widget.freeTimeRepository.getAllAsJson();
@@ -133,7 +139,6 @@ class _SavePostSheetState extends State<SavePostSheet> {
         userFreeTimesJson: jsonEncode(freeTimes),
         pendingRemindersJson: jsonEncode(pendingReminders),
       );
-      _showResult(true, 'Best time: $bestTimeResult');
 
       if (!mounted) return;
 
@@ -214,7 +219,7 @@ class _SavePostSheetState extends State<SavePostSheet> {
 
       if (!mounted) return;
 
-      setState(() => _loadingStatus = '✅ Reminder saved!');
+      setState(() => _loadingStatus = Translations.reminderSaved(_locale));
 
       widget.onSaved();
       Navigator.of(context).pop();
@@ -222,16 +227,16 @@ class _SavePostSheetState extends State<SavePostSheet> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '✅ Reminder scheduled for ${_formatDateTime(scheduledAt)}',
+            '${Translations.reminderSaved(_locale)} ${Translations.reminderScheduledFor(_locale)} ${_formatDateTime(scheduledAt)}',
           ),
           backgroundColor: AppColors.accent,
         ),
       );
     } catch (e) {
       if (mounted) {
-        _showResult(false, 'Error: $e');
+        _showResult(false, Translations.errorOccurred(_locale));
         setState(() {
-          _error = 'Error saving post: $e';
+          _error = '${Translations.errorSavingPost(_locale)}: $e';
           _isLoading = false;
         });
       }
@@ -239,7 +244,8 @@ class _SavePostSheetState extends State<SavePostSheet> {
   }
 
   String _formatDateTime(DateTime dt) {
-    return '${dt.day}/${dt.month} at ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
+    final formatStr = Translations.dateTimeFormat(_locale);
+    return DateFormat(formatStr).format(dt);
   }
 
   @override
@@ -272,9 +278,9 @@ class _SavePostSheetState extends State<SavePostSheet> {
             const SizedBox(height: 20),
 
             // Title
-            const Text(
-              'Save a Post',
-              style: TextStyle(
+            Text(
+              Translations.savePost(_locale),
+              style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: AppColors.textPrimary,
@@ -287,11 +293,17 @@ class _SavePostSheetState extends State<SavePostSheet> {
               controller: _urlController,
               autofocus: widget.initialUrl != null,
               style: const TextStyle(color: AppColors.textPrimary),
-              decoration: const InputDecoration(
-                hintText: 'Enter URL...',
-                hintStyle: TextStyle(color: AppColors.textSecondary),
-                prefixIcon: Icon(Icons.link, color: AppColors.textSecondary),
-                suffixIcon: Icon(Icons.paste, color: AppColors.textSecondary),
+              decoration: InputDecoration(
+                hintText: Translations.enterUrl(_locale),
+                hintStyle: const TextStyle(color: AppColors.textSecondary),
+                prefixIcon: const Icon(
+                  Icons.link,
+                  color: AppColors.textSecondary,
+                ),
+                suffixIcon: const Icon(
+                  Icons.paste,
+                  color: AppColors.textSecondary,
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -301,16 +313,21 @@ class _SavePostSheetState extends State<SavePostSheet> {
               value: _importance,
               dropdownColor: AppColors.surface,
               style: const TextStyle(color: AppColors.textPrimary),
-              decoration: const InputDecoration(labelText: 'When to remind'),
-              items: const [
-                DropdownMenuItem(value: 'Day', child: Text('Today (اليوم)')),
+              decoration: InputDecoration(
+                labelText: Translations.whenToRemind(_locale),
+              ),
+              items: [
+                DropdownMenuItem(
+                  value: 'Day',
+                  child: Text(Translations.today(_locale)),
+                ),
                 DropdownMenuItem(
                   value: 'Week',
-                  child: Text('This Week (هذا الأسبوع)'),
+                  child: Text(Translations.thisWeek(_locale)),
                 ),
                 DropdownMenuItem(
                   value: 'Month',
-                  child: Text('This Month (هذا الشهر)'),
+                  child: Text(Translations.thisMonth(_locale)),
                 ),
               ],
               onChanged: (value) {
@@ -365,9 +382,12 @@ class _SavePostSheetState extends State<SavePostSheet> {
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
               ),
-              child: const Text(
-                'Save',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              child: Text(
+                Translations.save(_locale),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],

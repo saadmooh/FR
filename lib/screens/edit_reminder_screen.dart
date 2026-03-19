@@ -1,11 +1,14 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../models/reminder.dart';
 import '../repositories/reminder_repository.dart';
 import '../repositories/free_time_repository.dart';
 import '../services/notification_service.dart';
 import '../services/ai_service.dart';
 import '../core/app_theme.dart';
+import '../core/locale_manager.dart';
+import '../core/translations.dart';
 
 class EditReminderScreen extends StatefulWidget {
   final Reminder reminder;
@@ -41,6 +44,8 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
 
   static const List<String> _importanceOptions = ['Day', 'Week', 'Month'];
 
+  String get _locale => LocaleManager.instance.getLocale();
+
   @override
   void initState() {
     super.initState();
@@ -48,12 +53,18 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
     _selectedTime = TimeOfDay.fromDateTime(widget.reminder.scheduledAt);
     _selectedImportance = widget.reminder.importance;
     _scheduledAtNotifier.value = widget.reminder.scheduledAt;
+    LocaleManager.instance.localeNotifier.addListener(_onLocaleChanged);
   }
 
   @override
   void dispose() {
     _scheduledAtNotifier.dispose();
+    LocaleManager.instance.localeNotifier.removeListener(_onLocaleChanged);
     super.dispose();
+  }
+
+  void _onLocaleChanged() {
+    if (mounted) setState(() {});
   }
 
   DateTime get _combinedDateTime {
@@ -114,7 +125,7 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
 
   Future<void> _rescheduleWithAI() async {
     if (!widget.aiService.hasApiKey()) {
-      _showSnackBar('Please configure AI API key in settings', isError: true);
+      _showSnackBar(Translations.pleaseConfigureApiKey(_locale), isError: true);
       return;
     }
 
@@ -169,13 +180,16 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
         });
         _scheduledAtNotifier.value = _combinedDateTime;
         _showSnackBar(
-          'AI suggested: ${result['explanation'] ?? 'New time scheduled'}',
+          result['explanation'] ?? Translations.reminderScheduled(_locale),
         );
       } else {
-        _showSnackBar('Could not find optimal time', isError: true);
+        _showSnackBar(Translations.aiRescheduleFailed(_locale), isError: true);
       }
     } catch (e) {
-      _showSnackBar('AI reschedule failed: $e', isError: true);
+      _showSnackBar(
+        '${Translations.aiRescheduleFailed(_locale)}: $e',
+        isError: true,
+      );
     } finally {
       setState(() => _isRescheduling = false);
     }
@@ -194,7 +208,7 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
     widget.onSaved();
 
     if (mounted) {
-      _showSnackBar('Reminder updated successfully');
+      _showSnackBar(Translations.reminderUpdated(_locale));
       Navigator.of(context).pop();
     }
   }
@@ -218,9 +232,9 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
           icon: const Icon(Icons.arrow_back, color: AppColors.accent),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
-          'Edit Reminder',
-          style: TextStyle(
+        title: Text(
+          Translations.editReminder(_locale),
+          style: const TextStyle(
             color: AppColors.whiteTextPrimary,
             fontWeight: FontWeight.w700,
             fontSize: 22,
@@ -229,9 +243,9 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
         actions: [
           TextButton(
             onPressed: _saveChanges,
-            child: const Text(
-              'Save',
-              style: TextStyle(
+            child: Text(
+              Translations.save(_locale),
+              style: const TextStyle(
                 color: AppColors.accent,
                 fontWeight: FontWeight.w600,
                 fontSize: 16,
@@ -262,13 +276,13 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Icon(Icons.article, color: AppColors.accent),
-                      SizedBox(width: 8),
+                      const Icon(Icons.article, color: AppColors.accent),
+                      const SizedBox(width: 8),
                       Text(
-                        'Reminder',
-                        style: TextStyle(
+                        Translations.reminder(_locale),
+                        style: const TextStyle(
                           color: AppColors.whiteTextPrimary,
                           fontWeight: FontWeight.w600,
                           fontSize: 16,
@@ -307,13 +321,13 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Icon(Icons.calendar_today, color: AppColors.accent),
-                      SizedBox(width: 8),
+                      const Icon(Icons.calendar_today, color: AppColors.accent),
+                      const SizedBox(width: 8),
                       Text(
-                        'Schedule',
-                        style: TextStyle(
+                        Translations.schedule(_locale),
+                        style: const TextStyle(
                           color: AppColors.whiteTextPrimary,
                           fontWeight: FontWeight.w600,
                           fontSize: 16,
@@ -424,7 +438,7 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'Scheduled for: ${_formatDateTime(value)}',
+                              '${Translations.scheduledFor(_locale)}: ${_formatDateTime(value)}',
                               style: const TextStyle(
                                 color: AppColors.whiteTextPrimary,
                                 fontSize: 13,
@@ -457,13 +471,13 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Icon(Icons.flag, color: AppColors.accent),
-                      SizedBox(width: 8),
+                      const Icon(Icons.flag, color: AppColors.accent),
+                      const SizedBox(width: 8),
                       Text(
-                        'Importance',
-                        style: TextStyle(
+                        Translations.importance(_locale),
+                        style: const TextStyle(
                           color: AppColors.whiteTextPrimary,
                           fontWeight: FontWeight.w600,
                           fontSize: 16,
@@ -477,7 +491,9 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
                         .map(
                           (option) => ButtonSegment<String>(
                             value: option,
-                            label: Text(option),
+                            label: Text(
+                              Translations.getImportanceLabel(option, _locale),
+                            ),
                             icon: Icon(
                               option == 'Day'
                                   ? Icons.today
@@ -515,7 +531,10 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _getImportanceDescription(_selectedImportance),
+                    Translations.getImportanceDescription(
+                      _selectedImportance,
+                      _locale,
+                    ),
                     style: const TextStyle(
                       color: AppColors.whiteTextSecondary,
                       fontSize: 12,
@@ -540,7 +559,9 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
                       )
                     : const Icon(Icons.auto_awesome),
                 label: Text(
-                  _isRescheduling ? 'AI Rescheduling...' : 'AI Reschedule',
+                  _isRescheduling
+                      ? Translations.aiRescheduling(_locale)
+                      : Translations.aiReschedule(_locale),
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 16,
@@ -560,8 +581,8 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              'AI will find the optimal time based on your free times and the selected importance.',
-              style: TextStyle(
+              Translations.aiRescheduleHint(_locale),
+              style: const TextStyle(
                 color: AppColors.whiteTextSecondary,
                 fontSize: 13,
               ),
@@ -573,35 +594,7 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
   }
 
   String _formatDateTime(DateTime dt) {
-    final months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final hour = dt.hour.toString().padLeft(2, '0');
-    final minute = dt.minute.toString().padLeft(2, '0');
-    return '${months[dt.month - 1]} ${dt.day}, ${dt.year} at $hour:$minute';
-  }
-
-  String _getImportanceDescription(String importance) {
-    switch (importance) {
-      case 'Day':
-        return 'Complete within today (within 24 hours)';
-      case 'Week':
-        return 'Complete within this week (within 7 days)';
-      case 'Month':
-        return 'Complete within this month (within 30 days)';
-      default:
-        return '';
-    }
+    final formatStr = Translations.dateTimeFormat(_locale);
+    return DateFormat(formatStr).format(dt);
   }
 }

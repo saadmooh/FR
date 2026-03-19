@@ -5,6 +5,8 @@ import '../services/ai_service.dart';
 import '../models/category_statistic.dart';
 import '../widgets/stat_card.dart';
 import '../core/app_theme.dart';
+import '../core/locale_manager.dart';
+import '../core/translations.dart';
 
 class StatisticsScreen extends StatefulWidget {
   final ReminderRepository reminderRepository;
@@ -29,19 +31,32 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   String? _analyzingCategoryId;
   final Map<int, Map<String, dynamic>> _categoryAnalysis = {};
 
-  void _showResult(bool success, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(success ? '✅ $message' : '❌ $message'),
-        backgroundColor: success ? AppColors.whiteAccent : AppColors.error,
-      ),
-    );
-  }
+  String get _locale => LocaleManager.instance.getLocale();
 
   @override
   void initState() {
     super.initState();
     _loadStats();
+    LocaleManager.instance.localeNotifier.addListener(_onLocaleChanged);
+  }
+
+  @override
+  void dispose() {
+    LocaleManager.instance.localeNotifier.removeListener(_onLocaleChanged);
+    super.dispose();
+  }
+
+  void _onLocaleChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _showResult(bool success, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${success ? '✅' : '❌'} $message'),
+        backgroundColor: success ? AppColors.whiteAccent : AppColors.error,
+      ),
+    );
   }
 
   void _loadStats() {
@@ -110,9 +125,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     return Scaffold(
       backgroundColor: AppColors.whiteBackground,
       appBar: AppBar(
-        title: const Text(
-          'Statistics',
-          style: TextStyle(
+        title: Text(
+          Translations.statistics(_locale),
+          style: const TextStyle(
             color: AppColors.whiteTextPrimary,
             fontWeight: FontWeight.w700,
             fontSize: 22,
@@ -150,7 +165,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                             child: StatCard(
                               icon: Icons.bookmark,
                               value: total.toString(),
-                              label: 'Total',
+                              label: Translations.total(_locale),
                               color: AppColors.whiteAccent,
                             ),
                           ),
@@ -160,7 +175,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                             child: StatCard(
                               icon: Icons.check_circle,
                               value: opened.toString(),
-                              label: 'Opened',
+                              label: Translations.opened(_locale),
                               color: AppColors.success,
                             ),
                           ),
@@ -170,7 +185,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                             child: StatCard(
                               icon: Icons.schedule,
                               value: pending.toString(),
-                              label: 'Pending',
+                              label: Translations.pending(_locale),
                               color: AppColors.warning,
                             ),
                           ),
@@ -214,9 +229,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: 10),
-                                const Text(
-                                  'AI Insights',
-                                  style: TextStyle(
+                                Text(
+                                  Translations.aiInsights(_locale),
+                                  style: const TextStyle(
                                     color: AppColors.whiteTextPrimary,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
@@ -257,9 +272,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                           ),
                         ),
                         const SizedBox(width: 10),
-                        const Text(
-                          'Category Breakdown',
-                          style: TextStyle(
+                        Text(
+                          Translations.categoryBreakdown(_locale),
+                          style: const TextStyle(
                             color: AppColors.whiteTextPrimary,
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -283,9 +298,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                                 ),
                               ),
                               const SizedBox(height: 12),
-                              const Text(
-                                'No data yet',
-                                style: TextStyle(
+                              Text(
+                                Translations.noDataYet(_locale),
+                                style: const TextStyle(
                                   color: AppColors.whiteTextSecondary,
                                   fontSize: 15,
                                 ),
@@ -377,7 +392,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                     color: AppColors.whiteAccent,
                   ),
                   onPressed: () => _analyzeCategory(stat),
-                  tooltip: 'Analyze',
+                  tooltip: Translations.analysis(_locale),
                 ),
             ],
           ),
@@ -440,9 +455,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            const Text(
-              'Analysis',
-              style: TextStyle(
+            Text(
+              Translations.analysis(_locale),
+              style: const TextStyle(
                 color: AppColors.whiteTextPrimary,
                 fontWeight: FontWeight.bold,
                 fontSize: 14,
@@ -463,9 +478,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         ],
         if (preferredTimes.isNotEmpty) ...[
           const SizedBox(height: 14),
-          const Text(
-            'Preferred Times',
-            style: TextStyle(
+          Text(
+            Translations.preferredTimes(_locale),
+            style: const TextStyle(
               color: AppColors.whiteTextPrimary,
               fontWeight: FontWeight.w600,
               fontSize: 12,
@@ -503,9 +518,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           const SizedBox(height: 14),
           Row(
             children: [
-              const Text(
-                'Confidence: ',
-                style: TextStyle(
+              Text(
+                '${Translations.confidence(_locale)}: ',
+                style: const TextStyle(
                   color: AppColors.whiteTextSecondary,
                   fontSize: 12,
                 ),
@@ -530,9 +545,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         ],
         if (insights.isNotEmpty) ...[
           const SizedBox(height: 14),
-          const Text(
-            'Insights',
-            style: TextStyle(
+          Text(
+            Translations.insights(_locale),
+            style: const TextStyle(
               color: AppColors.whiteTextPrimary,
               fontWeight: FontWeight.w600,
               fontSize: 12,

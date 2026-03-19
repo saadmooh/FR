@@ -11,6 +11,7 @@ import '../services/ai_service.dart';
 import '../models/reminder.dart';
 import '../core/app_theme.dart';
 import '../core/locale_manager.dart';
+import '../core/translations.dart';
 
 class PostDetailScreen extends StatefulWidget {
   final int id;
@@ -40,27 +41,26 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   bool _isRescheduling = false;
   final ValueNotifier<bool> _refreshNotifier = ValueNotifier<bool>(false);
 
-  void _showResult(bool success, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(success ? '✅ $message' : '❌ $message'),
-        backgroundColor: success ? AppColors.accent : AppColors.error,
-      ),
-    );
-  }
+  String get _locale => LocaleManager.instance.getLocale();
 
   @override
   void initState() {
     super.initState();
     _loadReminder();
     _refreshNotifier.addListener(_onRefresh);
+    LocaleManager.instance.localeNotifier.addListener(_onLocaleChanged);
   }
 
   @override
   void dispose() {
     _refreshNotifier.removeListener(_onRefresh);
     _refreshNotifier.dispose();
+    LocaleManager.instance.localeNotifier.removeListener(_onLocaleChanged);
     super.dispose();
+  }
+
+  void _onLocaleChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onRefresh() {
@@ -82,6 +82,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     });
   }
 
+  void _showResult(bool success, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: success ? AppColors.accent : AppColors.error,
+      ),
+    );
+  }
+
   Future<void> _openPost() async {
     if (_reminder == null) return;
 
@@ -97,7 +106,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
     // Update statistics
     widget.categoryStatRepository.recordOpened(_reminder!);
-
     // Cancel notification
     await widget.notificationService.cancelReminder(_reminder!.id);
 
@@ -120,25 +128,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             ? '{"free_times": $freeTimes}'
             : null,
       );
-      _showResult(true, 'Rescheduled: ${result['newTime']}');
-
       if (result['newTime'] != null && mounted) {
         _reminder!.scheduledAt = result['newTime'];
         widget.reminderRepository.save(_reminder!);
 
-        // Reschedule notification
         await widget.notificationService.cancelReminder(_reminder!.id);
         await widget.notificationService.scheduleReminder(_reminder!);
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Rescheduled to ${DateFormat('MMM d, h:mm a').format(_reminder!.scheduledAt)}',
-              ),
-              backgroundColor: AppColors.accent,
-            ),
-          );
+          _showResult(true, Translations.scheduledFor(_locale));
           _loadReminder();
         }
       }
@@ -158,24 +156,24 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.whiteSurface,
-        title: const Text(
-          'Delete Post?',
-          style: TextStyle(color: AppColors.whiteTextPrimary),
+        title: Text(
+          Translations.deletePost(_locale),
+          style: const TextStyle(color: AppColors.whiteTextPrimary),
         ),
-        content: const Text(
-          'This action cannot be undone.',
-          style: TextStyle(color: AppColors.whiteTextSecondary),
+        content: Text(
+          Translations.deleteWarning(_locale),
+          style: const TextStyle(color: AppColors.whiteTextSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(Translations.cancel(_locale)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: AppColors.error),
+            child: Text(
+              Translations.delete(_locale),
+              style: const TextStyle(color: AppColors.error),
             ),
           ),
         ],
@@ -228,16 +226,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             ),
           ],
         ),
-        body: const Center(
+        body: Center(
           child: Text(
-            'Post not found',
-            style: TextStyle(color: AppColors.whiteTextPrimary),
+            Translations.postNotFound(_locale),
+            style: const TextStyle(color: AppColors.whiteTextPrimary),
           ),
         ),
       );
     }
 
-    final dateFormat = DateFormat('EEEE, MMMM d, yyyy · h:mm a');
     final imageUrl = _reminder!.imageUrl;
 
     return Scaffold(
@@ -360,7 +357,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     child: Column(
                       children: [
                         _buildMetadataRow(
-                          '📂 Category',
+                          Translations.categoryLabel(_locale),
                           LocaleManager.instance.getCategory(
                             _reminder!.categoryEn,
                             _reminder!.categoryAr,
@@ -369,7 +366,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         ),
                         const Divider(color: AppColors.whiteBorder, height: 24),
                         _buildMetadataRow(
-                          '🎯 Complexity',
+                          Translations.complexityLabel(_locale),
                           LocaleManager.instance.getComplexity(
                             _reminder!.complexityEn,
                             _reminder!.complexityAr,
@@ -381,7 +378,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           height: 24,
                         ),
                         _buildMetadataRow(
-                          '📅 Importance',
+                          Translations.importance(_locale),
                           LocaleManager.instance.getImportance(
                             _reminder!.importance,
                           ),
@@ -391,16 +388,18 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           height: 24,
                         ),
                         _buildMetadataRow(
-                          '⏰ Scheduled',
-                          dateFormat.format(_reminder!.scheduledAt),
+                          Translations.scheduledLabel(_locale),
+                          _formatDateTime(_reminder!.scheduledAt),
                         ),
                         const Divider(
                           color: AppColors.whiteTextSecondary,
                           height: 24,
                         ),
                         _buildMetadataRow(
-                          '✅ Status',
-                          _reminder!.isOpened ? 'Read' : 'Unread',
+                          Translations.statusLabel(_locale),
+                          _reminder!.isOpened
+                              ? Translations.read(_locale)
+                              : Translations.unread(_locale),
                           valueColor: _reminder!.isOpened
                               ? AppColors.success
                               : AppColors.warning,
@@ -433,17 +432,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Row(
+                          Row(
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.auto_awesome,
                                 color: AppColors.accent,
                                 size: 20,
                               ),
-                              SizedBox(width: 8),
+                              const SizedBox(width: 8),
                               Text(
-                                'AI Analysis',
-                                style: TextStyle(
+                                Translations.aiAnalysis(_locale),
+                                style: const TextStyle(
                                   color: AppColors.accent,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -480,9 +479,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           borderRadius: BorderRadius.zero,
                         ),
                       ),
-                      child: const Text(
-                        'Open Post',
-                        style: TextStyle(
+                      child: Text(
+                        Translations.openPost(_locale),
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -510,9 +509,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                               height: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text(
-                              'Reschedule',
-                              style: TextStyle(
+                          : Text(
+                              Translations.reschedule(_locale),
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -526,9 +525,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     width: double.infinity,
                     child: TextButton(
                       onPressed: _delete,
-                      child: const Text(
-                        'Delete',
-                        style: TextStyle(color: AppColors.error, fontSize: 16),
+                      child: Text(
+                        Translations.delete(_locale),
+                        style: const TextStyle(
+                          color: AppColors.error,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
                   ),
@@ -558,5 +560,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         ),
       ],
     );
+  }
+
+  String _formatDateTime(DateTime dt) {
+    final formatStr = Translations.dateTimeFormat(_locale);
+    return DateFormat(formatStr).format(dt);
   }
 }

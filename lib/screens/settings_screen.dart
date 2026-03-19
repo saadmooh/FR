@@ -3,6 +3,7 @@ import '../services/ai_service.dart';
 import '../repositories/app_settings_repository.dart';
 import '../core/app_theme.dart';
 import '../core/locale_manager.dart';
+import '../core/translations.dart';
 
 class SettingsScreen extends StatefulWidget {
   final AIService aiService;
@@ -42,10 +43,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (existingKey != null) {
       _apiKeyController.text = existingKey;
     }
+    LocaleManager.instance.localeNotifier.addListener(_onLocaleChanged);
+  }
+
+  String get _locale => LocaleManager.instance.getLocale();
+
+  void _onLocaleChanged() {
+    if (mounted) {
+      setState(() {
+        _selectedLanguage = LocaleManager.instance.getLocale();
+      });
+    }
   }
 
   @override
   void dispose() {
+    LocaleManager.instance.localeNotifier.removeListener(_onLocaleChanged);
     _apiKeyController.dispose();
     super.dispose();
   }
@@ -78,8 +91,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     widget.settingsRepository.setProvider(_selectedProvider);
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Settings saved'),
+      SnackBar(
+        content: Text(Translations.settingsSaved(_locale)),
         backgroundColor: AppColors.accent,
       ),
     );
@@ -88,7 +101,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showResult(bool success, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(success ? '✅ $message' : '❌ $message'),
+        content: Text('${success ? '✅' : '❌'} $message'),
         backgroundColor: success ? AppColors.success : AppColors.error,
       ),
     );
@@ -96,13 +109,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final locale = _locale;
+
     return Scaffold(
       backgroundColor: AppColors.whiteBackground,
       appBar: AppBar(
         backgroundColor: AppColors.whiteSurface,
         elevation: 0,
         title: Text(
-          'Settings',
+          Translations.settings(locale),
           style: TextStyle(
             color: AppColors.whiteTextPrimary,
             fontWeight: FontWeight.w700,
@@ -116,7 +131,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
 
           // AI Provider Section
-          _buildSectionHeader('AI Configuration', Icons.smart_toy_outlined),
+          _buildSectionHeader(
+            Translations.aiProvider(locale),
+            Icons.smart_toy_outlined,
+          ),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(20),
@@ -135,7 +153,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'AI Provider',
+                  Translations.aiProvider(locale),
                   style: TextStyle(
                     color: AppColors.whiteTextPrimary,
                     fontWeight: FontWeight.w600,
@@ -148,7 +166,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   dropdownColor: AppColors.whiteSurface,
                   style: TextStyle(color: AppColors.whiteTextPrimary),
                   decoration: InputDecoration(
-                    hintText: 'Select provider',
+                    hintText: Translations.selectProvider(locale),
                     hintStyle: TextStyle(color: AppColors.whiteTextSecondary),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -192,7 +210,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // Language Section
-          _buildSectionHeader('Language', Icons.language_outlined),
+          _buildSectionHeader(
+            Translations.language(locale),
+            Icons.language_outlined,
+          ),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(20),
@@ -211,7 +232,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Language / اللغة / Langue',
+                  Translations.selectLanguage(locale),
                   style: TextStyle(
                     color: AppColors.whiteTextPrimary,
                     fontWeight: FontWeight.w600,
@@ -224,7 +245,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   dropdownColor: AppColors.whiteSurface,
                   style: TextStyle(color: AppColors.whiteTextPrimary),
                   decoration: InputDecoration(
-                    hintText: 'Select language',
+                    hintText: Translations.selectLanguage(locale),
                     hintStyle: TextStyle(color: AppColors.whiteTextSecondary),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -257,8 +278,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                   onChanged: (value) async {
                     if (value != null) {
+                      setState(() => _selectedLanguage = value);
                       await LocaleManager.instance.setLocale(value);
-                      // The listener in main.dart will trigger a rebuild
+                      // LocaleManager.setLocale already saves to repository
                     }
                   },
                 ),
@@ -268,7 +290,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // API Key Section
-          _buildSectionHeader('API Key', Icons.key_outlined),
+          _buildSectionHeader(Translations.apiKey(locale), Icons.key_outlined),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(20),
@@ -287,7 +309,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'API Key',
+                  Translations.apiKey(locale),
                   style: TextStyle(
                     color: AppColors.whiteTextPrimary,
                     fontWeight: FontWeight.w600,
@@ -300,7 +322,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   obscureText: _obscureText,
                   style: TextStyle(color: AppColors.whiteTextPrimary),
                   decoration: InputDecoration(
-                    hintText: 'Enter API key...',
+                    hintText: Translations.enterApiKey(locale),
                     hintStyle: TextStyle(color: AppColors.whiteTextSecondary),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -353,8 +375,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               )
                             : const Icon(Icons.play_arrow_outlined),
                         label: _isTesting
-                            ? const Text('Testing...')
-                            : const Text('Test Key'),
+                            ? Text(Translations.aiRescheduling(locale))
+                            : Text(Translations.testKey(locale)),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.accent,
                           side: const BorderSide(
@@ -373,7 +395,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: ElevatedButton.icon(
                         onPressed: _saveSettings,
                         icon: const Icon(Icons.save_outlined),
-                        label: const Text('Save'),
+                        label: Text(Translations.save(locale)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.accent,
                           foregroundColor: Colors.white,
@@ -393,7 +415,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // Status Section
-          _buildSectionHeader('Status', Icons.info_outline),
+          _buildSectionHeader(
+            Translations.apiStatus(locale),
+            Icons.info_outline,
+          ),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(20),
@@ -423,8 +448,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Expanded(
                   child: Text(
                     widget.aiService.hasApiKey()
-                        ? 'API Connected'
-                        : 'API Not Configured',
+                        ? Translations.apiConnected(locale)
+                        : Translations.apiNotConfigured(locale),
                     style: TextStyle(
                       color: AppColors.whiteTextPrimary,
                       fontWeight: FontWeight.w500,

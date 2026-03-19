@@ -1,43 +1,4 @@
-import 'package:flutter/material.dart';
 import 'app_translations.dart';
-
-enum SupportedLanguage {
-  english('en', 'English', 'الإنجليزية', 'Anglais'),
-  arabic('ar', 'Arabic', 'العربية', 'Arabe'),
-  french('fr', 'French', 'الفرنسية', 'Français');
-
-  final String code;
-  final String englishName;
-  final String arabicName;
-  final String frenchName;
-
-  const SupportedLanguage(
-    this.code,
-    this.englishName,
-    this.arabicName,
-    this.frenchName,
-  );
-
-  Locale get locale => AppTranslations.getLocale(code);
-
-  String getLocalizedName(String languageCode) {
-    switch (languageCode) {
-      case 'ar':
-        return arabicName;
-      case 'fr':
-        return frenchName;
-      default:
-        return englishName;
-    }
-  }
-
-  static SupportedLanguage fromCode(String code) {
-    return SupportedLanguage.values.firstWhere(
-      (lang) => lang.code == code,
-      orElse: () => SupportedLanguage.english,
-    );
-  }
-}
 
 class Translations {
   static String appName(String locale) =>
@@ -488,4 +449,31 @@ class Translations {
         return provider;
     }
   }
+
+  static String cardToday(String locale) =>
+      AppTranslations.getString('cardToday', locale: locale);
+
+  static String cardTomorrow(String locale) =>
+      AppTranslations.getString('cardTomorrow', locale: locale);
+
+  static String cardOverdue(String locale) =>
+      AppTranslations.getString('cardOverdue', locale: locale);
+
+  static String cardInDays(String locale, int days) =>
+      AppTranslations.getString(
+        'cardInDays',
+        locale: locale,
+      ).replaceAll('{days}', '$days');
+
+  static String cardInWeeks(String locale, int weeks) =>
+      AppTranslations.getString(
+        'cardInWeeks',
+        locale: locale,
+      ).replaceAll('{weeks}', '$weeks');
+
+  static String cardInMonths(String locale, int months) =>
+      AppTranslations.getString(
+        'cardInMonths',
+        locale: locale,
+      ).replaceAll('{months}', '$months');
 }

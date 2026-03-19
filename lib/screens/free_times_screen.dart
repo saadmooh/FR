@@ -3,6 +3,8 @@ import '../repositories/free_time_repository.dart';
 import '../models/free_time_slot.dart';
 import '../widgets/free_time_tile.dart';
 import '../core/app_theme.dart';
+import '../core/locale_manager.dart';
+import '../core/translations.dart';
 
 class FreeTimesScreen extends StatefulWidget {
   final FreeTimeRepository freeTimeRepository;
@@ -18,10 +20,23 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
   final Map<int, bool> _expandedDays = {};
   bool _isLoading = true;
 
+  String get _locale => LocaleManager.instance.getLocale();
+
   @override
   void initState() {
     super.initState();
     _loadSlots();
+    LocaleManager.instance.localeNotifier.addListener(_onLocaleChanged);
+  }
+
+  @override
+  void dispose() {
+    LocaleManager.instance.localeNotifier.removeListener(_onLocaleChanged);
+    super.dispose();
+  }
+
+  void _onLocaleChanged() {
+    if (mounted) setState(() {});
   }
 
   void _loadSlots() {
@@ -100,9 +115,9 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.whiteBackground,
         elevation: 0,
-        title: const Text(
-          'Free Times',
-          style: TextStyle(
+        title: Text(
+          Translations.freeTimes(_locale),
+          style: const TextStyle(
             color: AppColors.whiteTextPrimary,
             fontWeight: FontWeight.w700,
             fontSize: 22,
@@ -159,7 +174,7 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
                               ),
                               const SizedBox(width: 12),
                               Text(
-                                _getDayName(dayOfWeek),
+                                Translations.getDayName(dayOfWeek, _locale),
                                 style: const TextStyle(
                                   color: AppColors.whiteTextPrimary,
                                   fontWeight: FontWeight.bold,
@@ -225,7 +240,7 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                'No free times set',
+                                Translations.noFreeTimesSet(_locale),
                                 style: TextStyle(
                                   color: AppColors.whiteTextSecondary
                                       .withOpacity(0.7),
@@ -271,19 +286,7 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
   TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 11, minute: 0);
 
-  String _getDayName(int dayOfWeek) {
-    const days = [
-      '',
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
-      'Sunday',
-    ];
-    return days[dayOfWeek];
-  }
+  String get _locale => LocaleManager.instance.getLocale();
 
   Future<void> _selectStartTime() async {
     final time = await showTimePicker(
@@ -307,8 +310,8 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
   void _save() {
     if (!_validateTimes()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('End time must be after start time'),
+        SnackBar(
+          content: Text(Translations.endTimeMustBeAfter(_locale)),
           backgroundColor: AppColors.error,
         ),
       );
@@ -328,8 +331,8 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
     widget.onSave();
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Time slot added'),
+      SnackBar(
+        content: Text(Translations.timeSlotAdded(_locale)),
         backgroundColor: AppColors.accent,
       ),
     );
@@ -362,9 +365,9 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Text(
-                  'Add Free Time',
-                  style: TextStyle(
+                Text(
+                  Translations.addFreeTime(_locale),
+                  style: const TextStyle(
                     color: AppColors.whiteTextPrimary,
                     fontWeight: FontWeight.w700,
                     fontSize: 20,
@@ -378,7 +381,7 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
               dropdownColor: AppColors.whiteSurface,
               style: const TextStyle(color: AppColors.whiteTextPrimary),
               decoration: InputDecoration(
-                labelText: 'Day',
+                labelText: Translations.day(_locale),
                 labelStyle: const TextStyle(
                   color: AppColors.whiteTextSecondary,
                 ),
@@ -408,7 +411,7 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
                 final day = index + 1;
                 return DropdownMenuItem(
                   value: day,
-                  child: Text(_getDayName(day)),
+                  child: Text(Translations.getDayName(day, _locale)),
                 );
               }),
               onChanged: (value) {
@@ -420,7 +423,7 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
               onTap: _selectStartTime,
               child: InputDecorator(
                 decoration: InputDecoration(
-                  labelText: 'Start Time',
+                  labelText: Translations.startTime(_locale),
                   labelStyle: const TextStyle(
                     color: AppColors.whiteTextSecondary,
                   ),
@@ -457,7 +460,7 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
               onTap: _selectEndTime,
               child: InputDecorator(
                 decoration: InputDecoration(
-                  labelText: 'End Time',
+                  labelText: Translations.endTime(_locale),
                   labelStyle: const TextStyle(
                     color: AppColors.whiteTextSecondary,
                   ),
@@ -502,7 +505,7 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
                       vertical: 12,
                     ),
                   ),
-                  child: const Text('Cancel'),
+                  child: Text(Translations.cancel(_locale)),
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton(
@@ -519,7 +522,7 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text('Save'),
+                  child: Text(Translations.save(_locale)),
                 ),
               ],
             ),
