@@ -34,7 +34,7 @@
     },
     {
       "id": "2:2467552958308754850",
-      "lastPropertyId": "25:6645167268792357502",
+      "lastPropertyId": "30:3133621524900684366",
       "name": "Reminder",
       "properties": [
         {
@@ -152,6 +152,31 @@
           "id": "25:6645167268792357502",
           "name": "aiExplanationFr",
           "type": 9
+        },
+        {
+          "id": "26:2483828379425149794",
+          "name": "isPlaylist",
+          "type": 1
+        },
+        {
+          "id": "27:112333797488466323",
+          "name": "playlistId",
+          "type": 9
+        },
+        {
+          "id": "28:3424527295164801761",
+          "name": "playlistCurrentIndex",
+          "type": 6
+        },
+        {
+          "id": "29:3187343118136554315",
+          "name": "playlistTotalItems",
+          "type": 6
+        },
+        {
+          "id": "30:3133621524900684366",
+          "name": "currentVideoUrl",
+          "type": 9
         }
       ],
       "relations": []
@@ -224,9 +249,78 @@
         }
       ],
       "relations": []
+    },
+    {
+      "id": "4:5088578924645899775",
+      "lastPropertyId": "12:726856723989113725",
+      "name": "Playlist",
+      "properties": [
+        {
+          "id": "1:8964648203298564146",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:7451570512512322813",
+          "name": "playlistId",
+          "type": 9
+        },
+        {
+          "id": "3:6260347334521652879",
+          "name": "title",
+          "type": 9
+        },
+        {
+          "id": "4:5486149699957157233",
+          "name": "description",
+          "type": 9
+        },
+        {
+          "id": "5:3511626142317254856",
+          "name": "thumbnailUrl",
+          "type": 9
+        },
+        {
+          "id": "6:8588150688714563662",
+          "name": "channelName",
+          "type": 9
+        },
+        {
+          "id": "7:614955385569737598",
+          "name": "channelUrl",
+          "type": 9
+        },
+        {
+          "id": "8:761199055490528021",
+          "name": "totalItems",
+          "type": 6
+        },
+        {
+          "id": "9:3298792599994375895",
+          "name": "currentIndex",
+          "type": 6
+        },
+        {
+          "id": "10:1274489429418688800",
+          "name": "createdAt",
+          "type": 10
+        },
+        {
+          "id": "11:489289389215556434",
+          "name": "lastAccessedAt",
+          "type": 10
+        },
+        {
+          "id": "12:726856723989113725",
+          "name": "isCompleted",
+          "type": 1
+        }
+      ],
+      "relations": []
     }
   ],
-  "lastEntityId": "3:5558201076700029749",
+  "lastEntityId": "4:5088578924645899775",
   "lastIndexId": "0:0",
   "lastRelationId": "0:0",
   "lastSequenceId": "0:0",

@@ -10,6 +10,13 @@ class Reminder {
   String? description;
   String? imageUrl;
 
+  // YouTube Playlist fields
+  bool isPlaylist = false;
+  String? playlistId;
+  int? playlistCurrentIndex;
+  int? playlistTotalItems;
+  String? currentVideoUrl;
+
   // AI-generated classification
   String? categoryEn;
   String? categoryAr;

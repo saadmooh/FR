@@ -16,6 +16,7 @@ import 'package:objectbox_flutter_libs/objectbox_flutter_libs.dart';
 
 import 'models/category_statistic.dart';
 import 'models/free_time_slot.dart';
+import 'models/playlist.dart';
 import 'models/reminder.dart';
 
 export 'package:objectbox/objectbox.dart'; // so that callers only have to import this file
@@ -58,7 +59,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
     id: const obx_int.IdUid(2, 2467552958308754850),
     name: 'Reminder',
-    lastPropertyId: const obx_int.IdUid(25, 6645167268792357502),
+    lastPropertyId: const obx_int.IdUid(30, 3133621524900684366),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
@@ -199,6 +200,36 @@ final _entities = <obx_int.ModelEntity>[
         type: 9,
         flags: 0,
       ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(26, 2483828379425149794),
+        name: 'isPlaylist',
+        type: 1,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(27, 112333797488466323),
+        name: 'playlistId',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(28, 3424527295164801761),
+        name: 'playlistCurrentIndex',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(29, 3187343118136554315),
+        name: 'playlistTotalItems',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(30, 3133621524900684366),
+        name: 'currentVideoUrl',
+        type: 9,
+        flags: 0,
+      ),
     ],
     relations: <obx_int.ModelRelation>[],
     backlinks: <obx_int.ModelBacklink>[],
@@ -285,6 +316,88 @@ final _entities = <obx_int.ModelEntity>[
     relations: <obx_int.ModelRelation>[],
     backlinks: <obx_int.ModelBacklink>[],
   ),
+  obx_int.ModelEntity(
+    id: const obx_int.IdUid(4, 5088578924645899775),
+    name: 'Playlist',
+    lastPropertyId: const obx_int.IdUid(12, 726856723989113725),
+    flags: 0,
+    properties: <obx_int.ModelProperty>[
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(1, 8964648203298564146),
+        name: 'id',
+        type: 6,
+        flags: 1,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(2, 7451570512512322813),
+        name: 'playlistId',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(3, 6260347334521652879),
+        name: 'title',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(4, 5486149699957157233),
+        name: 'description',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(5, 3511626142317254856),
+        name: 'thumbnailUrl',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(6, 8588150688714563662),
+        name: 'channelName',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(7, 614955385569737598),
+        name: 'channelUrl',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(8, 761199055490528021),
+        name: 'totalItems',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(9, 3298792599994375895),
+        name: 'currentIndex',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(10, 1274489429418688800),
+        name: 'createdAt',
+        type: 10,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(11, 489289389215556434),
+        name: 'lastAccessedAt',
+        type: 10,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(12, 726856723989113725),
+        name: 'isCompleted',
+        type: 1,
+        flags: 0,
+      ),
+    ],
+    relations: <obx_int.ModelRelation>[],
+    backlinks: <obx_int.ModelBacklink>[],
+  ),
 ];
 
 /// Shortcut for [obx.Store.new] that passes [getObjectBoxModel] and for Flutter
@@ -330,7 +443,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
     // Typically, this is done with `dart run build_runner build`.
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
-    lastEntityId: const obx_int.IdUid(3, 5558201076700029749),
+    lastEntityId: const obx_int.IdUid(4, 5088578924645899775),
     lastIndexId: const obx_int.IdUid(0, 0),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
@@ -448,7 +561,13 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final aiExplanationFrOffset = object.aiExplanationFr == null
             ? null
             : fbb.writeString(object.aiExplanationFr!);
-        fbb.startTable(26);
+        final playlistIdOffset = object.playlistId == null
+            ? null
+            : fbb.writeString(object.playlistId!);
+        final currentVideoUrlOffset = object.currentVideoUrl == null
+            ? null
+            : fbb.writeString(object.currentVideoUrl!);
+        fbb.startTable(31);
         fbb.addInt64(0, object.id);
         fbb.addOffset(1, urlOffset);
         fbb.addOffset(2, titleOffset);
@@ -472,6 +591,11 @@ obx_int.ModelDefinition getObjectBoxModel() {
         fbb.addOffset(22, ethicalReasoningFrOffset);
         fbb.addOffset(23, aiExplanationArOffset);
         fbb.addOffset(24, aiExplanationFrOffset);
+        fbb.addBool(25, object.isPlaylist);
+        fbb.addOffset(26, playlistIdOffset);
+        fbb.addInt64(27, object.playlistCurrentIndex);
+        fbb.addInt64(28, object.playlistTotalItems);
+        fbb.addOffset(29, currentVideoUrlOffset);
         fbb.finish(fbb.endTable());
         return object.id;
       },
@@ -561,31 +685,54 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final aiExplanationFrParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGetNullable(buffer, rootOffset, 52);
-        final object = Reminder(
-          id: idParam,
-          url: urlParam,
-          title: titleParam,
-          description: descriptionParam,
-          imageUrl: imageUrlParam,
-          categoryEn: categoryEnParam,
-          categoryAr: categoryArParam,
-          categoryFr: categoryFrParam,
-          complexityEn: complexityEnParam,
-          complexityAr: complexityArParam,
-          complexityFr: complexityFrParam,
-          isEthical: isEthicalParam,
-          ethicalReasoning: ethicalReasoningParam,
-          ethicalReasoningAr: ethicalReasoningArParam,
-          ethicalReasoningFr: ethicalReasoningFrParam,
-          importance: importanceParam,
-          scheduledAt: scheduledAtParam,
-          createdAt: createdAtParam,
-          openedAt: openedAtParam,
-          isOpened: isOpenedParam,
-          aiExplanation: aiExplanationParam,
-          aiExplanationAr: aiExplanationArParam,
-          aiExplanationFr: aiExplanationFrParam,
-        );
+        final object =
+            Reminder(
+                id: idParam,
+                url: urlParam,
+                title: titleParam,
+                description: descriptionParam,
+                imageUrl: imageUrlParam,
+                categoryEn: categoryEnParam,
+                categoryAr: categoryArParam,
+                categoryFr: categoryFrParam,
+                complexityEn: complexityEnParam,
+                complexityAr: complexityArParam,
+                complexityFr: complexityFrParam,
+                isEthical: isEthicalParam,
+                ethicalReasoning: ethicalReasoningParam,
+                ethicalReasoningAr: ethicalReasoningArParam,
+                ethicalReasoningFr: ethicalReasoningFrParam,
+                importance: importanceParam,
+                scheduledAt: scheduledAtParam,
+                createdAt: createdAtParam,
+                openedAt: openedAtParam,
+                isOpened: isOpenedParam,
+                aiExplanation: aiExplanationParam,
+                aiExplanationAr: aiExplanationArParam,
+                aiExplanationFr: aiExplanationFrParam,
+              )
+              ..isPlaylist = const fb.BoolReader().vTableGet(
+                buffer,
+                rootOffset,
+                54,
+                false,
+              )
+              ..playlistId = const fb.StringReader(
+                asciiOptimization: true,
+              ).vTableGetNullable(buffer, rootOffset, 56)
+              ..playlistCurrentIndex = const fb.Int64Reader().vTableGetNullable(
+                buffer,
+                rootOffset,
+                58,
+              )
+              ..playlistTotalItems = const fb.Int64Reader().vTableGetNullable(
+                buffer,
+                rootOffset,
+                60,
+              )
+              ..currentVideoUrl = const fb.StringReader(
+                asciiOptimization: true,
+              ).vTableGetNullable(buffer, rootOffset, 62);
 
         return object;
       },
@@ -696,6 +843,108 @@ obx_int.ModelDefinition getObjectBoxModel() {
           notOpenedHoursJson: notOpenedHoursJsonParam,
           notOpenedDaysJson: notOpenedDaysJsonParam,
           lastUpdated: lastUpdatedParam,
+        );
+
+        return object;
+      },
+    ),
+    Playlist: obx_int.EntityDefinition<Playlist>(
+      model: _entities[3],
+      toOneRelations: (Playlist object) => [],
+      toManyRelations: (Playlist object) => {},
+      getId: (Playlist object) => object.id,
+      setId: (Playlist object, int id) {
+        object.id = id;
+      },
+      objectToFB: (Playlist object, fb.Builder fbb) {
+        final playlistIdOffset = fbb.writeString(object.playlistId);
+        final titleOffset = fbb.writeString(object.title);
+        final descriptionOffset = fbb.writeString(object.description);
+        final thumbnailUrlOffset = object.thumbnailUrl == null
+            ? null
+            : fbb.writeString(object.thumbnailUrl!);
+        final channelNameOffset = fbb.writeString(object.channelName);
+        final channelUrlOffset = fbb.writeString(object.channelUrl);
+        fbb.startTable(13);
+        fbb.addInt64(0, object.id);
+        fbb.addOffset(1, playlistIdOffset);
+        fbb.addOffset(2, titleOffset);
+        fbb.addOffset(3, descriptionOffset);
+        fbb.addOffset(4, thumbnailUrlOffset);
+        fbb.addOffset(5, channelNameOffset);
+        fbb.addOffset(6, channelUrlOffset);
+        fbb.addInt64(7, object.totalItems);
+        fbb.addInt64(8, object.currentIndex);
+        fbb.addInt64(9, object.createdAt.millisecondsSinceEpoch);
+        fbb.addInt64(10, object.lastAccessedAt.millisecondsSinceEpoch);
+        fbb.addBool(11, object.isCompleted);
+        fbb.finish(fbb.endTable());
+        return object.id;
+      },
+      objectFromFB: (obx.Store store, ByteData fbData) {
+        final buffer = fb.BufferContext(fbData);
+        final rootOffset = buffer.derefObject(0);
+        final idParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          4,
+          0,
+        );
+        final playlistIdParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 6, '');
+        final titleParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 8, '');
+        final descriptionParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 10, '');
+        final thumbnailUrlParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 12);
+        final channelNameParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 14, '');
+        final channelUrlParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 16, '');
+        final totalItemsParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          18,
+          0,
+        );
+        final currentIndexParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          20,
+          0,
+        );
+        final createdAtParam = DateTime.fromMillisecondsSinceEpoch(
+          const fb.Int64Reader().vTableGet(buffer, rootOffset, 22, 0),
+        );
+        final lastAccessedAtParam = DateTime.fromMillisecondsSinceEpoch(
+          const fb.Int64Reader().vTableGet(buffer, rootOffset, 24, 0),
+        );
+        final isCompletedParam = const fb.BoolReader().vTableGet(
+          buffer,
+          rootOffset,
+          26,
+          false,
+        );
+        final object = Playlist(
+          id: idParam,
+          playlistId: playlistIdParam,
+          title: titleParam,
+          description: descriptionParam,
+          thumbnailUrl: thumbnailUrlParam,
+          channelName: channelNameParam,
+          channelUrl: channelUrlParam,
+          totalItems: totalItemsParam,
+          currentIndex: currentIndexParam,
+          createdAt: createdAtParam,
+          lastAccessedAt: lastAccessedAtParam,
+          isCompleted: isCompletedParam,
         );
 
         return object;
@@ -845,6 +1094,31 @@ class Reminder_ {
   static final aiExplanationFr = obx.QueryStringProperty<Reminder>(
     _entities[1].properties[22],
   );
+
+  /// See [Reminder.isPlaylist].
+  static final isPlaylist = obx.QueryBooleanProperty<Reminder>(
+    _entities[1].properties[23],
+  );
+
+  /// See [Reminder.playlistId].
+  static final playlistId = obx.QueryStringProperty<Reminder>(
+    _entities[1].properties[24],
+  );
+
+  /// See [Reminder.playlistCurrentIndex].
+  static final playlistCurrentIndex = obx.QueryIntegerProperty<Reminder>(
+    _entities[1].properties[25],
+  );
+
+  /// See [Reminder.playlistTotalItems].
+  static final playlistTotalItems = obx.QueryIntegerProperty<Reminder>(
+    _entities[1].properties[26],
+  );
+
+  /// See [Reminder.currentVideoUrl].
+  static final currentVideoUrl = obx.QueryStringProperty<Reminder>(
+    _entities[1].properties[27],
+  );
 }
 
 /// [CategoryStatistic] entity fields to define ObjectBox queries.
@@ -907,5 +1181,68 @@ class CategoryStatistic_ {
   /// See [CategoryStatistic.lastUpdated].
   static final lastUpdated = obx.QueryDateProperty<CategoryStatistic>(
     _entities[2].properties[11],
+  );
+}
+
+/// [Playlist] entity fields to define ObjectBox queries.
+class Playlist_ {
+  /// See [Playlist.id].
+  static final id = obx.QueryIntegerProperty<Playlist>(
+    _entities[3].properties[0],
+  );
+
+  /// See [Playlist.playlistId].
+  static final playlistId = obx.QueryStringProperty<Playlist>(
+    _entities[3].properties[1],
+  );
+
+  /// See [Playlist.title].
+  static final title = obx.QueryStringProperty<Playlist>(
+    _entities[3].properties[2],
+  );
+
+  /// See [Playlist.description].
+  static final description = obx.QueryStringProperty<Playlist>(
+    _entities[3].properties[3],
+  );
+
+  /// See [Playlist.thumbnailUrl].
+  static final thumbnailUrl = obx.QueryStringProperty<Playlist>(
+    _entities[3].properties[4],
+  );
+
+  /// See [Playlist.channelName].
+  static final channelName = obx.QueryStringProperty<Playlist>(
+    _entities[3].properties[5],
+  );
+
+  /// See [Playlist.channelUrl].
+  static final channelUrl = obx.QueryStringProperty<Playlist>(
+    _entities[3].properties[6],
+  );
+
+  /// See [Playlist.totalItems].
+  static final totalItems = obx.QueryIntegerProperty<Playlist>(
+    _entities[3].properties[7],
+  );
+
+  /// See [Playlist.currentIndex].
+  static final currentIndex = obx.QueryIntegerProperty<Playlist>(
+    _entities[3].properties[8],
+  );
+
+  /// See [Playlist.createdAt].
+  static final createdAt = obx.QueryDateProperty<Playlist>(
+    _entities[3].properties[9],
+  );
+
+  /// See [Playlist.lastAccessedAt].
+  static final lastAccessedAt = obx.QueryDateProperty<Playlist>(
+    _entities[3].properties[10],
+  );
+
+  /// See [Playlist.isCompleted].
+  static final isCompleted = obx.QueryBooleanProperty<Playlist>(
+    _entities[3].properties[11],
   );
 }

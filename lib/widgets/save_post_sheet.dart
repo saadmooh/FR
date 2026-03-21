@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../services/ai_service.dart';
 import '../services/metadata_service.dart';
 import '../services/notification_service.dart';
+import '../services/youtube_service.dart';
 import '../repositories/reminder_repository.dart';
 import '../repositories/free_time_repository.dart';
 import '../repositories/category_statistic_repository.dart';
@@ -40,6 +41,7 @@ class SavePostSheet extends StatefulWidget {
 class _SavePostSheetState extends State<SavePostSheet> {
   final _urlController = TextEditingController();
   final _metadataService = MetadataService();
+  final _youtubeService = YouTubeService();
 
   String _importance = 'Day';
   bool _isLoading = false;
@@ -55,6 +57,7 @@ class _SavePostSheetState extends State<SavePostSheet> {
       _urlController.text = widget.initialUrl!;
     }
     _metadataService.setAIService(widget.aiService);
+    _metadataService.setYouTubeService(_youtubeService);
     LocaleManager.instance.localeNotifier.addListener(_onLocaleChanged);
   }
 
@@ -66,7 +69,11 @@ class _SavePostSheetState extends State<SavePostSheet> {
   }
 
   void _onLocaleChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+    }
   }
 
   void _showResult(bool success, String message) {
@@ -207,6 +214,15 @@ class _SavePostSheetState extends State<SavePostSheet> {
         aiExplanationAr: explanationAr,
         aiExplanationFr: explanationFr,
       );
+
+      // Add playlist-specific fields if this is a playlist
+      if (metadata.isPlaylist) {
+        reminder.isPlaylist = true;
+        reminder.playlistId = metadata.playlistId;
+        reminder.playlistCurrentIndex = 0;
+        reminder.playlistTotalItems = metadata.totalVideos;
+        reminder.currentVideoUrl = url;
+      }
 
       final id = widget.reminderRepository.save(reminder);
       reminder.id = id;
