@@ -30,6 +30,54 @@ final ValueNotifier<String?> pendingSharedUrl = ValueNotifier<String?>(null);
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Catch unhandled errors during initialization
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+  };
+
+  try {
+    await _initApp();
+  } catch (e, stackTrace) {
+    // Show error screen instead of blank screen
+    debugPrint('App initialization failed: $e\n$stackTrace');
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          backgroundColor: const Color(0xFF1A1A2E),
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 64),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Failed to start app',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    e.toString(),
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    return;
+  }
+}
+
+Future<void> _initApp() async {
   // Initialize timezone
   tz_data.initializeTimeZones();
   // Use local timezone instead of UTC
@@ -54,6 +102,9 @@ void main() async {
   reminderRepository = ReminderRepository(store);
   freeTimeRepository = FreeTimeRepository(store);
   categoryStatRepository = CategoryStatisticRepository(store);
+
+  // Set repositories in settings for backup/restore
+  settingsRepository.setRepositories(reminderRepository, freeTimeRepository);
 
   // Initialize locale manager
   LocaleManager.instance.initialize(settingsRepository);
@@ -120,7 +171,7 @@ class _FlexReminderAppState extends State<FlexReminderApp> {
       });
     }
 
-    // Listen to locale changes
+    // Listen to locale changes for rebuild
     LocaleManager.instance.localeNotifier.addListener(_onLocaleChanged);
 
     // Listen to incoming shared intents while app is open
@@ -142,8 +193,9 @@ class _FlexReminderAppState extends State<FlexReminderApp> {
   }
 
   void _onLocaleChanged() {
-    // Rebuild when locale changes
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override

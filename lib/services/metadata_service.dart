@@ -17,6 +17,8 @@ class MetadataResult {
   final String? playlistId;
   final int? totalVideos;
   final int? totalDurationSeconds;
+  final String? firstVideoUrl;
+  final String? firstVideoThumbnail;
 
   MetadataResult({
     this.title,
@@ -32,6 +34,8 @@ class MetadataResult {
     this.playlistId,
     this.totalVideos,
     this.totalDurationSeconds,
+    this.firstVideoUrl,
+    this.firstVideoThumbnail,
   });
 }
 
@@ -63,13 +67,22 @@ class MetadataService {
               ? '${playlist.description}\n\nChannel: ${playlist.channelName} | ${playlist.totalItems} videos${totalDuration != null ? ' | Total: ${_formatDuration(totalDuration)}' : ''}'
               : 'Channel: ${playlist.channelName} | ${playlist.totalItems} videos${totalDuration != null ? ' | Total: ${_formatDuration(totalDuration)}' : ''}';
 
+          String? firstVideoUrl;
+          String? firstVideoThumbnail;
+          if (playlist.items.isNotEmpty) {
+            final firstVideo = playlist.items.first;
+            firstVideoUrl =
+                'https://www.youtube.com/watch?v=${firstVideo.videoId}&list=${playlist.playlistId}';
+            firstVideoThumbnail = firstVideo.thumbnailUrl;
+          }
+
           return MetadataResult(
             title: playlist.title,
             description: description,
             imageUrl: playlist.thumbnailUrl,
             ogTitle: playlist.title,
             ogDescription: description,
-            ogImage: playlist.thumbnailUrl,
+            ogImage: firstVideoThumbnail ?? playlist.thumbnailUrl,
             siteName: 'YouTube',
             language: 'en',
             canonicalUrl: url,
@@ -77,6 +90,8 @@ class MetadataService {
             playlistId: playlist.playlistId,
             totalVideos: playlist.totalItems,
             totalDurationSeconds: totalDuration,
+            firstVideoUrl: firstVideoUrl,
+            firstVideoThumbnail: firstVideoThumbnail,
           );
         }
       } catch (e) {

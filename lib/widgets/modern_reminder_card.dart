@@ -35,7 +35,11 @@ class _ModernReminderCardState extends State<ModernReminderCard>
   }
 
   void _onLocaleChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+    }
   }
 
   @override
@@ -136,7 +140,12 @@ class _ModernReminderCardState extends State<ModernReminderCard>
                     width: double.infinity,
                     height: 180,
                     child: CachedNetworkImage(
-                      imageUrl: widget.reminder.imageUrl ?? '',
+                      // Use playlist thumbnail for playlists, current video thumbnail otherwise
+                      imageUrl:
+                          (widget.reminder.isPlaylist == true &&
+                              widget.reminder.playlistThumbnail != null)
+                          ? widget.reminder.playlistThumbnail!
+                          : (widget.reminder.imageUrl ?? ''),
                       fit: BoxFit.cover,
                       placeholder: (context, url) => Container(
                         color: Colors.grey[200],
@@ -167,6 +176,71 @@ class _ModernReminderCardState extends State<ModernReminderCard>
                       ),
                     ),
                   ),
+                  if (widget.reminder.isPlaylist == true &&
+                      widget.reminder.playlistTotalItems != null &&
+                      widget.reminder.playlistTotalItems > 0)
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.7),
+                            ],
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.playlist_play,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${(widget.reminder.playlistCurrentIndex ?? 0) + 1} / ${widget.reminder.playlistTotalItems}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            ClipRRect(
+                              borderRadius: BorderRadius.zero,
+                              child: LinearProgressIndicator(
+                                value:
+                                    ((widget.reminder.playlistCurrentIndex ??
+                                            0) +
+                                        1) /
+                                    widget.reminder.playlistTotalItems!,
+                                backgroundColor: Colors.white.withValues(
+                                  alpha: 0.3,
+                                ),
+                                valueColor: const AlwaysStoppedAnimation<Color>(
+                                  Color(0xFF00D4C8),
+                                ),
+                                minHeight: 4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
               ),
               Padding(
@@ -174,8 +248,12 @@ class _ModernReminderCardState extends State<ModernReminderCard>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Show playlist title for playlists, regular title otherwise
                     Text(
-                      widget.reminder.title,
+                      (widget.reminder.isPlaylist == true &&
+                              widget.reminder.playlistTitle != null)
+                          ? widget.reminder.playlistTitle!
+                          : widget.reminder.title,
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,

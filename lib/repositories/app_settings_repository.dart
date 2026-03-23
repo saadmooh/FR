@@ -1,4 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'reminder_repository.dart';
+import 'free_time_repository.dart';
 
 class AppSettingsRepository {
   static const String _apiKeyKey = 'ai_api_key';
@@ -6,8 +8,26 @@ class AppSettingsRepository {
   static const String _localeKey = 'locale';
 
   final SharedPreferences _prefs;
+  ReminderRepository? _reminderRepository;
+  FreeTimeRepository? _freeTimeRepository;
 
   AppSettingsRepository(this._prefs);
+
+  void setRepositories(
+    ReminderRepository reminderRepo,
+    FreeTimeRepository freeTimeRepo,
+  ) {
+    _reminderRepository = reminderRepo;
+    _freeTimeRepository = freeTimeRepo;
+  }
+
+  ReminderRepository getReminderRepository() {
+    return _reminderRepository!;
+  }
+
+  FreeTimeRepository getFreeTimeRepository() {
+    return _freeTimeRepository!;
+  }
 
   String? getApiKey() {
     return _prefs.getString(_apiKeyKey);

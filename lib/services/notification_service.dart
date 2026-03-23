@@ -7,6 +7,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/reminder.dart';
 import '../repositories/reminder_repository.dart';
 import '../repositories/category_statistic_repository.dart';
+import 'youtube_service.dart';
+import 'ai_service.dart';
 
 /// Advanced Notification Service for Flex Reminder
 /// Handles notification scheduling, tap actions, and notification management
@@ -21,6 +23,8 @@ class NotificationService {
   ReminderRepository? _reminderRepository;
   CategoryStatisticRepository? _categoryStatRepository;
   GoRouter? _router;
+  YouTubeService? _youtubeService;
+  AIService? _aiService;
   bool _initialized = false;
 
   static const String _channelId = 'flex_reminders_channel';
@@ -89,6 +93,8 @@ class NotificationService {
           _channelName,
           description: _channelDescription,
           importance: Importance.high,
+          enableVibration: true,
+          playSound: true,
         );
 
         androidPlugin.createNotificationChannel(channel);
@@ -123,6 +129,14 @@ class NotificationService {
     _router = router;
   }
 
+  void setYoutubeService(YouTubeService service) {
+    _youtubeService = service;
+  }
+
+  void setAiService(AIService service) {
+    _aiService = service;
+  }
+
   /// Handle notification tap
   void _handleNotificationTap(NotificationResponse response) async {
     final payload = response.payload;
@@ -131,15 +145,69 @@ class NotificationService {
     final reminderId = int.tryParse(payload);
     if (reminderId == null || _reminderRepository == null) return;
 
-    final reminder = _reminderRepository!.getById(reminderId);
+    var reminder = _reminderRepository!.getById(reminderId);
     if (reminder == null) return;
 
-    // Mark as read
+    final wasPlaylist = reminder.isPlaylist == true;
+    final playlistId = reminder.playlistId;
+    final currentIndex = reminder.playlistCurrentIndex ?? 0;
+    final totalItems = reminder.playlistTotalItems ?? 0;
+
+    if (wasPlaylist && playlistId != null && _youtubeService != null) {
+      // This is a playlist - move to next video
+      final nextIndex = currentIndex + 1;
+
+      if (nextIndex < totalItems) {
+        // Get playlist info and find next video
+        try {
+          final playlist = await _youtubeService!.getPlaylistInfo(
+            'https://www.youtube.com/playlist?list=$playlistId',
+          );
+
+          if (playlist != null && nextIndex < playlist.items.length) {
+            final nextVideo = playlist.items[nextIndex];
+
+            // Update reminder with next video data
+            reminder.playlistCurrentIndex = nextIndex;
+            reminder.currentVideoUrl =
+                'https://www.youtube.com/watch?v=${nextVideo.videoId}&list=$playlistId';
+            reminder.title = nextVideo.title;
+            reminder.description = nextVideo.description;
+            reminder.imageUrl = nextVideo.thumbnailUrl;
+
+            // Reschedule notification for next video (simplified - keep same time)
+            reminder.isOpened = false;
+            reminder.openedAt = null;
+            _reminderRepository!.save(reminder);
+            await scheduleReminder(reminder);
+
+            // Don't open URL yet, let user finish current one first
+            // Or open the next video:
+            final nextUri = Uri.parse(reminder.currentVideoUrl!);
+            if (await canLaunchUrl(nextUri)) {
+              await launchUrl(nextUri, mode: LaunchMode.externalApplication);
+            }
+            _router?.go('/post/$reminderId');
+            return;
+          }
+        } catch (e) {
+          // Continue with normal flow if playlist fetch fails
+        }
+      }
+
+      // Playlist completed
+      reminder.isOpened = true;
+      reminder.openedAt = DateTime.now();
+      _reminderRepository!.save(reminder);
+      _categoryStatRepository?.recordOpened(reminder);
+      _router?.go('/post/$reminderId');
+      return;
+    }
+
+    // Regular (non-playlist) reminder handling
     reminder.isOpened = true;
     reminder.openedAt = DateTime.now();
     _reminderRepository!.save(reminder);
-
-    // Update statistics
     _categoryStatRepository?.recordOpened(reminder);
 
     // Open URL
@@ -148,7 +216,6 @@ class NotificationService {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
 
-    // Navigate
     _router?.go('/post/$reminderId');
   }
 

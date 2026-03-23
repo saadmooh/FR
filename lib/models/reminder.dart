@@ -13,6 +13,8 @@ class Reminder {
   // YouTube Playlist fields
   bool isPlaylist = false;
   String? playlistId;
+  String? playlistTitle;
+  String? playlistThumbnail;
   int? playlistCurrentIndex;
   int? playlistTotalItems;
   String? currentVideoUrl;

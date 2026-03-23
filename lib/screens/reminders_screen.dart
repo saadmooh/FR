@@ -44,6 +44,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
   String? _selectedImportance;
   String? _selectedDomain;
   List<String> _availableCategories = [];
+  List<String> _availableComplexities = [];
   List<String> _availableDomains = [];
   List<Reminder> _allReminders = [];
   bool _isLoading = true;
@@ -69,7 +70,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
 
   void _onLocaleChanged() {
     if (mounted) {
-      setState(() {});
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
     }
   }
 
@@ -149,6 +152,14 @@ class _RemindersScreenState extends State<RemindersScreen> {
         .toList();
     categories.sort();
 
+    final complexities = allReminders
+        .map((r) => r.complexityEn)
+        .where((c) => c != null && c.isNotEmpty)
+        .cast<String>()
+        .toSet()
+        .toList();
+    complexities.sort();
+
     final domains = allReminders
         .map((r) => _extractDomain(r.url))
         .where((d) => d.isNotEmpty)
@@ -158,6 +169,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
 
     setState(() {
       _availableCategories = categories;
+      _availableComplexities = complexities;
       _availableDomains = domains;
     });
   }
@@ -407,7 +419,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                         setState(() {});
                       },
                     ),
-                    ...AppConstants.availableCategories.map(
+                    ..._availableCategories.map(
                       (cat) => _buildFilterChip(
                         label: cat,
                         isSelected: _selectedCategory == cat,
@@ -440,29 +452,19 @@ class _RemindersScreenState extends State<RemindersScreen> {
                         setState(() {});
                       },
                     ),
-                    _buildFilterChip(
-                      label: Translations.complexityLow(_locale),
-                      isSelected: _selectedComplexity == 'Low',
-                      onSelected: () {
-                        setModalState(() => _selectedComplexity = 'Low');
-                        setState(() {});
-                      },
-                    ),
-                    _buildFilterChip(
-                      label: Translations.complexityMedium(_locale),
-                      isSelected: _selectedComplexity == 'Medium',
-                      onSelected: () {
-                        setModalState(() => _selectedComplexity = 'Medium');
-                        setState(() {});
-                      },
-                    ),
-                    _buildFilterChip(
-                      label: Translations.complexityHigh(_locale),
-                      isSelected: _selectedComplexity == 'High',
-                      onSelected: () {
-                        setModalState(() => _selectedComplexity = 'High');
-                        setState(() {});
-                      },
+                    ..._availableComplexities.map(
+                      (comp) => _buildFilterChip(
+                        label: LocaleManager.instance.getComplexity(
+                          comp,
+                          null,
+                          null,
+                        ),
+                        isSelected: _selectedComplexity == comp,
+                        onSelected: () {
+                          setModalState(() => _selectedComplexity = comp);
+                          setState(() {});
+                        },
+                      ),
                     ),
                   ],
                 ),
@@ -923,73 +925,55 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   ),
                 )
               else if (type == 'complexity')
-                Column(
-                  children: [
-                    ListTile(
-                      title: Text(Translations.all(_locale)),
-                      leading: Radio<String?>(
-                        value: null,
-                        groupValue: _selectedComplexity,
-                        activeColor: const Color(0xFF00D4C8),
-                        onChanged: (v) {
-                          setState(() => _selectedComplexity = v);
+                SizedBox(
+                  height: 300,
+                  child: ListView(
+                    children: [
+                      ListTile(
+                        title: Text(Translations.all(_locale)),
+                        leading: Radio<String?>(
+                          value: null,
+                          groupValue: _selectedComplexity,
+                          activeColor: const Color(0xFF00D4C8),
+                          onChanged: (v) {
+                            setState(() => _selectedComplexity = v);
+                            Navigator.pop(context);
+                          },
+                        ),
+                        onTap: () {
+                          setState(() => _selectedComplexity = null);
                           Navigator.pop(context);
                         },
                       ),
-                      onTap: () {
-                        setState(() => _selectedComplexity = null);
-                        Navigator.pop(context);
-                      },
-                    ),
-                    ListTile(
-                      title: Text(Translations.complexityLow(_locale)),
-                      leading: Radio<String?>(
-                        value: 'Low',
-                        groupValue: _selectedComplexity,
-                        activeColor: const Color(0xFF00D4C8),
-                        onChanged: (v) {
-                          setState(() => _selectedComplexity = v);
-                          Navigator.pop(context);
-                        },
-                      ),
-                      onTap: () {
-                        setState(() => _selectedComplexity = 'Low');
-                        Navigator.pop(context);
-                      },
-                    ),
-                    ListTile(
-                      title: Text(Translations.complexityMedium(_locale)),
-                      leading: Radio<String?>(
-                        value: 'Medium',
-                        groupValue: _selectedComplexity,
-                        activeColor: const Color(0xFF00D4C8),
-                        onChanged: (v) {
-                          setState(() => _selectedComplexity = v);
-                          Navigator.pop(context);
-                        },
-                      ),
-                      onTap: () {
-                        setState(() => _selectedComplexity = 'Medium');
-                        Navigator.pop(context);
-                      },
-                    ),
-                    ListTile(
-                      title: Text(Translations.complexityHigh(_locale)),
-                      leading: Radio<String?>(
-                        value: 'High',
-                        groupValue: _selectedComplexity,
-                        activeColor: const Color(0xFF00D4C8),
-                        onChanged: (v) {
-                          setState(() => _selectedComplexity = v);
-                          Navigator.pop(context);
-                        },
-                      ),
-                      onTap: () {
-                        setState(() => _selectedComplexity = 'High');
-                        Navigator.pop(context);
-                      },
-                    ),
-                  ],
+                      ...(_availableComplexities.isNotEmpty
+                              ? _availableComplexities
+                              : ['Low', 'Medium', 'High'])
+                          .map(
+                            (comp) => ListTile(
+                              title: Text(
+                                LocaleManager.instance.getComplexity(
+                                  comp,
+                                  null,
+                                  null,
+                                ),
+                              ),
+                              leading: Radio<String?>(
+                                value: comp,
+                                groupValue: _selectedComplexity,
+                                activeColor: const Color(0xFF00D4C8),
+                                onChanged: (v) {
+                                  setState(() => _selectedComplexity = v);
+                                  Navigator.pop(context);
+                                },
+                              ),
+                              onTap: () {
+                                setState(() => _selectedComplexity = comp);
+                                Navigator.pop(context);
+                              },
+                            ),
+                          ),
+                    ],
+                  ),
                 )
               else if (type == 'domain')
                 SizedBox(

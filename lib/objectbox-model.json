@@ -34,7 +34,7 @@
     },
     {
       "id": "2:2467552958308754850",
-      "lastPropertyId": "30:3133621524900684366",
+      "lastPropertyId": "32:7074773747689110051",
       "name": "Reminder",
       "properties": [
         {
@@ -176,6 +176,16 @@
         {
           "id": "30:3133621524900684366",
           "name": "currentVideoUrl",
+          "type": 9
+        },
+        {
+          "id": "31:7880347285899066685",
+          "name": "playlistTitle",
+          "type": 9
+        },
+        {
+          "id": "32:7074773747689110051",
+          "name": "playlistThumbnail",
           "type": 9
         }
       ],

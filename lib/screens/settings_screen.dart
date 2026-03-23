@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 import '../services/ai_service.dart';
+import '../services/backup_service.dart';
 import '../repositories/app_settings_repository.dart';
 import '../core/app_theme.dart';
 import '../core/locale_manager.dart';
 import '../core/translations.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import '../models/reminder.dart';
+import '../models/free_time_slot.dart';
 
 class SettingsScreen extends StatefulWidget {
   final AIService aiService;
@@ -22,9 +29,10 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _apiKeyController = TextEditingController();
   String _selectedProvider = 'google';
-  String _selectedLanguage = 'en';
   bool _isTesting = false;
   bool _obscureText = true;
+
+  final BackupService _backupService = BackupService();
 
   final List<Map<String, String>> _providers = [
     {'value': 'google', 'label': 'Google Gemini'},
@@ -38,27 +46,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _selectedProvider = widget.aiService.getProvider();
-    _selectedLanguage = LocaleManager.instance.getLocale();
     final existingKey = widget.aiService.getApiKey();
     if (existingKey != null) {
       _apiKeyController.text = existingKey;
     }
-    LocaleManager.instance.localeNotifier.addListener(_onLocaleChanged);
   }
 
   String get _locale => LocaleManager.instance.getLocale();
 
-  void _onLocaleChanged() {
-    if (mounted) {
-      setState(() {
-        _selectedLanguage = LocaleManager.instance.getLocale();
-      });
-    }
-  }
-
   @override
   void dispose() {
-    LocaleManager.instance.localeNotifier.removeListener(_onLocaleChanged);
     _apiKeyController.dispose();
     super.dispose();
   }
@@ -103,6 +100,154 @@ class _SettingsScreenState extends State<SettingsScreen> {
       SnackBar(
         content: Text('${success ? '✅' : '❌'} $message'),
         backgroundColor: success ? AppColors.success : AppColors.error,
+      ),
+    );
+  }
+
+  Future<void> _exportData(ExportFormat format) async {
+    try {
+      final reminders = widget.settingsRepository
+          .getReminderRepository()
+          .getAll();
+      final freeTimes = widget.settingsRepository
+          .getFreeTimeRepository()
+          .getAll();
+
+      String fileName =
+          'flex_reminder_backup_${DateTime.now().millisecondsSinceEpoch}';
+      String content;
+
+      if (format == ExportFormat.json) {
+        content = _backupService.exportToJson(reminders, freeTimes);
+        fileName += '.json';
+      } else {
+        final bytes = _backupService.exportToExcel(reminders, freeTimes);
+        if (bytes.isEmpty) {
+          _showMessage(false, 'Export failed');
+          return;
+        }
+        fileName += '.xlsx';
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/$fileName');
+        await file.writeAsBytes(bytes);
+        await Share.shareXFiles([
+          XFile(file.path),
+        ], text: 'Flex Reminder Backup');
+        _showMessage(true, 'Exported successfully');
+        return;
+      }
+
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/$fileName');
+      await file.writeAsString(content);
+      await Share.shareXFiles([XFile(file.path)], text: 'Flex Reminder Backup');
+      _showMessage(true, 'Exported successfully');
+    } catch (e) {
+      _showMessage(false, 'Export failed: $e');
+    }
+  }
+
+  Future<void> _importData() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json', 'xlsx'],
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.first;
+      final path = file.path;
+      if (path == null) return;
+
+      List<Reminder> reminders = [];
+      List<FreeTimeSlot> freeTimes = [];
+
+      if (file.name.endsWith('.json')) {
+        final content = await File(path).readAsString();
+        final data = _backupService.importFromJson(content);
+        reminders = data?['reminders'] ?? [];
+        freeTimes = data?['freeTimes'] ?? [];
+      } else if (file.name.endsWith('.xlsx')) {
+        final bytes = await File(path).readAsBytes();
+        final data = _backupService.importFromExcel(bytes);
+        reminders = data?['reminders'] ?? [];
+        freeTimes = data?['freeTimes'] ?? [];
+      }
+
+      final reminderRepo = widget.settingsRepository.getReminderRepository();
+      final freeTimeRepo = widget.settingsRepository.getFreeTimeRepository();
+
+      for (final reminder in reminders) {
+        reminder.id = 0;
+        reminderRepo.save(reminder);
+      }
+
+      for (final freeTime in freeTimes) {
+        freeTime.id = 0;
+        freeTimeRepo.save(freeTime);
+      }
+
+      _showMessage(
+        true,
+        'Imported ${reminders.length} reminders and ${freeTimes.length} free times',
+      );
+    } catch (e) {
+      _showMessage(false, 'Import failed: $e');
+    }
+  }
+
+  void _showMessage(bool success, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: success ? AppColors.success : AppColors.error,
+      ),
+    );
+  }
+
+  void _showExportDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.whiteSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 20),
+            Text(
+              'Export Format',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.whiteTextPrimary,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: const Icon(Icons.code, color: AppColors.accent),
+              title: const Text('JSON'),
+              subtitle: const Text('Plain text format, easy to edit'),
+              onTap: () {
+                Navigator.pop(context);
+                _exportData(ExportFormat.json);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.table_chart, color: AppColors.accent),
+              title: const Text('Excel'),
+              subtitle: const Text('Spreadsheet format'),
+              onTap: () {
+                Navigator.pop(context);
+                _exportData(ExportFormat.excel);
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
@@ -201,86 +346,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: (value) {
                     if (value != null) {
                       setState(() => _selectedProvider = value);
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Language Section
-          _buildSectionHeader(
-            Translations.language(locale),
-            Icons.language_outlined,
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.whiteSurface,
-              borderRadius: BorderRadius.zero,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  Translations.selectLanguage(locale),
-                  style: TextStyle(
-                    color: AppColors.whiteTextPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: _selectedLanguage,
-                  dropdownColor: AppColors.whiteSurface,
-                  style: TextStyle(color: AppColors.whiteTextPrimary),
-                  decoration: InputDecoration(
-                    hintText: Translations.selectLanguage(locale),
-                    hintStyle: TextStyle(color: AppColors.whiteTextSecondary),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.zero,
-                      borderSide: BorderSide(
-                        color: AppColors.whiteTextSecondary.withOpacity(0.3),
-                      ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.zero,
-                      borderSide: BorderSide(
-                        color: AppColors.whiteTextSecondary.withOpacity(0.3),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.zero,
-                      borderSide: const BorderSide(
-                        color: AppColors.accent,
-                        width: 2,
-                      ),
-                    ),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'en', child: Text('English')),
-                    DropdownMenuItem(value: 'ar', child: Text('العربية')),
-                    DropdownMenuItem(value: 'fr', child: Text('Français')),
-                  ],
-                  onChanged: (value) async {
-                    if (value != null) {
-                      setState(() => _selectedLanguage = value);
-                      await LocaleManager.instance.setLocale(value);
-                      // LocaleManager.setLocale already saves to repository
                     }
                   },
                 ),
@@ -478,6 +543,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       fontSize: 12,
                     ),
                   ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
+
+          // Backup Section
+          _buildSectionHeader('Backup & Restore', Icons.backup_outlined),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.whiteSurface,
+              borderRadius: BorderRadius.zero,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(
+                    Icons.upload_outlined,
+                    color: AppColors.accent,
+                  ),
+                  title: Text(
+                    'Export Data',
+                    style: TextStyle(color: AppColors.whiteTextPrimary),
+                  ),
+                  subtitle: Text(
+                    'Save reminders to JSON or Excel',
+                    style: TextStyle(color: AppColors.whiteTextSecondary),
+                  ),
+                  onTap: _showExportDialog,
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(
+                    Icons.download_outlined,
+                    color: AppColors.accent,
+                  ),
+                  title: Text(
+                    'Import Data',
+                    style: TextStyle(color: AppColors.whiteTextPrimary),
+                  ),
+                  subtitle: Text(
+                    'Restore from backup file',
+                    style: TextStyle(color: AppColors.whiteTextSecondary),
+                  ),
+                  onTap: _importData,
                 ),
               ],
             ),

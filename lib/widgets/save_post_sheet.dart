@@ -219,9 +219,18 @@ class _SavePostSheetState extends State<SavePostSheet> {
       if (metadata.isPlaylist) {
         reminder.isPlaylist = true;
         reminder.playlistId = metadata.playlistId;
+        reminder.playlistTitle = metadata.title;
+        reminder.playlistThumbnail = metadata.ogImage;
         reminder.playlistCurrentIndex = 0;
         reminder.playlistTotalItems = metadata.totalVideos;
-        reminder.currentVideoUrl = url;
+
+        // Use first video's URL as currentVideoUrl
+        reminder.currentVideoUrl = metadata.firstVideoUrl ?? url;
+
+        // Use first video's thumbnail as reminder imageUrl if available
+        if (metadata.firstVideoThumbnail != null) {
+          reminder.imageUrl = metadata.firstVideoThumbnail;
+        }
       }
 
       final id = widget.reminderRepository.save(reminder);

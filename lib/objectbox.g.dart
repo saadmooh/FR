@@ -59,7 +59,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
     id: const obx_int.IdUid(2, 2467552958308754850),
     name: 'Reminder',
-    lastPropertyId: const obx_int.IdUid(30, 3133621524900684366),
+    lastPropertyId: const obx_int.IdUid(32, 7074773747689110051),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
@@ -227,6 +227,18 @@ final _entities = <obx_int.ModelEntity>[
       obx_int.ModelProperty(
         id: const obx_int.IdUid(30, 3133621524900684366),
         name: 'currentVideoUrl',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(31, 7880347285899066685),
+        name: 'playlistTitle',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(32, 7074773747689110051),
+        name: 'playlistThumbnail',
         type: 9,
         flags: 0,
       ),
@@ -567,7 +579,13 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final currentVideoUrlOffset = object.currentVideoUrl == null
             ? null
             : fbb.writeString(object.currentVideoUrl!);
-        fbb.startTable(31);
+        final playlistTitleOffset = object.playlistTitle == null
+            ? null
+            : fbb.writeString(object.playlistTitle!);
+        final playlistThumbnailOffset = object.playlistThumbnail == null
+            ? null
+            : fbb.writeString(object.playlistThumbnail!);
+        fbb.startTable(33);
         fbb.addInt64(0, object.id);
         fbb.addOffset(1, urlOffset);
         fbb.addOffset(2, titleOffset);
@@ -596,6 +614,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
         fbb.addInt64(27, object.playlistCurrentIndex);
         fbb.addInt64(28, object.playlistTotalItems);
         fbb.addOffset(29, currentVideoUrlOffset);
+        fbb.addOffset(30, playlistTitleOffset);
+        fbb.addOffset(31, playlistThumbnailOffset);
         fbb.finish(fbb.endTable());
         return object.id;
       },
@@ -732,7 +752,13 @@ obx_int.ModelDefinition getObjectBoxModel() {
               )
               ..currentVideoUrl = const fb.StringReader(
                 asciiOptimization: true,
-              ).vTableGetNullable(buffer, rootOffset, 62);
+              ).vTableGetNullable(buffer, rootOffset, 62)
+              ..playlistTitle = const fb.StringReader(
+                asciiOptimization: true,
+              ).vTableGetNullable(buffer, rootOffset, 64)
+              ..playlistThumbnail = const fb.StringReader(
+                asciiOptimization: true,
+              ).vTableGetNullable(buffer, rootOffset, 66);
 
         return object;
       },
@@ -1118,6 +1144,16 @@ class Reminder_ {
   /// See [Reminder.currentVideoUrl].
   static final currentVideoUrl = obx.QueryStringProperty<Reminder>(
     _entities[1].properties[27],
+  );
+
+  /// See [Reminder.playlistTitle].
+  static final playlistTitle = obx.QueryStringProperty<Reminder>(
+    _entities[1].properties[28],
+  );
+
+  /// See [Reminder.playlistThumbnail].
+  static final playlistThumbnail = obx.QueryStringProperty<Reminder>(
+    _entities[1].properties[29],
   );
 }
 

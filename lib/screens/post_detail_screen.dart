@@ -8,6 +8,7 @@ import '../repositories/free_time_repository.dart';
 import '../repositories/category_statistic_repository.dart';
 import '../services/notification_service.dart';
 import '../services/ai_service.dart';
+import '../services/youtube_service.dart';
 import '../models/reminder.dart';
 import '../core/app_theme.dart';
 import '../core/locale_manager.dart';
@@ -40,12 +41,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   bool _isLoading = true;
   bool _isRescheduling = false;
   final ValueNotifier<bool> _refreshNotifier = ValueNotifier<bool>(false);
+  YouTubeService? _youtubeService;
 
   String get _locale => LocaleManager.instance.getLocale();
 
   @override
   void initState() {
     super.initState();
+    _youtubeService = YouTubeService();
     _loadReminder();
     _refreshNotifier.addListener(_onRefresh);
     LocaleManager.instance.localeNotifier.addListener(_onLocaleChanged);
@@ -60,7 +63,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 
   void _onLocaleChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+    }
   }
 
   void _onRefresh() {
@@ -94,7 +101,49 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   Future<void> _openPost() async {
     if (_reminder == null) return;
 
-    final uri = Uri.parse(_reminder!.url);
+    final isPlaylist = _reminder!.isPlaylist == true;
+    final playlistId = _reminder!.playlistId;
+    final currentIndex = _reminder!.playlistCurrentIndex ?? 0;
+    final totalItems = _reminder!.playlistTotalItems ?? 0;
+
+    String urlToOpen;
+
+    if (isPlaylist && playlistId != null && _youtubeService != null) {
+      // For playlist, use currentVideoUrl
+      urlToOpen = _reminder!.currentVideoUrl ?? _reminder!.url;
+
+      // Check if there's a next video to advance to
+      final nextIndex = currentIndex + 1;
+      if (nextIndex < totalItems) {
+        try {
+          final playlist = await _youtubeService!.getPlaylistInfo(
+            'https://www.youtube.com/playlist?list=$playlistId',
+          );
+
+          if (playlist != null && nextIndex < playlist.items.length) {
+            final nextVideo = playlist.items[nextIndex];
+
+            // Update reminder with next video data
+            _reminder!.playlistCurrentIndex = nextIndex;
+            _reminder!.currentVideoUrl =
+                'https://www.youtube.com/watch?v=${nextVideo.videoId}&list=$playlistId';
+            _reminder!.title = nextVideo.title;
+            _reminder!.description = nextVideo.description;
+            _reminder!.imageUrl = nextVideo.thumbnailUrl;
+
+            // Reschedule notification for next video
+            await widget.notificationService.cancelReminder(_reminder!.id);
+            await widget.notificationService.scheduleReminder(_reminder!);
+          }
+        } catch (e) {
+          // Continue with normal flow
+        }
+      }
+    } else {
+      urlToOpen = _reminder!.url;
+    }
+
+    final uri = Uri.parse(urlToOpen);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
@@ -312,7 +361,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title
+                  // Title - always show current video title
                   Text(
                     _reminder!.title,
                     style: const TextStyle(
@@ -321,6 +370,45 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       color: AppColors.whiteTextPrimary,
                     ),
                   ),
+
+                  // Show current video info for playlists
+                  if (_reminder!.isPlaylist == true) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.zero,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.play_circle_filled,
+                            size: 16,
+                            color: AppColors.accent,
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              'Now: ${_reminder!.title}',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: AppColors.accent,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
                   const SizedBox(height: 16),
 
                   // Description
@@ -395,6 +483,27 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           color: AppColors.whiteTextSecondary,
                           height: 24,
                         ),
+                        // Show playlist progress
+                        if (_reminder!.isPlaylist == true) ...[
+                          _buildMetadataRow(
+                            'Playlist',
+                            _reminder!.playlistTitle ?? 'Unknown',
+                            valueColor: AppColors.accent,
+                          ),
+                          const Divider(
+                            color: AppColors.whiteTextSecondary,
+                            height: 24,
+                          ),
+                          _buildMetadataRow(
+                            'Watching',
+                            'Video ${(_reminder!.playlistCurrentIndex ?? 0) + 1} of ${_reminder!.playlistTotalItems ?? 0}',
+                            valueColor: AppColors.accent,
+                          ),
+                          const Divider(
+                            color: AppColors.whiteTextSecondary,
+                            height: 24,
+                          ),
+                        ],
                         _buildMetadataRow(
                           Translations.statusLabel(_locale),
                           _reminder!.isOpened
