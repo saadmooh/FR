@@ -1,5 +1,5 @@
 class AppConstants {
-  static const String appName = 'Flex Reminder';
+  static const String appName = 'Smart Pocket';
   static const String aiProviderKey = 'ai_provider';
   static const String aiApiKeyKey = 'ai_api_key';
   static const String defaultProvider = 'google';

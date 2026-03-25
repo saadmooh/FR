@@ -9,7 +9,7 @@ class AppTranslations {
 
   static const Map<String, String> _englishStrings = {
     // App
-    'appName': 'Flex Reminder',
+    'appName': 'Smart Pocket',
 
     // Navigation
     'navPosts': 'Posts',
@@ -385,7 +385,7 @@ class AppTranslations {
 
   static const Map<String, String> _frenchStrings = {
     // App
-    'appName': 'Flex Reminder',
+    'appName': 'Smart Pocket',
 
     // Navigation
     'navPosts': 'Publications',

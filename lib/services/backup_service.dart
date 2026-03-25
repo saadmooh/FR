@@ -127,32 +127,28 @@ class BackupService {
       final List<Reminder> reminders = [];
       final List<FreeTimeSlot> freeTimes = [];
 
-      final Sheet? remindersSheet = excel['Reminders'];
-      if (remindersSheet != null) {
-        final rows = remindersSheet.rows;
-        if (rows.length > 1) {
-          for (int i = 1; i < rows.length; i++) {
-            final row = rows[i];
-            if (row.isEmpty) continue;
-            final Reminder? reminder = _parseReminderRow(row);
-            if (reminder != null) {
-              reminders.add(reminder);
-            }
+      final Sheet remindersSheet = excel['Reminders'];
+      final rows = remindersSheet.rows;
+      if (rows.length > 1) {
+        for (int i = 1; i < rows.length; i++) {
+          final row = rows[i];
+          if (row.isEmpty) continue;
+          final Reminder? reminder = _parseReminderRow(row);
+          if (reminder != null) {
+            reminders.add(reminder);
           }
         }
       }
 
-      final Sheet? freeTimesSheet = excel['FreeTimes'];
-      if (freeTimesSheet != null) {
-        final rows = freeTimesSheet.rows;
-        if (rows.length > 1) {
-          for (int i = 1; i < rows.length; i++) {
-            final row = rows[i];
-            if (row.isEmpty) continue;
-            final FreeTimeSlot? freeTime = _parseFreeTimeRow(row);
-            if (freeTime != null) {
-              freeTimes.add(freeTime);
-            }
+      final Sheet freeTimesSheet = excel['FreeTimes'];
+      final freeTimeRows = freeTimesSheet.rows;
+      if (freeTimeRows.length > 1) {
+        for (int i = 1; i < freeTimeRows.length; i++) {
+          final row = freeTimeRows[i];
+          if (row.isEmpty) continue;
+          final FreeTimeSlot? freeTime = _parseFreeTimeRow(row);
+          if (freeTime != null) {
+            freeTimes.add(freeTime);
           }
         }
       }

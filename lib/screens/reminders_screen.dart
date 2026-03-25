@@ -581,21 +581,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
             ? _buildAnimatedSearchField()
             : Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF00D4C8), Color(0xFF00B4A0)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.bookmark_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
+                  Image.asset(
+                    'assets/images/app_icon.png',
+                    width: 32,
+                    height: 32,
                   ),
                   const SizedBox(width: 12),
                   Text(

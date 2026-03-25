@@ -377,7 +377,7 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
             ),
             const SizedBox(height: 24),
             DropdownButtonFormField<int>(
-              value: _selectedDay,
+              initialValue: _selectedDay,
               dropdownColor: AppColors.whiteSurface,
               style: const TextStyle(color: AppColors.whiteTextPrimary),
               decoration: InputDecoration(

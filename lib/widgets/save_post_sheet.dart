@@ -280,7 +280,7 @@ class _SavePostSheetState extends State<SavePostSheet> {
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       decoration: const BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.whiteSurface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: SingleChildScrollView(
@@ -295,7 +295,7 @@ class _SavePostSheetState extends State<SavePostSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.textSecondary.withAlpha(128),
+                  color: AppColors.whiteTextSecondary.withAlpha(128),
                   borderRadius: BorderRadius.zero,
                 ),
               ),
@@ -308,7 +308,7 @@ class _SavePostSheetState extends State<SavePostSheet> {
               style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+                color: AppColors.whiteTextPrimary,
               ),
             ),
             const SizedBox(height: 20),
@@ -317,17 +317,23 @@ class _SavePostSheetState extends State<SavePostSheet> {
             TextField(
               controller: _urlController,
               autofocus: widget.initialUrl != null,
-              style: const TextStyle(color: AppColors.textPrimary),
+              style: const TextStyle(color: AppColors.whiteTextPrimary),
               decoration: InputDecoration(
                 hintText: Translations.enterUrl(_locale),
-                hintStyle: const TextStyle(color: AppColors.textSecondary),
+                hintStyle: const TextStyle(color: AppColors.whiteTextSecondary),
                 prefixIcon: const Icon(
                   Icons.link,
-                  color: AppColors.textSecondary,
+                  color: AppColors.whiteTextSecondary,
                 ),
                 suffixIcon: const Icon(
                   Icons.paste,
-                  color: AppColors.textSecondary,
+                  color: AppColors.whiteTextSecondary,
+                ),
+                enabledBorder: const OutlineInputBorder(
+                  borderSide: BorderSide(color: AppColors.whiteTextSecondary),
+                ),
+                focusedBorder: const OutlineInputBorder(
+                  borderSide: BorderSide(color: AppColors.accent),
                 ),
               ),
             ),
@@ -335,11 +341,12 @@ class _SavePostSheetState extends State<SavePostSheet> {
 
             // Importance dropdown
             DropdownButtonFormField<String>(
-              value: _importance,
-              dropdownColor: AppColors.surface,
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: InputDecoration(
-                labelText: Translations.whenToRemind(_locale),
+              initialValue: _importance,
+              dropdownColor: AppColors.whiteSurface,
+              style: const TextStyle(color: AppColors.whiteTextPrimary),
+              decoration: const InputDecoration(
+                labelText: null,
+                labelStyle: TextStyle(color: AppColors.whiteTextSecondary),
               ),
               items: [
                 DropdownMenuItem(
@@ -391,7 +398,7 @@ class _SavePostSheetState extends State<SavePostSheet> {
                   const SizedBox(width: 12),
                   Text(
                     _loadingStatus,
-                    style: const TextStyle(color: AppColors.textSecondary),
+                    style: const TextStyle(color: AppColors.whiteTextSecondary),
                   ),
                 ],
               ),
@@ -403,7 +410,7 @@ class _SavePostSheetState extends State<SavePostSheet> {
               onPressed: _isLoading ? null : _save,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.accent,
-                foregroundColor: AppColors.background,
+                foregroundColor: AppColors.whiteBackground,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
               ),

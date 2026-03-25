@@ -10,7 +10,7 @@ import '../repositories/category_statistic_repository.dart';
 import 'youtube_service.dart';
 import 'ai_service.dart';
 
-/// Advanced Notification Service for Flex Reminder
+/// Advanced Notification Service for Smart Pocket
 /// Handles notification scheduling, tap actions, and notification management
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -28,7 +28,7 @@ class NotificationService {
   bool _initialized = false;
 
   static const String _channelId = 'flex_reminders_channel';
-  static const String _channelName = 'Flex Reminders';
+  static const String _channelName = 'Smart Pocket';
   static const String _channelDescription = 'Smart post reading reminders';
 
   /// Initialize the notification service

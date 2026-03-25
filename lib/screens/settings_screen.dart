@@ -132,7 +132,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         await file.writeAsBytes(bytes);
         await Share.shareXFiles([
           XFile(file.path),
-        ], text: 'Flex Reminder Backup');
+        ], text: 'Smart Pocket Backup');
         _showMessage(true, 'Exported successfully');
         return;
       }
@@ -140,7 +140,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/$fileName');
       await file.writeAsString(content);
-      await Share.shareXFiles([XFile(file.path)], text: 'Flex Reminder Backup');
+      await Share.shareXFiles([XFile(file.path)], text: 'Smart Pocket Backup');
       _showMessage(true, 'Exported successfully');
     } catch (e) {
       _showMessage(false, 'Export failed: $e');
@@ -307,7 +307,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: _selectedProvider,
+                  initialValue: _selectedProvider,
                   dropdownColor: AppColors.whiteSurface,
                   style: TextStyle(color: AppColors.whiteTextPrimary),
                   decoration: InputDecoration(
