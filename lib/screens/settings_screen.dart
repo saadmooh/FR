@@ -5,6 +5,7 @@ import '../repositories/app_settings_repository.dart';
 import '../core/app_theme.dart';
 import '../core/locale_manager.dart';
 import '../core/translations.dart';
+import '../core/constants.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
@@ -29,23 +30,17 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _apiKeyController = TextEditingController();
   String _selectedProvider = 'google';
+  String _selectedModel = '';
   bool _isTesting = false;
   bool _obscureText = true;
 
   final BackupService _backupService = BackupService();
 
-  final List<Map<String, String>> _providers = [
-    {'value': 'google', 'label': 'Google Gemini'},
-    {'value': 'openai', 'label': 'OpenAI'},
-    {'value': 'anthropic', 'label': 'Anthropic'},
-    {'value': 'mistral', 'label': 'Mistral'},
-    {'value': 'cohere', 'label': 'Cohere'},
-  ];
-
   @override
   void initState() {
     super.initState();
     _selectedProvider = widget.aiService.getProvider();
+    _selectedModel = widget.settingsRepository.getModel();
     final existingKey = widget.aiService.getApiKey();
     if (existingKey != null) {
       _apiKeyController.text = existingKey;
@@ -53,6 +48,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   String get _locale => LocaleManager.instance.getLocale();
+
+  List<String> _getModelsForProvider(String provider) {
+    return AppConstants.availableModels[provider] ?? [];
+  }
+
+  Widget _buildModelDropdown() {
+    final models = _getModelsForProvider(_selectedProvider);
+    final currentModel =
+        _selectedModel.isEmpty && models.isNotEmpty ? models.first : _selectedModel;
+
+    return DropdownButtonFormField<String>(
+      initialValue: models.contains(currentModel) ? currentModel : null,
+      dropdownColor: AppColors.whiteSurface,
+      style: TextStyle(color: AppColors.whiteTextPrimary),
+      decoration: InputDecoration(
+        hintText: 'Select model',
+        hintStyle: TextStyle(color: AppColors.whiteTextSecondary),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.zero,
+          borderSide: BorderSide(
+            color: AppColors.whiteTextSecondary.withOpacity(0.3),
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.zero,
+          borderSide: BorderSide(
+            color: AppColors.whiteTextSecondary.withOpacity(0.3),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.zero,
+          borderSide: const BorderSide(
+            color: AppColors.accent,
+            width: 2,
+          ),
+        ),
+      ),
+      items: models.map((m) {
+        return DropdownMenuItem(
+          value: m,
+          child: Text(m),
+        );
+      }).toList(),
+      onChanged: (value) {
+        if (value != null) {
+          setState(() => _selectedModel = value);
+        }
+      },
+    );
+  }
 
   @override
   void dispose() {
@@ -86,6 +135,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       widget.aiService.setApiKey(key);
     }
     widget.settingsRepository.setProvider(_selectedProvider);
+    widget.settingsRepository.setModel(_selectedModel);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -337,18 +387,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                   ),
-                  items: _providers.map((p) {
+                  items: AppConstants.availableProviders.map((p) {
                     return DropdownMenuItem(
-                      value: p['value'],
-                      child: Text(p['label']!),
+                      value: p,
+                      child: Text(AppConstants.providerLabels[p] ?? p),
                     );
                   }).toList(),
                   onChanged: (value) {
                     if (value != null) {
-                      setState(() => _selectedProvider = value);
+                      setState(() {
+                        _selectedProvider = value;
+                        final models = AppConstants.availableModels[value] ?? [];
+                        _selectedModel = models.isNotEmpty ? models.first : '';
+                      });
                     }
                   },
                 ),
+                const SizedBox(height: 16),
+                Text(
+                  'Model',
+                  style: TextStyle(
+                    color: AppColors.whiteTextPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildModelDropdown(),
               ],
             ),
           ),

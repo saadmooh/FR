@@ -21,6 +21,7 @@ class RemindersScreen extends StatefulWidget {
   final NotificationService notificationService;
   final AIService aiService;
   final ValueNotifier<String?> pendingSharedUrl;
+  final ValueNotifier<String?> aiRescheduleError;
 
   const RemindersScreen({
     super.key,
@@ -30,6 +31,7 @@ class RemindersScreen extends StatefulWidget {
     required this.notificationService,
     required this.aiService,
     required this.pendingSharedUrl,
+    required this.aiRescheduleError,
   });
 
   @override
@@ -58,6 +60,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
     _loadReminders();
     widget.pendingSharedUrl.addListener(_onPendingSharedUrlChanged);
     LocaleManager.instance.localeNotifier.addListener(_onLocaleChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showAiRescheduleErrorIfNeeded();
+    });
   }
 
   @override
@@ -73,6 +78,20 @@ class _RemindersScreenState extends State<RemindersScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(() {});
       });
+    }
+  }
+
+  void _showAiRescheduleErrorIfNeeded() {
+    final error = widget.aiRescheduleError.value;
+    if (error != null && error.isNotEmpty && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('AI reschedule failed: $error'),
+          backgroundColor: AppColors.error,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+      widget.aiRescheduleError.value = null;
     }
   }
 

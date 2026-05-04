@@ -1,14 +1,19 @@
-import 'dart:ui';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:workmanager/workmanager.dart';
 import '../models/reminder.dart';
-import '../repositories/reminder_repository.dart';
 import '../repositories/category_statistic_repository.dart';
+import '../repositories/free_time_repository.dart';
+import '../repositories/app_settings_repository.dart';
+import '../repositories/reminder_repository.dart';
 import 'youtube_service.dart';
 import 'ai_service.dart';
+
+const String _monitoringTaskName = 'reminder_monitoring_task';
 
 /// Advanced Notification Service for Smart Pocket
 /// Handles notification scheduling, tap actions, and notification management
@@ -22,6 +27,8 @@ class NotificationService {
 
   ReminderRepository? _reminderRepository;
   CategoryStatisticRepository? _categoryStatRepository;
+  FreeTimeRepository? _freeTimeRepository;
+  AppSettingsRepository? _settingsRepository;
   GoRouter? _router;
   YouTubeService? _youtubeService;
   AIService? _aiService;
@@ -35,11 +42,15 @@ class NotificationService {
   Future<void> initialize({
     required ReminderRepository reminderRepository,
     required CategoryStatisticRepository categoryStatRepository,
+    FreeTimeRepository? freeTimeRepository,
+    AppSettingsRepository? settingsRepository,
   }) async {
     if (_initialized) return;
 
     _reminderRepository = reminderRepository;
     _categoryStatRepository = categoryStatRepository;
+    _freeTimeRepository = freeTimeRepository;
+    _settingsRepository = settingsRepository;
 
     // Initialize using named parameters
     try {
@@ -135,6 +146,14 @@ class NotificationService {
 
   void setAiService(AIService service) {
     _aiService = service;
+  }
+
+  void setFreeTimeRepository(FreeTimeRepository repo) {
+    _freeTimeRepository = repo;
+  }
+
+  void setSettingsRepository(AppSettingsRepository repo) {
+    _settingsRepository = repo;
   }
 
   /// Handle notification tap
@@ -257,6 +276,8 @@ class NotificationService {
         payload: reminder.id.toString(),
       );
 
+      await _scheduleMonitoringWorkManager(reminder);
+
       return true;
     } catch (e) {
       return false;
@@ -304,6 +325,9 @@ class NotificationService {
     if (!_initialized) return;
     try {
       await _plugin.cancel(id: id);
+    } catch (e) {}
+    try {
+      await Workmanager().cancelByTag('reminder_$id');
     } catch (e) {}
   }
 
@@ -469,5 +493,48 @@ class NotificationService {
         ),
       );
     } catch (e) {}
+  }
+
+  String? _storeDirectoryPath;
+  String? _apiKey;
+  String _provider = 'google';
+  String _model = '';
+
+  void setStoreDirectoryPath(String path) {
+    _storeDirectoryPath = path;
+  }
+
+  void setAiConfig(String apiKey, String provider, String model) {
+    _apiKey = apiKey;
+    _provider = provider;
+    _model = model;
+  }
+
+  Future<void> _scheduleMonitoringWorkManager(Reminder reminder) async {
+    try {
+      await Workmanager().cancelByTag('reminder_${reminder.id}');
+      final inputData = <String, String>{
+        'reminderId': reminder.id.toString(),
+        'provider': _provider,
+      };
+      if (_storeDirectoryPath != null) {
+        inputData['storeDirectory'] = _storeDirectoryPath!;
+      }
+      if (_apiKey != null && _apiKey!.isNotEmpty) {
+        inputData['apiKey'] = _apiKey!;
+      }
+      if (_model.isNotEmpty) {
+        inputData['model'] = _model;
+      }
+      await Workmanager().registerOneOffTask(
+        'reminder_monitoring_${reminder.id}',
+        _monitoringTaskName,
+        initialDelay: const Duration(minutes: 5),
+        inputData: inputData,
+        tag: 'reminder_${reminder.id}',
+      );
+    } catch (e) {
+      debugPrint('Failed to schedule monitoring WorkManager: $e');
+    }
   }
 }

@@ -47,6 +47,8 @@ class Reminder {
   String? aiExplanationAr;
   String? aiExplanationFr;
 
+  int rescheduleAttempts = 0;
+
   Reminder({
     this.id = 0,
     required this.url,
@@ -71,5 +73,6 @@ class Reminder {
     this.aiExplanation,
     this.aiExplanationAr,
     this.aiExplanationFr,
+    this.rescheduleAttempts = 0,
   });
 }

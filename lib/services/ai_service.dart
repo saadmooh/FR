@@ -1,12 +1,14 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:http/http.dart' as http;
 import '../repositories/app_settings_repository.dart';
 import '../core/constants.dart';
 import '../models/category_statistic.dart';
 
 class AIService {
   final AppSettingsRepository _settings;
-  static const String _defaultModel = 'gemini-flash-latest';
+  static const String _defaultGoogleModel = 'gemini-flash-latest';
 
   AIService(this._settings);
 
@@ -27,6 +29,15 @@ class AIService {
     return _settings.getProvider();
   }
 
+  String getModel() {
+    final provider = _settings.getProvider();
+    final model = _settings.getModel();
+    if (model.isNotEmpty) return model;
+    return provider == 'openrouter'
+        ? 'google/gemma-4-31b-it'
+        : _defaultGoogleModel;
+  }
+
   Future<Map<String, dynamic>> testApiKey() async {
     try {
       final key = _settings.getApiKey();
@@ -36,7 +47,10 @@ class AIService {
 
       final provider = _settings.getProvider();
       if (provider == 'google') {
-        final model = GenerativeModel(model: _defaultModel, apiKey: key);
+        final model = GenerativeModel(
+          model: getModel(),
+          apiKey: key,
+        );
         final response = await model.generateContent([
           Content.text('Say HAHA'),
         ]);
@@ -45,6 +59,18 @@ class AIService {
           return {'success': true, 'message': response.text};
         }
         return {'success': false, 'message': 'Invalid response from API'};
+      }
+
+      if (provider == 'openrouter') {
+        final result = await _callOpenRouter([
+          {'role': 'system', 'content': 'You are a test assistant.'},
+          {'role': 'user', 'content': 'Say HAHA'},
+        ], maxTokens: 20);
+
+        if (result != null && result['content'] != null) {
+          return {'success': true, 'message': result['content']};
+        }
+        return {'success': false, 'message': 'Invalid response from OpenRouter'};
       }
 
       return {'success': false, 'message': 'Unsupported provider: $provider'};
@@ -64,7 +90,10 @@ class AIService {
       final provider = _settings.getProvider();
 
       if (provider == 'google') {
-        final model = GenerativeModel(model: _defaultModel, apiKey: key);
+        final model = GenerativeModel(
+          model: getModel(),
+          apiKey: key,
+        );
 
         final contents = messages
             .map((m) => Content.text('${m['role']}: ${m['content']}'))
@@ -74,8 +103,53 @@ class AIService {
         return {'content': response.text ?? ''};
       }
 
+      if (provider == 'openrouter') {
+        return await _callOpenRouter(messages, maxTokens: maxTokens);
+      }
+
       return null;
     } catch (e) {
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> _callOpenRouter(
+    List<Map<String, String>> messages, {
+    int maxTokens = 1000,
+  }) async {
+    final key = _settings.getApiKey();
+    if (key == null || key.isEmpty) return null;
+
+    final model = getModel();
+    final url = Uri.parse(
+      AppConstants.providerApiUrls['openrouter']!,
+    );
+
+    final body = jsonEncode({
+      'model': model,
+      'messages': messages
+          .map((m) => {'role': m['role'], 'content': m['content']})
+          .toList(),
+      'max_tokens': maxTokens,
+    });
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $key',
+        'HTTP-Referer': 'https://smartpocket.app',
+        'X-Title': 'Smart Pocket',
+      },
+      body: body,
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final content = data['choices']?[0]?['message']?['content'] ?? '';
+      return {'content': content};
+    } else {
+      debugPrint('OpenRouter error: ${response.statusCode} ${response.body}');
       return null;
     }
   }

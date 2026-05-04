@@ -3,8 +3,10 @@ import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
+import 'package:workmanager/workmanager.dart';
 
 import 'objectbox.g.dart';
+import 'package:objectbox_flutter_libs/objectbox_flutter_libs.dart';
 import 'core/app_theme.dart';
 import 'core/app_router.dart';
 import 'core/constants.dart';
@@ -15,6 +17,7 @@ import 'repositories/category_statistic_repository.dart';
 import 'repositories/app_settings_repository.dart';
 import 'services/ai_service.dart';
 import 'services/notification_service.dart';
+import 'services/workmanager_service.dart';
 
 late Store store;
 late ReminderRepository reminderRepository;
@@ -26,6 +29,7 @@ late NotificationService notificationService;
 late AppRouter appRouter;
 
 final ValueNotifier<String?> pendingSharedUrl = ValueNotifier<String?>(null);
+final ValueNotifier<String?> aiRescheduleError = ValueNotifier<String?>(null);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -109,13 +113,36 @@ Future<void> _initApp() async {
   // Initialize locale manager
   LocaleManager.instance.initialize(settingsRepository);
 
+  // Check for previous AI reschedule errors
+  final lastError = prefs.getString('last_ai_reschedule_error');
+  if (lastError != null && lastError.isNotEmpty) {
+    aiRescheduleError.value = lastError;
+    await prefs.remove('last_ai_reschedule_error');
+  }
+
   // Initialize services
   aiService = AIService(settingsRepository);
   notificationService = NotificationService();
 
+  // Initialize WorkManager for background monitoring
+  await Workmanager().initialize(callbackDispatcher);
+
+  // Pass store directory path to notification service for WorkManager tasks
+  final storeDir = await defaultStoreDirectory();
+  notificationService.setStoreDirectoryPath(storeDir.path);
+
+  // Pass AI config to notification service for WorkManager background tasks
+  notificationService.setAiConfig(
+    settingsRepository.getApiKey() ?? '',
+    settingsRepository.getProvider(),
+    settingsRepository.getModel(),
+  );
+
   await notificationService.initialize(
     reminderRepository: reminderRepository,
     categoryStatRepository: categoryStatRepository,
+    freeTimeRepository: freeTimeRepository,
+    settingsRepository: settingsRepository,
   );
 
   // Handle cold-start shared URL
@@ -142,18 +169,20 @@ Future<void> _initApp() async {
     aiService: aiService,
     settingsRepository: settingsRepository,
     pendingSharedUrl: pendingSharedUrl,
+    aiRescheduleError: aiRescheduleError,
   );
 
   // Set router in notification service
   notificationService.setRouter(appRouter.router);
 
-  runApp(FlexReminderApp(initialSharedUrl: initialSharedUrl));
+  runApp(FlexReminderApp(initialSharedUrl: initialSharedUrl, aiRescheduleError: aiRescheduleError));
 }
 
 class FlexReminderApp extends StatefulWidget {
   final String? initialSharedUrl;
+  final ValueNotifier<String?> aiRescheduleError;
 
-  const FlexReminderApp({super.key, this.initialSharedUrl});
+  const FlexReminderApp({super.key, this.initialSharedUrl, required this.aiRescheduleError});
 
   @override
   State<FlexReminderApp> createState() => _FlexReminderAppState();

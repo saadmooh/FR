@@ -5,6 +5,7 @@ import 'free_time_repository.dart';
 class AppSettingsRepository {
   static const String _apiKeyKey = 'ai_api_key';
   static const String _providerKey = 'ai_provider';
+  static const String _modelKey = 'ai_model';
   static const String _localeKey = 'locale';
 
   final SharedPreferences _prefs;
@@ -43,6 +44,14 @@ class AppSettingsRepository {
 
   Future<void> setProvider(String provider) async {
     await _prefs.setString(_providerKey, provider);
+  }
+
+  String getModel() {
+    return _prefs.getString(_modelKey) ?? '';
+  }
+
+  Future<void> setModel(String model) async {
+    await _prefs.setString(_modelKey, model);
   }
 
   bool hasApiKey() {

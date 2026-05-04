@@ -88,4 +88,21 @@ class ReminderRepository {
     query.close();
     return results.where((r) => r.scheduledAt.isAfter(now)).toList();
   }
+
+  List<Reminder> getReminderHistory(int id) {
+    final reminder = _box.get(id);
+    if (reminder == null) return [];
+    final query = _box
+        .query(
+          Reminder_.url.equals(reminder.url).and(
+            Reminder_.createdAt.lessThan(
+              reminder.createdAt.millisecondsSinceEpoch + 1,
+            ),
+          ),
+        )
+        .build();
+    final results = query.find();
+    query.close();
+    return results;
+  }
 }

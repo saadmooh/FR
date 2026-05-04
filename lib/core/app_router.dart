@@ -24,6 +24,7 @@ class AppRouter {
   final AIService aiService;
   final AppSettingsRepository settingsRepository;
   final ValueNotifier<String?> pendingSharedUrl;
+  final ValueNotifier<String?> aiRescheduleError;
 
   late final GoRouter router;
 
@@ -35,6 +36,7 @@ class AppRouter {
     required this.aiService,
     required this.settingsRepository,
     required this.pendingSharedUrl,
+    required this.aiRescheduleError,
   }) {
     router = GoRouter(
       initialLocation: '/',
@@ -52,6 +54,7 @@ class AppRouter {
                   notificationService: notificationService,
                   aiService: aiService,
                   pendingSharedUrl: pendingSharedUrl,
+                  aiRescheduleError: aiRescheduleError,
                 ),
               ),
             ),

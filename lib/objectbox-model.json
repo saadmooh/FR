@@ -34,7 +34,7 @@
     },
     {
       "id": "2:2467552958308754850",
-      "lastPropertyId": "32:7074773747689110051",
+      "lastPropertyId": "34:4297586429664833521",
       "name": "Reminder",
       "properties": [
         {
@@ -187,6 +187,11 @@
           "id": "32:7074773747689110051",
           "name": "playlistThumbnail",
           "type": 9
+        },
+        {
+          "id": "33:7429483713193910613",
+          "name": "rescheduleAttempts",
+          "type": 6
         }
       ],
       "relations": []
@@ -340,7 +345,8 @@
   "retiredIndexUids": [],
   "retiredPropertyUids": [
     1339181294488918853,
-    4257658286914796969
+    4257658286914796969,
+    4297586429664833521
   ],
   "retiredRelationUids": [],
   "version": 1

@@ -85,10 +85,16 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
       lastDate: DateTime.now().add(const Duration(days: 365)),
       builder: (context, child) {
         return Theme(
-          data: ThemeData.dark().copyWith(
-            colorScheme: const ColorScheme.dark(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(
               primary: AppColors.accent,
-              surface: AppColors.whiteSurface,
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+              surface: Colors.white,
+            ),
+            textTheme: const TextTheme(
+              bodyLarge: TextStyle(color: Colors.black),
+              bodyMedium: TextStyle(color: Colors.black),
             ),
           ),
           child: child!,
@@ -107,10 +113,16 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
       initialTime: _selectedTime,
       builder: (context, child) {
         return Theme(
-          data: ThemeData.dark().copyWith(
-            colorScheme: const ColorScheme.dark(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(
               primary: AppColors.accent,
-              surface: AppColors.whiteSurface,
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+              surface: Colors.white,
+            ),
+            textTheme: const TextTheme(
+              bodyLarge: TextStyle(color: Colors.black),
+              bodyMedium: TextStyle(color: Colors.black),
             ),
           ),
           child: child!,
