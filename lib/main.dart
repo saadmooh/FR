@@ -87,8 +87,21 @@ Future<void> _initApp() async {
   // Use local timezone instead of UTC
   tz.setLocalLocation(tz.local);
 
-  // Initialize ObjectBox
-  store = await openStore();
+  // Initialize ObjectBox with retry on conflict
+  try {
+    store = await openStore();
+  } catch (e) {
+    if (e.toString().contains('another store is still open')) {
+      debugPrint('Store conflict detected, attempting recovery...');
+      try {
+        store.close();
+      } catch (_) {}
+      await Future.delayed(const Duration(milliseconds: 500));
+      store = await openStore();
+    } else {
+      rethrow;
+    }
+  }
 
   // Initialize SharedPreferences
   final prefs = await SharedPreferences.getInstance();
@@ -213,11 +226,15 @@ class _FlexReminderAppState extends State<FlexReminderApp> {
         ReceiveSharingIntent.instance.reset();
       }
     });
+
+    // Handle app lifecycle for store cleanup
+    WidgetsBinding.instance.addObserver(_AppLifecycleObserver());
   }
 
   @override
   void dispose() {
     LocaleManager.instance.localeNotifier.removeListener(_onLocaleChanged);
+    store.close();
     super.dispose();
   }
 
@@ -237,5 +254,16 @@ class _FlexReminderAppState extends State<FlexReminderApp> {
       locale: LocaleManager.instance.currentAppLocale,
       supportedLocales: LocaleManager.supportedLocales,
     );
+  }
+}
+
+class _AppLifecycleObserver extends WidgetsBindingObserver {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.detached) {
+      try {
+        store.close();
+      } catch (_) {}
+    }
   }
 }
