@@ -31,18 +31,31 @@ int _getMaxReschedules(String importance) {
 }
 
 Future<Store> _openStoreInBackground(String? directoryPath) async {
-  if (directoryPath != null && directoryPath.isNotEmpty) {
+  const maxRetries = 3;
+  const retryDelay = Duration(seconds: 2);
+
+  for (int attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      final dir = Directory(directoryPath);
-      if (await dir.exists()) {
-        return openStore(directory: directoryPath);
+      if (directoryPath != null && directoryPath.isNotEmpty) {
+        final dir = Directory(directoryPath);
+        if (await dir.exists()) {
+          debugPrint('Opening store at: $directoryPath (attempt ${attempt + 1})');
+          return openStore(directory: directoryPath);
+        }
       }
+      debugPrint('Opening store with default directory (attempt ${attempt + 1})');
+      return openStore();
     } catch (e) {
-      debugPrint('Failed to open store with provided directory: $e');
+      if (e.toString().contains('another store is still open') && attempt < maxRetries - 1) {
+        debugPrint('Store locked, waiting for release... (attempt ${attempt + 1}/$maxRetries)');
+        await Future.delayed(retryDelay);
+      } else {
+        debugPrint('Failed to open store: $e');
+        rethrow;
+      }
     }
   }
-
-  return openStore();
+  throw Exception('Failed to open store after $maxRetries attempts');
 }
 
 Future<AIService> _createAIService({
@@ -60,23 +73,69 @@ Future<AIService> _createAIService({
   return AIService(settingsRepo);
 }
 
+Future<void> _initNotificationsInBackground() async {
+  final plugin = FlutterLocalNotificationsPlugin();
+  
+  await plugin.initialize(
+    settings: const InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      iOS: DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      ),
+    ),
+  );
+
+  final androidPlugin = plugin.resolvePlatformSpecificImplementation<
+      AndroidFlutterLocalNotificationsPlugin>();
+  
+  if (androidPlugin != null) {
+    const channel = AndroidNotificationChannel(
+      _notificationChannelId,
+      _notificationChannelName,
+      description: _notificationChannelDescription,
+      importance: Importance.high,
+      enableVibration: true,
+      playSound: true,
+    );
+    await androidPlugin.createNotificationChannel(channel);
+    debugPrint('Notification channel created in background');
+  }
+}
+
 @pragma('vm:entry-point')
 Future<void> _workmanagerCallback() async {
+  debugPrint('WorkManager callback started');
+  
   Workmanager().executeTask((taskName, inputData) async {
-    if (taskName != _monitoringTaskName) return true;
+    debugPrint('WorkManager task: $taskName, inputData: $inputData');
+    
+    if (taskName != _monitoringTaskName) {
+      debugPrint('Unknown task name: $taskName');
+      return true;
+    }
 
-    final reminderIdStr = inputData?['reminderId'];
-    if (reminderIdStr == null) return true;
+    final reminderIdStr = inputData?['reminderId'] as String?;
+    if (reminderIdStr == null) {
+      debugPrint('No reminderId in inputData');
+      return true;
+    }
+    
     final reminderId = int.tryParse(reminderIdStr);
-    if (reminderId == null) return true;
+    if (reminderId == null) {
+      debugPrint('Invalid reminderId: $reminderIdStr');
+      return true;
+    }
 
-    final storeDirectoryPath = inputData?['storeDirectory'];
-    final apiKey = inputData?['apiKey'];
-    final provider = inputData?['provider'] ?? 'google';
-    final model = inputData?['model'] ?? '';
+    final storeDirectoryPath = inputData?['storeDirectory'] as String?;
+    final apiKey = inputData?['apiKey'] as String?;
+    final provider = inputData?['provider'] as String? ?? 'google';
+    final model = inputData?['model'] as String? ?? '';
 
     Store? store;
     try {
+      debugPrint('Initializing timezone...');
       tz_data.initializeTimeZones();
       tz.setLocalLocation(tz.local);
 
@@ -85,33 +144,51 @@ Future<void> _workmanagerCallback() async {
         return true;
       }
 
+      debugPrint('Creating AI service...');
       final aiService = await _createAIService(
         apiKey: apiKey,
         provider: provider,
         model: model,
       );
 
+      debugPrint('Initializing notifications...');
+      await _initNotificationsInBackground();
+
+      debugPrint('Opening store...');
       store = await _openStoreInBackground(storeDirectoryPath);
+      
       final reminderRepo = ReminderRepository(store);
       final freeTimeRepo = FreeTimeRepository(store);
 
+      debugPrint('Fetching reminder $reminderId...');
       final reminder = reminderRepo.getById(reminderId);
-      if (reminder == null || reminder.isOpened) {
+      if (reminder == null) {
+        debugPrint('Reminder $reminderId not found');
+        store.close();
+        return true;
+      }
+      
+      if (reminder.isOpened) {
+        debugPrint('Reminder $reminderId already opened');
         store.close();
         return true;
       }
 
-      if (reminder.rescheduleAttempts >= _getMaxReschedules(reminder.importance)) {
+      final maxReschedules = _getMaxReschedules(reminder.importance);
+      if (reminder.rescheduleAttempts >= maxReschedules) {
+        debugPrint('Reminder $reminderId reached max reschedules ($maxReschedules)');
         store.close();
         return true;
       }
 
       final now = DateTime.now();
       if (reminder.scheduledAt.isBefore(now.subtract(const Duration(days: 30)))) {
+        debugPrint('Reminder $reminderId is too old (>30 days)');
         store.close();
         return true;
       }
 
+      debugPrint('Getting reminder history...');
       final previousAttempts = reminderRepo
           .getReminderHistory(reminderId)
           .map(
@@ -123,8 +200,10 @@ Future<void> _workmanagerCallback() async {
           )
           .toList();
 
+      debugPrint('Getting free times...');
       final freeTimes = freeTimeRepo.getAllAsJson();
 
+      debugPrint('Calling AI for reschedule...');
       final aiResult = await aiService.reschedulePost(
         previousAttemptsJson: jsonEncode(previousAttempts),
         category: reminder.categoryEn ?? 'Other',
@@ -135,10 +214,12 @@ Future<void> _workmanagerCallback() async {
 
       final newTime = aiResult['newTime'] as DateTime?;
       if (newTime == null || !newTime.isAfter(now)) {
+        debugPrint('AI returned invalid new time: $newTime');
         store.close();
         return true;
       }
 
+      debugPrint('Updating reminder with new time: $newTime');
       reminder.scheduledAt = newTime;
       reminder.rescheduleAttempts++;
       final reason = aiResult['reason'] as String? ?? '';
@@ -150,11 +231,13 @@ Future<void> _workmanagerCallback() async {
       reminder.isOpened = false;
       reminder.openedAt = null;
       reminderRepo.save(reminder);
+      debugPrint('Reminder saved successfully');
 
+      debugPrint('Scheduling new notification...');
       final plugin = FlutterLocalNotificationsPlugin();
       await plugin.zonedSchedule(
         id: reminderId,
-        title: '📖 Time to read: ${reminder.title}',
+        title: ' Time to read: ${reminder.title}',
         body: '${reminder.categoryEn ?? "General"} · ${reminder.complexityAr ?? "متوسط"}',
         scheduledDate: tz.TZDateTime.from(reminder.scheduledAt, tz.local),
         notificationDetails: NotificationDetails(
@@ -180,7 +263,9 @@ Future<void> _workmanagerCallback() async {
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         payload: reminderId.toString(),
       );
+      debugPrint('Notification scheduled successfully');
 
+      debugPrint('Rescheduling WorkManager task...');
       await Workmanager().cancelByTag('reminder_$reminderId');
       final nextInputData = <String, String>{
         'reminderId': reminderId.toString(),
@@ -202,17 +287,23 @@ Future<void> _workmanagerCallback() async {
         inputData: nextInputData,
         tag: 'reminder_$reminderId',
       );
+      debugPrint('WorkManager task rescheduled');
 
+      debugPrint('Closing store...');
       store.close();
+      debugPrint('WorkManager task completed successfully');
       return true;
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('WorkManager monitoring callback failed: $e');
+      debugPrint('Stack trace: $stackTrace');
       try {
         store?.close();
+        debugPrint('Store closed after error');
       } catch (_) {}
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('last_ai_reschedule_error', e.toString());
+        debugPrint('Error saved to preferences');
       } catch (_) {}
       return true;
     }
@@ -221,5 +312,6 @@ Future<void> _workmanagerCallback() async {
 
 @pragma('vm:entry-point')
 void callbackDispatcher() {
+  debugPrint('WorkManager callback dispatcher called');
   _workmanagerCallback();
 }
