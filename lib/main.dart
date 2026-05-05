@@ -20,6 +20,7 @@ import 'services/notification_service.dart';
 import 'services/workmanager_service.dart';
 
 late Store store;
+bool _storeInitialized = false;
 late ReminderRepository reminderRepository;
 late FreeTimeRepository freeTimeRepository;
 late CategoryStatisticRepository categoryStatRepository;
@@ -88,18 +89,24 @@ Future<void> _initApp() async {
   tz.setLocalLocation(tz.local);
 
   // Initialize ObjectBox with retry on conflict
-  try {
-    store = await openStore();
-  } catch (e) {
-    if (e.toString().contains('another store is still open')) {
-      debugPrint('Store conflict detected, attempting recovery...');
-      try {
-        store.close();
-      } catch (_) {}
-      await Future.delayed(const Duration(milliseconds: 500));
-      store = await openStore();
-    } else {
-      rethrow;
+  Store? tempStore;
+  const maxRetries = 3;
+  const retryDelay = Duration(seconds: 2);
+  
+  for (int attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      tempStore = await openStore();
+      store = tempStore;
+      _storeInitialized = true;
+      break;
+    } catch (e) {
+      if (e.toString().contains('another store is still open') && attempt < maxRetries - 1) {
+        debugPrint('Store conflict detected (attempt ${attempt + 1}/$maxRetries), waiting for lock release...');
+        await Future.delayed(retryDelay);
+      } else {
+        debugPrint('Store initialization failed: $e');
+        rethrow;
+      }
     }
   }
 
@@ -259,9 +266,10 @@ class _FlexReminderAppState extends State<FlexReminderApp> {
 class _AppLifecycleObserver extends WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.detached) {
+    if (state == AppLifecycleState.detached && _storeInitialized) {
       try {
         store.close();
+        _storeInitialized = false;
       } catch (_) {}
     }
   }
