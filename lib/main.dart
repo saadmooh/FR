@@ -234,7 +234,6 @@ class _FlexReminderAppState extends State<FlexReminderApp> {
   @override
   void dispose() {
     LocaleManager.instance.localeNotifier.removeListener(_onLocaleChanged);
-    store.close();
     super.dispose();
   }
 
