@@ -173,6 +173,9 @@ Future<void> _initApp() async {
     settingsRepository: settingsRepository,
   );
 
+  // Request background permissions for reliable monitoring
+  await notificationService.requestBackgroundPermissions();
+
   // Handle app launch from notification (if terminated)
   await notificationService.handleAppLaunchFromNotification();
 

@@ -6,6 +6,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:workmanager/workmanager.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../models/reminder.dart';
 import '../repositories/category_statistic_repository.dart';
 import '../repositories/free_time_repository.dart';
@@ -112,6 +113,21 @@ class NotificationService {
         androidPlugin.createNotificationChannel(channel);
       }
     } catch (e) {}
+  }
+
+  /// Request background permissions (battery optimization and exact alarms)
+  Future<void> requestBackgroundPermissions() async {
+    if (Platform.isAndroid) {
+      // Request exact alarm permission for Android 12+
+      if (await Permission.scheduleExactAlarm.isDenied) {
+        await Permission.scheduleExactAlarm.request();
+      }
+
+      // Request to ignore battery optimizations for background work reliability
+      if (await Permission.ignoreBatteryOptimizations.isDenied) {
+        await Permission.ignoreBatteryOptimizations.request();
+      }
+    }
   }
 
   /// Request notification permissions
@@ -543,10 +559,16 @@ class NotificationService {
       if (_model.isNotEmpty) {
         inputData['model'] = _model;
       }
+      final now = DateTime.now();
+      final monitoringDelay = reminder.scheduledAt.difference(now) + const Duration(minutes: 1);
+      if (monitoringDelay.isNegative) {
+        debugPrint('Scheduled time already passed, skipping monitoring');
+        return;
+      }
       await Workmanager().registerOneOffTask(
         'reminder_monitoring_${reminder.id}',
         _monitoringTaskName,
-        initialDelay: const Duration(minutes: 1),
+        initialDelay: monitoringDelay,
         inputData: inputData,
         tag: 'reminder_${reminder.id}',
       );
