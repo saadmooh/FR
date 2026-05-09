@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/ai_service.dart';
 import '../services/backup_service.dart';
+import '../services/auth_service.dart';
+import '../services/revenuecat_service.dart';
 import '../repositories/app_settings_repository.dart';
 import '../core/app_theme.dart';
 import '../core/locale_manager.dart';
@@ -12,15 +14,20 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import '../models/reminder.dart';
 import '../models/free_time_slot.dart';
+import 'paywall_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final AIService aiService;
   final AppSettingsRepository settingsRepository;
+  final AuthService authService;
+  final RevenueCatService revenueCatService;
 
   const SettingsScreen({
     super.key,
     required this.aiService,
     required this.settingsRepository,
+    required this.authService,
+    required this.revenueCatService,
   });
 
   @override
@@ -252,6 +259,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor: success ? AppColors.success : AppColors.error,
+      ),
+    );
+  }
+
+  void _showSignOutDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.whiteSurface,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        title: Text(
+          Translations.signOut(_locale),
+          style: TextStyle(color: AppColors.whiteTextPrimary),
+        ),
+        content: Text(
+          'Are you sure you want to sign out?',
+          style: TextStyle(color: AppColors.whiteTextSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(Translations.cancel(_locale)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await widget.authService.signOut();
+              if (mounted) {
+                _showMessage(true, Translations.signOut(_locale));
+              }
+            },
+            child: Text(
+              Translations.signOut(_locale),
+              style: const TextStyle(color: AppColors.error),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -608,6 +652,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       fontSize: 12,
                     ),
                   ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
+
+          // Account Section
+          _buildSectionHeader(Translations.account(_locale), Icons.account_circle_outlined),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.whiteSurface,
+              borderRadius: BorderRadius.zero,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(20),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(
+                    Icons.person_outline,
+                    color: AppColors.accent,
+                  ),
+                  title: Text(
+                    widget.authService.currentUser?.displayName ?? 'User',
+                    style: TextStyle(color: AppColors.whiteTextPrimary),
+                  ),
+                  subtitle: Text(
+                    widget.authService.currentUser?.email ?? '',
+                    style: TextStyle(color: AppColors.whiteTextSecondary),
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(
+                    Icons.logout,
+                    color: AppColors.error,
+                  ),
+                  title: Text(
+                    Translations.signOut(_locale),
+                    style: TextStyle(color: AppColors.whiteTextPrimary),
+                  ),
+                  onTap: _showSignOutDialog,
                 ),
               ],
             ),

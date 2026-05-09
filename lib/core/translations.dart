@@ -476,4 +476,46 @@ class Translations {
         'cardInMonths',
         locale: locale,
       ).replaceAll('{months}', '$months');
+
+  static String signInTitle(String locale) =>
+      AppTranslations.getString('signInTitle', locale: locale);
+
+  static String signInSubtitle(String locale) =>
+      AppTranslations.getString('signInSubtitle', locale: locale);
+
+  static String signInWithGoogle(String locale) =>
+      AppTranslations.getString('signInWithGoogle', locale: locale);
+
+  static String signInTerms(String locale) =>
+      AppTranslations.getString('signInTerms', locale: locale);
+
+  static String signInFailed(String locale) =>
+      AppTranslations.getString('signInFailed', locale: locale);
+
+  static String signOut(String locale) =>
+      AppTranslations.getString('signOut', locale: locale);
+
+  static String account(String locale) =>
+      AppTranslations.getString('account', locale: locale);
+
+  static String upgradeToPremium(String locale) =>
+      AppTranslations.getString('upgradeToPremium', locale: locale);
+
+  static String premiumTitle(String locale) =>
+      AppTranslations.getString('premiumTitle', locale: locale);
+
+  static String premiumSubtitle(String locale) =>
+      AppTranslations.getString('premiumSubtitle', locale: locale);
+
+  static String subscribeNow(String locale) =>
+      AppTranslations.getString('subscribeNow', locale: locale);
+
+  static String restorePurchases(String locale) =>
+      AppTranslations.getString('restorePurchases', locale: locale);
+
+  static String purchaseFailed(String locale) =>
+      AppTranslations.getString('purchaseFailed', locale: locale);
+
+  static String premiumActivated(String locale) =>
+      AppTranslations.getString('premiumActivated', locale: locale);
 }

@@ -6,12 +6,15 @@ import '../screens/edit_reminder_screen.dart';
 import '../screens/statistics_screen.dart';
 import '../screens/free_times_screen.dart';
 import '../screens/settings_screen.dart';
+import '../screens/login_screen.dart';
 import '../repositories/reminder_repository.dart';
 import '../repositories/free_time_repository.dart';
 import '../repositories/category_statistic_repository.dart';
 import '../repositories/app_settings_repository.dart';
 import '../services/notification_service.dart';
 import '../services/ai_service.dart';
+import '../services/auth_service.dart';
+import '../services/revenuecat_service.dart';
 import 'app_theme.dart';
 import 'locale_manager.dart';
 import 'translations.dart';
@@ -25,6 +28,8 @@ class AppRouter {
   final AppSettingsRepository settingsRepository;
   final ValueNotifier<String?> pendingSharedUrl;
   final ValueNotifier<String?> aiRescheduleError;
+  final AuthService authService;
+  final RevenueCatService revenueCatService;
 
   late GoRouter router;
 
@@ -37,12 +42,36 @@ class AppRouter {
     required this.settingsRepository,
     required this.pendingSharedUrl,
     required this.aiRescheduleError,
+    required this.authService,
+    required this.revenueCatService,
   }) {
     router = GoRouter(
       initialLocation: '/',
+      redirect: (context, state) {
+        final isLoggedIn = authService.isSignedIn;
+        final isOnLogin = state.matchedLocation == '/login';
+        if (!isLoggedIn && !isOnLogin) {
+          return '/login';
+        }
+        if (isLoggedIn && isOnLogin) {
+          return '/';
+        }
+        return null;
+      },
       routes: [
+        GoRoute(
+          path: '/login',
+          pageBuilder: (context, state) => const NoTransitionPage(
+            child: LoginScreen(),
+          ),
+        ),
         ShellRoute(
-          builder: (context, state, child) => MainShell(child: child),
+          builder: (context, state, child) => MainShell(
+            child: child,
+            authService: authService,
+            revenueCatService: revenueCatService,
+            settingsRepository: settingsRepository,
+          ),
           routes: [
             GoRoute(
               path: '/',
@@ -118,6 +147,8 @@ class AppRouter {
           builder: (context, state) => SettingsScreen(
             aiService: aiService,
             settingsRepository: settingsRepository,
+            authService: authService,
+            revenueCatService: revenueCatService,
           ),
         ),
       ],
@@ -127,8 +158,17 @@ class AppRouter {
 
 class MainShell extends StatefulWidget {
   final Widget child;
+  final AuthService authService;
+  final RevenueCatService revenueCatService;
+  final AppSettingsRepository settingsRepository;
 
-  const MainShell({super.key, required this.child});
+  const MainShell({
+    super.key,
+    required this.child,
+    required this.authService,
+    required this.revenueCatService,
+    required this.settingsRepository,
+  });
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -158,7 +198,42 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: widget.child,
+      body: Row(
+        children: [
+          Expanded(child: widget.child),
+          Container(
+            width: 1,
+            color: AppColors.surfaceLight,
+          ),
+          GestureDetector(
+            onTap: () => context.push('/settings'),
+            child: Container(
+              width: 56,
+              color: AppColors.surface,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    widget.revenueCatService.isPremium
+                        ? Icons.workspace_premium
+                        : Icons.account_circle,
+                    color: AppColors.accent,
+                    size: 24,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    Translations.settings(_locale),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: AppColors.surface,

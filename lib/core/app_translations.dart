@@ -193,6 +193,24 @@ class AppTranslations {
     'cardInWeeks': 'In {weeks} weeks',
     'cardInMonths': 'In {months} months',
     'cardDaysAgo': '{days} days ago',
+
+    // Auth / Login
+    'signInTitle': 'Welcome to Smart Pocket',
+    'signInSubtitle': 'Sign in to sync your reminders across devices',
+    'signInWithGoogle': 'Continue with Google',
+    'signInTerms': 'By continuing, you agree to our Terms of Service and Privacy Policy',
+    'signInFailed': 'Sign-in failed. Please try again.',
+    'signOut': 'Sign Out',
+    'account': 'Account',
+
+    // RevenueCat / Paywall
+    'upgradeToPremium': 'Upgrade to Premium',
+    'premiumTitle': 'Unlock All Features',
+    'premiumSubtitle': 'Get unlimited access to all premium features',
+    'subscribeNow': 'Subscribe Now',
+    'restorePurchases': 'Restore Purchases',
+    'purchaseFailed': 'Purchase failed. Please try again.',
+    'premiumActivated': 'Premium activated! Enjoy!',
   };
 
   static const Map<String, String> _arabicStrings = {
@@ -381,6 +399,24 @@ class AppTranslations {
     'cardInWeeks': 'خلال {weeks} أسبوع',
     'cardInMonths': 'خلال {months} شهر',
     'cardDaysAgo': 'منذ {days} يوم',
+
+    // Auth / Login
+    'signInTitle': 'مرحبًا بك في Smart Pocket',
+    'signInSubtitle': 'سجّل الدخول لمزامنة تذكيراتك عبر الأجهزة',
+    'signInWithGoogle': 'المتابعة مع Google',
+    'signInTerms': 'بالمتابعة، أنت توافق على شروط الخدمة و سياسة الخصوصية',
+    'signInFailed': 'فشل تسجيل الدخول. حاول مرة أخرى.',
+    'signOut': 'تسجيل الخروج',
+    'account': 'الحساب',
+
+    // RevenueCat / Paywall
+    'upgradeToPremium': 'الترقية إلى Premium',
+    'premiumTitle': 'فتح جميع الميزات',
+    'premiumSubtitle': 'احصل على وصول غير محدود لجميع الميزات المميزة',
+    'subscribeNow': 'اشترك الآن',
+    'restorePurchases': 'استعادة المشتريات',
+    'purchaseFailed': 'فشل الشراء. حاول مرة أخرى.',
+    'premiumActivated': 'تم تفعيل Premium! استمتع!',
   };
 
   static const Map<String, String> _frenchStrings = {
@@ -571,6 +607,24 @@ class AppTranslations {
     'cardInWeeks': 'Dans {weeks} semaines',
     'cardInMonths': 'Dans {months} mois',
     'cardDaysAgo': 'Il y a {days} jours',
+
+    // Auth / Login
+    'signInTitle': 'Bienvenue sur Smart Pocket',
+    'signInSubtitle': 'Connectez-vous pour synchroniser vos rappels sur tous vos appareils',
+    'signInWithGoogle': 'Continuer avec Google',
+    'signInTerms': "En continuant, vous acceptez nos Conditions d'utilisation et notre Politique de confidentialité",
+    'signInFailed': "Échec de la connexion. Veuillez réessayer.",
+    'signOut': 'Se déconnecter',
+    'account': 'Compte',
+
+    // RevenueCat / Paywall
+    'upgradeToPremium': 'Passer à Premium',
+    'premiumTitle': 'Débloquez toutes les fonctionnalités',
+    'premiumSubtitle': 'Accédez à toutes les fonctionnalités premium',
+    'subscribeNow': "S'abonner maintenant",
+    'restorePurchases': 'Restaurer les achats',
+    'purchaseFailed': "L'achat a échoué. Veuillez réessayer.",
+    'premiumActivated': 'Premium activé! Profitez!',
   };
 
   static String getString(String key, {String? locale}) {

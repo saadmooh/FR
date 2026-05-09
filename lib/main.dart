@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:workmanager/workmanager.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import 'objectbox.g.dart';
 import 'package:objectbox_flutter_libs/objectbox_flutter_libs.dart';
@@ -19,6 +20,8 @@ import 'repositories/app_settings_repository.dart';
 import 'services/ai_service.dart';
 import 'services/notification_service.dart';
 import 'services/workmanager_service.dart';
+import 'services/auth_service.dart';
+import 'services/revenuecat_service.dart';
 
 late Store store;
 bool _storeInitialized = false;
@@ -29,6 +32,8 @@ late AppSettingsRepository settingsRepository;
 late AIService aiService;
 late NotificationService notificationService;
 late AppRouter appRouter;
+late AuthService authService;
+late RevenueCatService revenueCatService;
 
 final ValueNotifier<String?> pendingSharedUrl = ValueNotifier<String?>(null);
 final ValueNotifier<String?> aiRescheduleError = ValueNotifier<String?>(null);
@@ -85,6 +90,11 @@ void main() async {
 }
 
 Future<void> _initApp() async {
+  await Firebase.initializeApp();
+  authService = AuthService();
+  revenueCatService = RevenueCatService();
+  await revenueCatService.initialize();
+
   // Initialize timezone
   tz_data.initializeTimeZones();
   // Use local timezone instead of UTC
@@ -204,6 +214,8 @@ Future<void> _initApp() async {
     settingsRepository: settingsRepository,
     pendingSharedUrl: pendingSharedUrl,
     aiRescheduleError: aiRescheduleError,
+    authService: authService,
+    revenueCatService: revenueCatService,
   );
 
   // Set router in notification service
@@ -331,6 +343,8 @@ class _AppLifecycleObserver extends WidgetsBindingObserver {
           settingsRepository: settingsRepository,
           pendingSharedUrl: pendingSharedUrl,
           aiRescheduleError: aiRescheduleError,
+          authService: authService,
+          revenueCatService: revenueCatService,
         );
         notificationService.setRouter(appRouter.router);
         
