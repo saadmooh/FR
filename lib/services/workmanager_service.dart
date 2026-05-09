@@ -17,6 +17,38 @@ const String _notificationChannelId = 'flex_reminders_channel';
 const String _notificationChannelName = 'Smart Pocket';
 const String _notificationChannelDescription = 'Smart post reading reminders';
 
+Map<String, dynamic> _parseAiRescheduleResponse(String content) {
+  debugPrint('Parsing AI response: $content');
+  
+  if (content.isEmpty) {
+    throw Exception('AI returned empty response');
+  }
+  
+  String jsonStr = content;
+  if (content.contains('```')) {
+    final codeBlockMatch = RegExp(r'```(?:json)?\s*([\s\S]*?)```').firstMatch(content);
+    if (codeBlockMatch != null) {
+      jsonStr = codeBlockMatch.group(1) ?? content;
+    }
+  }
+  
+  final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(jsonStr);
+  if (jsonMatch != null) {
+    final data = json.decode(jsonMatch.group(0)!);
+    final newTime = DateTime.tryParse(data['new_time'] ?? '');
+    if (newTime == null) {
+      debugPrint('Failed to parse new_time: ${data['new_time']}');
+      throw Exception('Invalid new_time format: ${data['new_time']}');
+    }
+    debugPrint('Successfully parsed newTime: $newTime, reason: ${data['reason']}');
+    return {
+      'newTime': newTime,
+      'reason': data['reason'] ?? '',
+    };
+  }
+  throw Exception('No JSON found in response');
+}
+
 int _getMaxReschedules(String importance) {
   switch (importance) {
     case 'Day':
@@ -31,14 +63,20 @@ int _getMaxReschedules(String importance) {
 }
 
 Future<Store> _openStoreInBackground(String? directoryPath) async {
-  const maxRetries = 3;
-  const retryDelay = Duration(seconds: 2);
+  const maxRetries = 5;
+  const retryDelay = Duration(seconds: 30);
 
   for (int attempt = 0; attempt < maxRetries; attempt++) {
     try {
       if (directoryPath != null && directoryPath.isNotEmpty) {
         final dir = Directory(directoryPath);
         if (await dir.exists()) {
+          // Clean up stale lock file if app was force-killed
+          final lockFile = File('$directoryPath/lock.mdb');
+          if (await lockFile.exists()) {
+            debugPrint('Found stale lock file, removing...');
+            await lockFile.delete();
+          }
           debugPrint('Opening store at: $directoryPath (attempt ${attempt + 1})');
           return openStore(directory: directoryPath);
         }
@@ -133,6 +171,10 @@ Future<void> _workmanagerCallback() async {
     final provider = inputData?['provider'] as String? ?? 'google';
     final model = inputData?['model'] as String? ?? '';
 
+    debugPrint('API Key present: ${apiKey != null && apiKey.isNotEmpty}');
+    debugPrint('Provider: $provider');
+    debugPrint('Model: $model');
+
     Store? store;
     try {
       debugPrint('Initializing timezone...');
@@ -202,16 +244,45 @@ Future<void> _workmanagerCallback() async {
 
       debugPrint('Getting free times...');
       final freeTimes = freeTimeRepo.getAllAsJson();
+      debugPrint('Free times count: ${freeTimes.length}');
 
       debugPrint('Calling AI for reschedule...');
-      final aiResult = await aiService.reschedulePost(
-        previousAttemptsJson: jsonEncode(previousAttempts),
-        category: reminder.categoryEn ?? 'Other',
-        complexity: reminder.complexityEn ?? 'Medium',
-        importance: reminder.importance,
-        userFreeTimesJson: jsonEncode(freeTimes),
-      );
-
+      debugPrint('Calling with - category: ${reminder.categoryEn}, complexity: ${reminder.complexityEn}, importance: ${reminder.importance}');
+      
+      String rawResponse;
+      try {
+        rawResponse = await aiService.reschedulePostRaw(
+          previousAttemptsJson: jsonEncode(previousAttempts),
+          category: reminder.categoryEn ?? 'Other',
+          complexity: reminder.complexityEn ?? 'Medium',
+          importance: reminder.importance,
+          userFreeTimesJson: freeTimes.isNotEmpty 
+              ? '{"free_times": $freeTimes}'
+              : null,
+        );
+      } catch (e) {
+        debugPrint('AI call failed: $e');
+        store.close();
+        return true;
+      }
+      
+      debugPrint('Raw AI response: $rawResponse');
+      
+      Map<String, dynamic> aiResult;
+      try {
+        aiResult = _parseAiRescheduleResponse(rawResponse);
+      } catch (e) {
+        debugPrint('Failed to parse AI response: $e, using fallback');
+        // Use fallback - keep same time, just increment attempts
+        final newTime = reminder.scheduledAt.add(const Duration(hours: 1));
+        aiResult = {
+          'newTime': newTime,
+          'reason': 'AI response parse failed, rescheduled by 1 hour',
+        };
+      }
+      
+      debugPrint('Parsed AI result: $aiResult');
+      
       final newTime = aiResult['newTime'] as DateTime?;
       if (newTime == null || !newTime.isAfter(now)) {
         debugPrint('AI returned invalid new time: $newTime');
@@ -283,11 +354,32 @@ Future<void> _workmanagerCallback() async {
       await Workmanager().registerOneOffTask(
         'reminder_monitoring_$reminderId',
         _monitoringTaskName,
-        initialDelay: const Duration(minutes: 5),
+        initialDelay: const Duration(minutes: 1),
         inputData: nextInputData,
         tag: 'reminder_$reminderId',
       );
       debugPrint('WorkManager task rescheduled');
+
+      final formattedTime = '${newTime.hour.toString().padLeft(2, '0')}:${newTime.minute.toString().padLeft(2, '0')}';
+      final successBody = '${reminder.title}\nNew time: $formattedTime\n${reminder.aiExplanation}';
+      await plugin.show(
+        id: reminderId + 1000000,
+        title: 'Reminder Rescheduled',
+        body: successBody,
+        notificationDetails: NotificationDetails(
+          android: AndroidNotificationDetails(
+            _notificationChannelId,
+            _notificationChannelName,
+            channelDescription: _notificationChannelDescription,
+            importance: Importance.defaultImportance,
+            priority: Priority.defaultPriority,
+            icon: '@mipmap/ic_launcher',
+            color: const Color(0xFF00D4C8),
+            enableVibration: false,
+            playSound: false,
+          ),
+        ),
+      );
 
       debugPrint('Closing store...');
       store.close();
@@ -300,10 +392,56 @@ Future<void> _workmanagerCallback() async {
         store?.close();
         debugPrint('Store closed after error');
       } catch (_) {}
+      // If app is in foreground, store is locked by main isolate.
+      // Silently exit - monitoring is not needed since user is active.
+      if (e.toString().contains('another store is still open')) {
+        debugPrint('App is in foreground, skipping monitoring (user is active)');
+        return true;
+      }
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('last_ai_reschedule_error', e.toString());
         debugPrint('Error saved to preferences');
+      } catch (_) {}
+      try {
+        final errorPlugin = FlutterLocalNotificationsPlugin();
+        await errorPlugin.initialize(
+          settings: const InitializationSettings(
+            android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          ),
+        );
+        final androidPlugin = errorPlugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+        if (androidPlugin != null) {
+          const channel = AndroidNotificationChannel(
+            _notificationChannelId,
+            _notificationChannelName,
+            description: _notificationChannelDescription,
+            importance: Importance.high,
+            enableVibration: true,
+            playSound: true,
+          );
+          await androidPlugin.createNotificationChannel(channel);
+        }
+        final errorText = e.toString().length > 100 ? '${e.toString().substring(0, 100)}...' : e.toString();
+        await errorPlugin.show(
+          id: reminderId + 2000000,
+          title: 'Monitoring Failed',
+          body: 'Reminder: $reminderId\nError: $errorText',
+          notificationDetails: NotificationDetails(
+            android: AndroidNotificationDetails(
+              _notificationChannelId,
+              _notificationChannelName,
+              channelDescription: _notificationChannelDescription,
+              importance: Importance.defaultImportance,
+              priority: Priority.defaultPriority,
+              icon: '@mipmap/ic_launcher',
+              color: const Color(0xFFFF5252),
+              enableVibration: false,
+              playSound: false,
+            ),
+          ),
+        );
       } catch (_) {}
       return true;
     }

@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,6 +32,7 @@ late AppRouter appRouter;
 
 final ValueNotifier<String?> pendingSharedUrl = ValueNotifier<String?>(null);
 final ValueNotifier<String?> aiRescheduleError = ValueNotifier<String?>(null);
+final ValueNotifier<int> storeReopenSignal = ValueNotifier<int>(0);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -144,8 +146,14 @@ Future<void> _initApp() async {
   aiService = AIService(settingsRepository);
   notificationService = NotificationService();
 
-  // Initialize WorkManager for background monitoring
-  await Workmanager().initialize(callbackDispatcher);
+  // Initialize WorkManager for background monitoring (Android/iOS only)
+  if (Platform.isAndroid || Platform.isIOS) {
+    try {
+      await Workmanager().initialize(callbackDispatcher);
+    } catch (e) {
+      debugPrint('WorkManager initialization failed: $e');
+    }
+  }
 
   // Pass store directory path to notification service for WorkManager tasks
   final storeDir = await defaultStoreDirectory();
@@ -164,6 +172,9 @@ Future<void> _initApp() async {
     freeTimeRepository: freeTimeRepository,
     settingsRepository: settingsRepository,
   );
+
+  // Handle app launch from notification (if terminated)
+  await notificationService.handleAppLaunchFromNotification();
 
   // Handle cold-start shared URL
   String? initialSharedUrl;
@@ -236,12 +247,22 @@ class _FlexReminderAppState extends State<FlexReminderApp> {
 
     // Handle app lifecycle for store cleanup
     WidgetsBinding.instance.addObserver(_AppLifecycleObserver());
+
+    // Listen to store reopen signals to rebuild with new router
+    storeReopenSignal.addListener(_onStoreReopened);
   }
 
   @override
   void dispose() {
     LocaleManager.instance.localeNotifier.removeListener(_onLocaleChanged);
+    storeReopenSignal.removeListener(_onStoreReopened);
     super.dispose();
+  }
+
+  void _onStoreReopened() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _onLocaleChanged() {
@@ -266,11 +287,61 @@ class _FlexReminderAppState extends State<FlexReminderApp> {
 class _AppLifecycleObserver extends WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.detached && _storeInitialized) {
+    if (state == AppLifecycleState.paused && _storeInitialized) {
+      try {
+        store.close();
+        _storeInitialized = false;
+        debugPrint('Store closed on app background');
+      } catch (_) {}
+    } else if (state == AppLifecycleState.resumed && !_storeInitialized) {
+      _reopenStore().catchError((e) {
+        debugPrint('Failed to reopen store: $e');
+      });
+    } else if (state == AppLifecycleState.detached && _storeInitialized) {
       try {
         store.close();
         _storeInitialized = false;
       } catch (_) {}
+    }
+  }
+
+  Future<void> _reopenStore() async {
+    const maxRetries = 3;
+    const retryDelay = Duration(seconds: 1);
+    
+    for (int attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        store = await openStore();
+        _storeInitialized = true;
+        
+        reminderRepository = ReminderRepository(store);
+        freeTimeRepository = FreeTimeRepository(store);
+        categoryStatRepository = CategoryStatisticRepository(store);
+        settingsRepository.setRepositories(reminderRepository, freeTimeRepository);
+        
+        appRouter = AppRouter(
+          reminderRepository: reminderRepository,
+          freeTimeRepository: freeTimeRepository,
+          categoryStatRepository: categoryStatRepository,
+          notificationService: notificationService,
+          aiService: aiService,
+          settingsRepository: settingsRepository,
+          pendingSharedUrl: pendingSharedUrl,
+          aiRescheduleError: aiRescheduleError,
+        );
+        notificationService.setRouter(appRouter.router);
+        
+        storeReopenSignal.value++;
+        debugPrint('Store reopened on app resume');
+        return;
+      } catch (e) {
+        if (attempt < maxRetries - 1) {
+          debugPrint('Store reopen attempt ${attempt + 1} failed, retrying...');
+          await Future.delayed(retryDelay);
+        } else {
+          rethrow;
+        }
+      }
     }
   }
 }

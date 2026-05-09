@@ -26,7 +26,7 @@ class AppRouter {
   final ValueNotifier<String?> pendingSharedUrl;
   final ValueNotifier<String?> aiRescheduleError;
 
-  late final GoRouter router;
+  late GoRouter router;
 
   AppRouter({
     required this.reminderRepository,

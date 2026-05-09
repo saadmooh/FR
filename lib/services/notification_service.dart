@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
@@ -327,7 +328,9 @@ class NotificationService {
       await _plugin.cancel(id: id);
     } catch (e) {}
     try {
-      await Workmanager().cancelByTag('reminder_$id');
+      if (Platform.isAndroid || Platform.isIOS) {
+        await Workmanager().cancelByTag('reminder_$id');
+      }
     } catch (e) {}
   }
 
@@ -398,6 +401,19 @@ class NotificationService {
         ),
       );
     } catch (e) {}
+  }
+
+  Future<void> handleAppLaunchFromNotification() async {
+    if (!_initialized) return;
+
+    final NotificationAppLaunchDetails? notificationAppLaunchDetails =
+        await _plugin.getNotificationAppLaunchDetails();
+
+    if (notificationAppLaunchDetails != null &&
+        notificationAppLaunchDetails.didNotificationLaunchApp) {
+      _handleNotificationTap(
+          notificationAppLaunchDetails.notificationResponse!);
+    }
   }
 
   /// Schedule a daily repeating notification
@@ -511,6 +527,7 @@ class NotificationService {
   }
 
   Future<void> _scheduleMonitoringWorkManager(Reminder reminder) async {
+    if (!Platform.isAndroid && !Platform.isIOS) return;
     try {
       await Workmanager().cancelByTag('reminder_${reminder.id}');
       final inputData = <String, String>{
@@ -529,7 +546,7 @@ class NotificationService {
       await Workmanager().registerOneOffTask(
         'reminder_monitoring_${reminder.id}',
         _monitoringTaskName,
-        initialDelay: const Duration(minutes: 5),
+        initialDelay: const Duration(minutes: 1),
         inputData: inputData,
         tag: 'reminder_${reminder.id}',
       );

@@ -85,9 +85,11 @@ class AIService {
   }) async {
     try {
       final key = _settings.getApiKey();
+      debugPrint('_callAI - key present: ${key != null && key.isNotEmpty}');
       if (key == null || key.isEmpty) return null;
 
       final provider = _settings.getProvider();
+      debugPrint('_callAI - provider: $provider, model: ${getModel()}');
 
       if (provider == 'google') {
         final model = GenerativeModel(
@@ -99,7 +101,9 @@ class AIService {
             .map((m) => Content.text('${m['role']}: ${m['content']}'))
             .toList();
 
+        debugPrint('_callAI - sending request to Google...');
         final response = await model.generateContent(contents);
+        debugPrint('_callAI - response received: ${response.text?.substring(0, 100) ?? "empty"}');
         return {'content': response.text ?? ''};
       }
 
@@ -109,7 +113,8 @@ class AIService {
 
       return null;
     } catch (e) {
-      return null;
+      debugPrint('_callAI error: $e');
+      rethrow;
     }
   }
 
@@ -150,7 +155,7 @@ class AIService {
       return {'content': content};
     } else {
       debugPrint('OpenRouter error: ${response.statusCode} ${response.body}');
-      return null;
+      throw Exception('OpenRouter API error (${response.statusCode}): ${response.body}');
     }
   }
 
@@ -455,27 +460,88 @@ Return only:
     final result = await _callAI([
       {'role': 'system', 'content': systemPrompt},
       {'role': 'user', 'content': userPrompt},
-    ], maxTokens: 150);
+    ], maxTokens: 500);
 
     if (result == null) {
-      throw Exception('Failed to reschedule post - API error');
+      throw Exception('No API key configured. Set your API key in Settings.');
     }
 
     try {
-      final jsonMatch = RegExp(
-        r'\{[\s\S]*\}',
-      ).firstMatch(result['content'] ?? '');
+      var content = result['content'] ?? '';
+      debugPrint('AI response length: ${content.length}');
+      debugPrint('AI response: $content');
+      
+      if (content.isEmpty) {
+        throw Exception('AI returned empty response');
+      }
+      
+      String jsonStr = content;
+      if (content.contains('```')) {
+        final codeBlockMatch = RegExp(r'```(?:json)?\s*([\s\S]*?)```').firstMatch(content);
+        if (codeBlockMatch != null) {
+          jsonStr = codeBlockMatch.group(1) ?? content;
+        }
+      }
+      
+      final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(jsonStr);
       if (jsonMatch != null) {
         final data = json.decode(jsonMatch.group(0)!);
+        final newTime = DateTime.tryParse(data['new_time'] ?? '');
+        if (newTime == null) {
+          debugPrint('Failed to parse new_time: ${data['new_time']}');
+          throw Exception('Invalid new_time format: ${data['new_time']}');
+        }
         return {
-          'newTime': DateTime.tryParse(data['new_time'] ?? ''),
+          'newTime': newTime,
           'reason': data['reason'] ?? '',
         };
       }
+      debugPrint('No JSON found in response');
     } catch (e) {
-      throw Exception('Failed to parse reschedule response: $e');
+      debugPrint('Failed to parse reschedule response: $e');
+      rethrow;
     }
 
     throw Exception('Failed to extract reschedule time from API response');
+  }
+
+  Future<String> reschedulePostRaw({
+    required String previousAttemptsJson,
+    required String category,
+    required String complexity,
+    required String importance,
+    String? userFreeTimesJson,
+  }) async {
+    final systemPrompt =
+        '''You are a rescheduling assistant. Return only valid single-line JSON. The reason field must have no newlines.''';
+
+    final userPrompt =
+        '''Reschedule this unread post. Find a better time based on why previous attempts failed.
+
+Category: $category
+Complexity: $complexity
+Importance window: $importance
+Previous scheduled attempts (all missed): $previousAttemptsJson
+User free times: ${userFreeTimesJson ?? '[]'}
+
+Rules:
+- Choose a time that avoids patterns from failed attempts (different hour, different day)
+- Respect the importance window deadline
+- Prefer times within user free slots
+- For complex content, prefer morning focus hours
+
+Return only:
+{"new_time": "YYYY-MM-DD HH:MM:SS", "reason": "Reason in English | السبب بالعربية"}''';
+
+    final result = await _callAI([
+      {'role': 'system', 'content': systemPrompt},
+      {'role': 'user', 'content': userPrompt},
+    ], maxTokens: 500);
+
+    if (result == null) {
+      throw Exception('No API key configured. Set your API key in Settings.');
+    }
+
+    return result['content'] ?? '';
   }
 }

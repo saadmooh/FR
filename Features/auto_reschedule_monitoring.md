@@ -2,7 +2,7 @@
 
 ## Overview
 
-An intelligent monitoring system that automatically detects unopened reminders and reschedules them using AI to find better times. The system fires 5 minutes after the original notification time to check if the user has read the reminder.
+An intelligent monitoring system that automatically detects unopened reminders and reschedules them using AI to find better times. The system fires 1 minute after the original notification time to check if the user has read the reminder.
 
 ## Architecture
 
@@ -20,7 +20,7 @@ An intelligent monitoring system that automatically detects unopened reminders a
 When `scheduleReminder()` is called:
 
 - The main reminder notification is scheduled at `reminder.scheduledAt`
-- A silent monitoring notification is scheduled at `reminder.scheduledAt + 5 minutes`
+- A silent monitoring notification is scheduled at `reminder.scheduledAt + 1 minute`
 - The monitoring notification has:
   - Empty title and body (invisible to user)
   - Low priority, no sound, no vibration
