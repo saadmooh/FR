@@ -94,6 +94,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor: success ? AppColors.accent : AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       ),
     );
   }
@@ -109,10 +111,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     String urlToOpen;
 
     if (isPlaylist && playlistId != null && _youtubeService != null) {
-      // For playlist, use currentVideoUrl
       urlToOpen = _reminder!.currentVideoUrl ?? _reminder!.url;
 
-      // Check if there's a next video to advance to
       final nextIndex = currentIndex + 1;
       if (nextIndex < totalItems) {
         try {
@@ -123,7 +123,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           if (playlist != null && nextIndex < playlist.items.length) {
             final nextVideo = playlist.items[nextIndex];
 
-            // Update reminder with next video data
             _reminder!.playlistCurrentIndex = nextIndex;
             _reminder!.currentVideoUrl =
                 'https://www.youtube.com/watch?v=${nextVideo.videoId}&list=$playlistId';
@@ -131,12 +130,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             _reminder!.description = nextVideo.description;
             _reminder!.imageUrl = nextVideo.thumbnailUrl;
 
-            // Reschedule notification for next video
             await widget.notificationService.cancelReminder(_reminder!.id);
             await widget.notificationService.scheduleReminder(_reminder!);
           }
         } catch (e) {
-          // Continue with normal flow
         }
       }
     } else {
@@ -148,14 +145,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
 
-    // Mark as read
     _reminder!.isOpened = true;
     _reminder!.openedAt = DateTime.now();
     widget.reminderRepository.save(_reminder!);
 
-    // Update statistics
     widget.categoryStatRepository.recordOpened(_reminder!);
-    // Cancel notification
     await widget.notificationService.cancelReminder(_reminder!.id);
 
     _loadReminder();
@@ -191,7 +185,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
-        _showResult(false, 'Error: $e');
+        _showResult(false, '${Translations.aiRescheduleFailed(_locale)}: $e');
       }
     }
 
@@ -205,13 +199,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.whiteSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         title: Text(
           Translations.deletePost(_locale),
-          style: const TextStyle(color: AppColors.whiteTextPrimary),
+          style: TextStyle(color: AppColors.whiteTextPrimary),
         ),
         content: Text(
           Translations.deleteWarning(_locale),
-          style: const TextStyle(color: AppColors.whiteTextSecondary),
+          style: TextStyle(color: AppColors.whiteTextSecondary),
         ),
         actions: [
           TextButton(
@@ -222,7 +217,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             onPressed: () => Navigator.pop(context, true),
             child: Text(
               Translations.delete(_locale),
-              style: const TextStyle(color: AppColors.error),
+              style: TextStyle(color: AppColors.error),
             ),
           ),
         ],
@@ -241,11 +236,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: AppColors.whiteBackground,
         body: Center(
           child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent),
+            color: AppColors.accent,
           ),
         ),
       );
@@ -264,7 +259,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           ),
           actions: [
             IconButton(
-              icon: const Icon(Icons.edit, color: AppColors.accent),
+              icon: const Icon(Icons.edit, color: AppColors.whiteAccent),
               onPressed: () async {
                 await context.push('/post/${widget.id}/edit');
                 Future.microtask(() {
@@ -278,7 +273,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         body: Center(
           child: Text(
             Translations.postNotFound(_locale),
-            style: const TextStyle(color: AppColors.whiteTextPrimary),
+            style: TextStyle(color: AppColors.whiteTextPrimary),
           ),
         ),
       );
@@ -290,9 +285,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       backgroundColor: AppColors.whiteBackground,
       body: CustomScrollView(
         slivers: [
-          // App bar with image
           SliverAppBar(
-            expandedHeight: imageUrl != null && imageUrl.isNotEmpty ? 220 : 100,
+            expandedHeight:
+                imageUrl != null && imageUrl.isNotEmpty ? 220 : 100,
             pinned: true,
             backgroundColor: AppColors.whiteBackground,
             leading: IconButton(
@@ -327,19 +322,23 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             ],
             flexibleSpace: FlexibleSpaceBar(
               background: imageUrl != null && imageUrl.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: imageUrl,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(
-                        color: AppColors.whiteSurface,
-                        child: const Center(child: CircularProgressIndicator()),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        color: AppColors.whiteSurface,
-                        child: const Icon(
-                          Icons.image_not_supported,
-                          color: AppColors.whiteTextSecondary,
-                          size: 64,
+                  ? Hero(
+                      tag: 'reminder-${_reminder!.id}',
+                      child: CachedNetworkImage(
+                        imageUrl: imageUrl,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        placeholder: (context, url) => Container(
+                          color: AppColors.whiteSurface,
+                          child: const Center(child: CircularProgressIndicator()),
+                        ),
+                        errorWidget: (context, url, error) => Container(
+                          color: AppColors.whiteSurface,
+                          child: const Icon(
+                            Icons.image_not_supported,
+                            color: AppColors.whiteTextSecondary,
+                            size: 64,
+                          ),
                         ),
                       ),
                     )
@@ -354,24 +353,19 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             ),
           ),
 
-          // Content
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title - always show current video title
                   Text(
                     _reminder!.title,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.whiteTextPrimary,
-                    ),
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          color: AppColors.whiteTextPrimary,
+                        ),
                   ),
 
-                  // Show current video info for playlists
                   if (_reminder!.isPlaylist == true) ...[
                     const SizedBox(height: 8),
                     Container(
@@ -411,20 +405,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
                   const SizedBox(height: 16),
 
-                  // Description
                   if (_reminder!.description != null &&
                       _reminder!.description!.isNotEmpty)
                     Text(
                       _reminder!.description!,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        height: 1.5,
-                        color: AppColors.whiteTextSecondary,
-                      ),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.whiteTextSecondary,
+                            height: 1.5,
+                          ),
                     ),
                   const SizedBox(height: 24),
 
-                  // Metadata section
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -436,7 +427,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.08),
+                          color: AppColors.whiteShadow,
                           blurRadius: 10,
                           offset: const Offset(0, 4),
                         ),
@@ -452,7 +443,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             _reminder!.categoryFr,
                           ),
                         ),
-                        const Divider(color: AppColors.whiteBorder, height: 24),
+                        const Divider(
+                            color: AppColors.whiteBorder, height: 24),
                         _buildMetadataRow(
                           Translations.complexityLabel(_locale),
                           LocaleManager.instance.getComplexity(
@@ -461,48 +453,34 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             _reminder!.complexityFr,
                           ),
                         ),
-                        const Divider(
-                          color: AppColors.whiteTextSecondary,
-                          height: 24,
-                        ),
+                        const Divider(color: AppColors.whiteBorder, height: 24),
                         _buildMetadataRow(
                           Translations.importance(_locale),
                           LocaleManager.instance.getImportance(
                             _reminder!.importance,
                           ),
                         ),
-                        const Divider(
-                          color: AppColors.whiteTextSecondary,
-                          height: 24,
-                        ),
+                        const Divider(color: AppColors.whiteBorder, height: 24),
                         _buildMetadataRow(
                           Translations.scheduledLabel(_locale),
                           _formatDateTime(_reminder!.scheduledAt),
                         ),
-                        const Divider(
-                          color: AppColors.whiteTextSecondary,
-                          height: 24,
-                        ),
-                        // Show playlist progress
+                        const Divider(color: AppColors.whiteBorder, height: 24),
                         if (_reminder!.isPlaylist == true) ...[
                           _buildMetadataRow(
                             'Playlist',
                             _reminder!.playlistTitle ?? 'Unknown',
-                            valueColor: AppColors.accent,
+                            valueColor: AppColors.whiteAccent,
                           ),
                           const Divider(
-                            color: AppColors.whiteTextSecondary,
-                            height: 24,
-                          ),
+                              color: AppColors.whiteBorder, height: 24),
                           _buildMetadataRow(
                             'Watching',
                             'Video ${(_reminder!.playlistCurrentIndex ?? 0) + 1} of ${_reminder!.playlistTotalItems ?? 0}',
-                            valueColor: AppColors.accent,
+                            valueColor: AppColors.whiteAccent,
                           ),
                           const Divider(
-                            color: AppColors.whiteTextSecondary,
-                            height: 24,
-                          ),
+                              color: AppColors.whiteBorder, height: 24),
                         ],
                         _buildMetadataRow(
                           Translations.statusLabel(_locale),
@@ -518,7 +496,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // AI Explanation
                   if (_reminder!.aiExplanation != null &&
                       _reminder!.aiExplanation!.isNotEmpty)
                     Container(
@@ -532,7 +509,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.08),
+                            color: AppColors.whiteShadow,
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -545,16 +522,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             children: [
                               const Icon(
                                 Icons.auto_awesome,
-                                color: AppColors.accent,
+                                color: AppColors.whiteAccent,
                                 size: 20,
                               ),
                               const SizedBox(width: 8),
                               Text(
                                 Translations.aiAnalysis(_locale),
-                                style: const TextStyle(
-                                  color: AppColors.accent,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                style: Theme.of(context)
+                                    .textTheme.titleMedium
+                                    ?.copyWith(color: AppColors.whiteAccent),
                               ),
                             ],
                           ),
@@ -565,7 +541,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                               _reminder!.aiExplanationAr,
                               _reminder!.aiExplanationFr,
                             ),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontStyle: FontStyle.italic,
                               color: AppColors.whiteTextSecondary,
                             ),
@@ -575,18 +551,20 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     ),
                   const SizedBox(height: 32),
 
-                  // Open Post button
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: _openPost,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.accent,
+                        backgroundColor: AppColors.whiteAccent,
                         foregroundColor: AppColors.whiteBackground,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.zero,
                         ),
+                        elevation: 0,
+                        shadowColor: Colors.transparent,
                       ),
                       child: Text(
                         Translations.openPost(_locale),
@@ -599,15 +577,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Reschedule button
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
                       onPressed: _isRescheduling ? null : _reschedule,
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.accent,
-                        side: const BorderSide(color: AppColors.accent),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        foregroundColor: AppColors.whiteAccent,
+                        side: const BorderSide(color: AppColors.whiteAccent),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.zero,
                         ),
@@ -629,14 +607,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Delete button
                   SizedBox(
                     width: double.infinity,
                     child: TextButton(
                       onPressed: _delete,
                       child: Text(
                         Translations.delete(_locale),
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.error,
                           fontSize: 16,
                         ),
@@ -658,7 +635,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       children: [
         Text(
           label,
-          style: const TextStyle(color: AppColors.whiteTextSecondary),
+          style: TextStyle(color: AppColors.whiteTextSecondary),
         ),
         Text(
           value,

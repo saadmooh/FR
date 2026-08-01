@@ -88,6 +88,8 @@ class _RemindersScreenState extends State<RemindersScreen> {
         SnackBar(
           content: Text('AI reschedule failed: $error'),
           backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
           duration: const Duration(seconds: 5),
         ),
       );
@@ -106,7 +108,8 @@ class _RemindersScreenState extends State<RemindersScreen> {
     return _allReminders.where((reminder) {
       if (_searchQuery.isNotEmpty) {
         final query = _searchQuery.toLowerCase();
-        final titleMatch = reminder.title.toLowerCase().contains(query);
+        final titleMatch =
+            reminder.title.toLowerCase().contains(query);
         final descMatch =
             reminder.description?.toLowerCase().contains(query) ?? false;
         if (!titleMatch && !descMatch) return false;
@@ -134,8 +137,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
   void _showResult(bool success, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(success ? '✅ $message' : '❌ $message'),
+        content: Text(message),
         backgroundColor: success ? AppColors.accent : AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       ),
     );
   }
@@ -233,9 +238,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
   void _showContextMenu(Reminder reminder) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.whiteBackground,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.zero,
       ),
       builder: (context) => SafeArea(
         child: Column(
@@ -246,8 +251,8 @@ class _RemindersScreenState extends State<RemindersScreen> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
+                color: AppColors.whiteTextSecondary.withAlpha(128),
+                borderRadius: BorderRadius.zero,
               ),
             ),
             const SizedBox(height: 16),
@@ -255,15 +260,15 @@ class _RemindersScreenState extends State<RemindersScreen> {
               leading: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF00D4C8).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  color: AppColors.accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.zero,
                 ),
-                child: const Icon(Icons.schedule, color: Color(0xFF00D4C8)),
+                child: const Icon(Icons.schedule, color: AppColors.accent),
               ),
               title: Text(
                 Translations.reschedule(_locale),
-                style: const TextStyle(
-                  color: Color(0xFF1E293B),
+                style: TextStyle(
+                  color: AppColors.whiteTextPrimary,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -276,15 +281,15 @@ class _RemindersScreenState extends State<RemindersScreen> {
               leading: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEF4444).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.zero,
                 ),
-                child: const Icon(Icons.delete, color: Color(0xFFEF4444)),
+                child: const Icon(Icons.delete, color: AppColors.error),
               ),
               title: Text(
                 Translations.delete(_locale),
-                style: const TextStyle(
-                  color: Color(0xFFEF4444),
+                style: TextStyle(
+                  color: AppColors.error,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -326,6 +331,8 @@ class _RemindersScreenState extends State<RemindersScreen> {
             SnackBar(
               content: Text('Rescheduled to ${reminder.scheduledAt}'),
               backgroundColor: AppColors.accent,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
             ),
           );
           _loadReminders();
@@ -342,29 +349,29 @@ class _RemindersScreenState extends State<RemindersScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: AppColors.whiteSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         title: Text(
           Translations.deletePost(_locale),
-          style: const TextStyle(color: Color(0xFF1E293B)),
+          style: TextStyle(color: AppColors.whiteTextPrimary),
         ),
         content: Text(
           Translations.deleteWarning(_locale),
-          style: const TextStyle(color: Color(0xFF64748B)),
+          style: TextStyle(color: AppColors.whiteTextSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: Text(
               Translations.cancel(_locale),
-              style: const TextStyle(color: Color(0xFF64748B)),
+              style: TextStyle(color: AppColors.whiteTextSecondary),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: Text(
               Translations.delete(_locale),
-              style: const TextStyle(color: Color(0xFFEF4444)),
+              style: TextStyle(color: AppColors.error),
             ),
           ),
         ],
@@ -381,9 +388,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
   void _showFilterBottomSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.whiteBackground,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.zero,
       ),
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) => SafeArea(
@@ -398,11 +405,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   children: [
                     Text(
                       Translations.filters(_locale),
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1E293B),
-                      ),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: AppColors.whiteTextPrimary,
+                          ),
                     ),
                     if (_hasActiveFilters)
                       TextButton(
@@ -412,7 +417,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                         },
                         child: Text(
                           Translations.clearAll(_locale),
-                          style: const TextStyle(color: Color(0xFF00D4C8)),
+                          style: TextStyle(color: AppColors.whiteAccent),
                         ),
                       ),
                   ],
@@ -420,9 +425,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 const SizedBox(height: 20),
                 Text(
                   Translations.category(_locale),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF475569),
+                    color: AppColors.whiteTextSecondary,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -453,9 +458,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 const SizedBox(height: 16),
                 Text(
                   Translations.complexity(_locale),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF475569),
+                    color: AppColors.whiteTextSecondary,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -490,9 +495,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 const SizedBox(height: 16),
                 Text(
                   Translations.importance(_locale),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF475569),
+                    color: AppColors.whiteTextSecondary,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -540,17 +545,20 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   child: ElevatedButton(
                     onPressed: () => Navigator.pop(context),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00D4C8),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      backgroundColor: AppColors.whiteAccent,
+                      foregroundColor: AppColors.whiteBackground,
+                      padding:
+                          const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.zero,
                       ),
                       elevation: 0,
                     ),
                     child: Text(
                       Translations.applyFilters(_locale),
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
@@ -571,17 +579,21 @@ class _RemindersScreenState extends State<RemindersScreen> {
       label: Text(label),
       selected: isSelected,
       onSelected: (_) => onSelected(),
-      selectedColor: const Color(0xFF00D4C8).withValues(alpha: 0.2),
-      checkmarkColor: const Color(0xFF00D4C8),
+      selectedColor: AppColors.accent.withValues(alpha: 0.2),
+      checkmarkColor: AppColors.accent,
       labelStyle: TextStyle(
-        color: isSelected ? const Color(0xFF00B4A0) : const Color(0xFF475569),
+        color: isSelected
+            ? AppColors.accent
+            : AppColors.whiteTextSecondary,
         fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
       ),
-      backgroundColor: const Color(0xFFF1F5F9),
+      backgroundColor: AppColors.whiteSurface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.zero,
         side: BorderSide(
-          color: isSelected ? const Color(0xFF00D4C8) : const Color(0xFFE2E8F0),
+          color: isSelected
+              ? AppColors.whiteAccent
+              : AppColors.whiteBorder,
         ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -591,9 +603,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: AppColors.whiteBackground,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.whiteBackground,
         elevation: 0,
         scrolledUnderElevation: 0,
         title: _isSearchVisible
@@ -608,11 +620,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   const SizedBox(width: 12),
                   Text(
                     Translations.appName(_locale),
-                    style: const TextStyle(
-                      color: Color(0xFF1E293B),
-                      fontWeight: FontWeight.w700,
-                      fontSize: 20,
-                    ),
+                    style: Theme.of(context).appBarTheme.titleTextStyle,
                   ),
                 ],
               ),
@@ -622,8 +630,8 @@ class _RemindersScreenState extends State<RemindersScreen> {
               icon: Icon(
                 Icons.search_rounded,
                 color: _hasActiveFilters
-                    ? const Color(0xFF00D4C8)
-                    : const Color(0xFF64748B),
+                    ? AppColors.whiteAccent
+                    : AppColors.whiteTextSecondary,
               ),
               onPressed: () {
                 setState(() => _isSearchVisible = true);
@@ -633,15 +641,15 @@ class _RemindersScreenState extends State<RemindersScreen> {
               icon: Icon(
                 Icons.tune_rounded,
                 color: _hasActiveFilters
-                    ? const Color(0xFF00D4C8)
-                    : const Color(0xFF64748B),
+                    ? AppColors.whiteAccent
+                    : AppColors.whiteTextSecondary,
               ),
               onPressed: _showFilterBottomSheet,
             ),
             IconButton(
               icon: const Icon(
                 Icons.settings_rounded,
-                color: Color(0xFF64748B),
+                color: AppColors.whiteTextSecondary,
               ),
               onPressed: () => context.push('/settings'),
             ),
@@ -651,7 +659,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00D4C8)),
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.whiteAccent),
               ),
             )
           : Column(
@@ -662,56 +670,70 @@ class _RemindersScreenState extends State<RemindersScreen> {
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openSaveSheet(),
-        backgroundColor: const Color(0xFF00D4C8),
+        backgroundColor: AppColors.whiteAccent,
         elevation: 4,
-        child: const Icon(Icons.add_rounded, color: Colors.white),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
 
   Widget _buildAnimatedSearchField() {
-    return Container(
-      height: 44,
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: TextField(
-        controller: _searchController,
-        autofocus: true,
-        onChanged: (value) {
-          setState(() => _searchQuery = value);
-        },
-        style: const TextStyle(color: Color(0xFF1E293B)),
-        decoration: InputDecoration(
-          hintText: Translations.searchPosts(_locale),
-          hintStyle: TextStyle(color: Colors.grey.shade500),
-          prefixIcon: const Icon(Icons.search, color: Color(0xFF64748B)),
-          suffixIcon: _searchQuery.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear, color: Color(0xFF64748B)),
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() => _searchQuery = '');
-                  },
-                )
-              : IconButton(
-                  icon: const Icon(Icons.close, color: Color(0xFF64748B)),
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() {
-                      _searchQuery = '';
-                      _isSearchVisible = false;
-                    });
-                  },
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      width: _isSearchVisible ? null : 0,
+      child: _isSearchVisible
+          ? Container(
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.whiteSurface,
+                borderRadius: BorderRadius.zero,
+              ),
+              child: TextField(
+                controller: _searchController,
+                autofocus: true,
+                onChanged: (value) {
+                  setState(() => _searchQuery = value);
+                },
+                style: TextStyle(color: AppColors.whiteTextPrimary),
+                decoration: InputDecoration(
+                  hintText: Translations.searchPosts(_locale),
+                  hintStyle: TextStyle(color: AppColors.whiteTextSecondary),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: AppColors.whiteTextSecondary,
+                  ),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(
+                            Icons.clear,
+                            color: AppColors.whiteTextSecondary,
+                          ),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchQuery = '');
+                          },
+                        )
+                      : IconButton(
+                          icon: const Icon(
+                            Icons.close,
+                            color: AppColors.whiteTextSecondary,
+                          ),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {
+                              _searchQuery = '';
+                              _isSearchVisible = false;
+                            });
+                          },
+                        ),
+                  border: InputBorder.none,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 12,
-          ),
-        ),
-      ),
+              ),
+            )
+          : const SizedBox.shrink(),
     );
   }
 
@@ -719,10 +741,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.whiteBackground,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: AppColors.whiteShadow,
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -738,13 +760,13 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 padding: const EdgeInsets.only(right: 10),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFEE2E2),
-                    borderRadius: BorderRadius.circular(20),
+                    color: const Color(0xFFFFF0F0),
+                    borderRadius: BorderRadius.zero,
                   ),
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.zero,
                       onTap: _clearFilters,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
@@ -757,13 +779,13 @@ class _RemindersScreenState extends State<RemindersScreen> {
                             const Icon(
                               Icons.clear,
                               size: 16,
-                              color: Color(0xFFEF4444),
+                              color: AppColors.error,
                             ),
                             const SizedBox(width: 4),
                             Text(
                               Translations.clearAll(_locale),
-                              style: const TextStyle(
-                                color: Color(0xFFEF4444),
+                              style: TextStyle(
+                                color: AppColors.error,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 13,
                               ),
@@ -776,7 +798,8 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 ),
               ),
             _buildQuickFilterChip(
-              label: _selectedCategory ?? Translations.category(_locale),
+              label:
+                  _selectedCategory ?? Translations.category(_locale),
               isActive: _selectedCategory != null,
               onTap: () => _showQuickFilterDialog('category'),
             ),
@@ -814,11 +837,11 @@ class _RemindersScreenState extends State<RemindersScreen> {
     return Container(
       decoration: BoxDecoration(
         color: isActive
-            ? const Color(0xFF00D4C8).withValues(alpha: 0.12)
-            : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(20),
+            ? AppColors.accent.withValues(alpha: 0.12)
+            : AppColors.whiteSurface,
+        borderRadius: BorderRadius.zero,
         border: Border.all(
-          color: isActive ? const Color(0xFF00D4C8) : const Color(0xFFE2E8F0),
+          color: isActive ? AppColors.whiteAccent : AppColors.whiteBorder,
           width: 1,
         ),
       ),
@@ -826,7 +849,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.zero,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             child: Row(
@@ -836,9 +859,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   label,
                   style: TextStyle(
                     color: isActive
-                        ? const Color(0xFF00B4A0)
-                        : const Color(0xFF64748B),
-                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                        ? AppColors.accent
+                        : AppColors.whiteTextSecondary,
+                    fontWeight:
+                        isActive ? FontWeight.w600 : FontWeight.w500,
                     fontSize: 13,
                   ),
                 ),
@@ -847,8 +871,8 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   Icons.keyboard_arrow_down,
                   size: 18,
                   color: isActive
-                      ? const Color(0xFF00B4A0)
-                      : const Color(0xFF94A3B8),
+                      ? AppColors.accent
+                      : AppColors.whiteTextSecondary.withValues(alpha: 0.5),
                 ),
               ],
             ),
@@ -861,9 +885,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
   void _showQuickFilterDialog(String type) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.whiteBackground,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.zero,
       ),
       builder: (context) => SafeArea(
         child: Padding(
@@ -876,15 +900,13 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 type == 'category'
                     ? Translations.category(_locale)
                     : type == 'complexity'
-                    ? Translations.complexity(_locale)
-                    : type == 'domain'
-                    ? Translations.domain(_locale)
-                    : Translations.importance(_locale),
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E293B),
-                ),
+                        ? Translations.complexity(_locale)
+                        : type == 'domain'
+                            ? Translations.domain(_locale)
+                            : Translations.importance(_locale),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: AppColors.whiteTextPrimary,
+                    ),
               ),
               const SizedBox(height: 16),
               if (type == 'category')
@@ -897,7 +919,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                         leading: Radio<String?>(
                           value: null,
                           groupValue: _selectedCategory,
-                          activeColor: const Color(0xFF00D4C8),
+                          activeColor: AppColors.whiteAccent,
                           onChanged: (v) {
                             setState(() => _selectedCategory = v);
                             Navigator.pop(context);
@@ -917,7 +939,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                               leading: Radio<String?>(
                                 value: cat,
                                 groupValue: _selectedCategory,
-                                activeColor: const Color(0xFF00D4C8),
+                                activeColor: AppColors.whiteAccent,
                                 onChanged: (v) {
                                   setState(() => _selectedCategory = v);
                                   Navigator.pop(context);
@@ -942,7 +964,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                         leading: Radio<String?>(
                           value: null,
                           groupValue: _selectedComplexity,
-                          activeColor: const Color(0xFF00D4C8),
+                          activeColor: AppColors.whiteAccent,
                           onChanged: (v) {
                             setState(() => _selectedComplexity = v);
                             Navigator.pop(context);
@@ -968,7 +990,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                               leading: Radio<String?>(
                                 value: comp,
                                 groupValue: _selectedComplexity,
-                                activeColor: const Color(0xFF00D4C8),
+                                activeColor: AppColors.whiteAccent,
                                 onChanged: (v) {
                                   setState(() => _selectedComplexity = v);
                                   Navigator.pop(context);
@@ -993,7 +1015,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                         leading: Radio<String?>(
                           value: null,
                           groupValue: _selectedDomain,
-                          activeColor: const Color(0xFF00D4C8),
+                          activeColor: AppColors.whiteAccent,
                           onChanged: (v) {
                             setState(() => _selectedDomain = v);
                             Navigator.pop(context);
@@ -1010,7 +1032,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                           leading: Radio<String?>(
                             value: domain,
                             groupValue: _selectedDomain,
-                            activeColor: const Color(0xFF00D4C8),
+                            activeColor: AppColors.whiteAccent,
                             onChanged: (v) {
                               setState(() => _selectedDomain = v);
                               Navigator.pop(context);
@@ -1033,7 +1055,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       leading: Radio<String?>(
                         value: null,
                         groupValue: _selectedImportance,
-                        activeColor: const Color(0xFF00D4C8),
+                        activeColor: AppColors.whiteAccent,
                         onChanged: (v) {
                           setState(() => _selectedImportance = v);
                           Navigator.pop(context);
@@ -1049,7 +1071,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       leading: Radio<String?>(
                         value: 'Day',
                         groupValue: _selectedImportance,
-                        activeColor: const Color(0xFF00D4C8),
+                        activeColor: AppColors.whiteAccent,
                         onChanged: (v) {
                           setState(() => _selectedImportance = v);
                           Navigator.pop(context);
@@ -1065,7 +1087,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       leading: Radio<String?>(
                         value: 'Week',
                         groupValue: _selectedImportance,
-                        activeColor: const Color(0xFF00D4C8),
+                        activeColor: AppColors.whiteAccent,
                         onChanged: (v) {
                           setState(() => _selectedImportance = v);
                           Navigator.pop(context);
@@ -1081,7 +1103,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       leading: Radio<String?>(
                         value: 'Month',
                         groupValue: _selectedImportance,
-                        activeColor: const Color(0xFF00D4C8),
+                        activeColor: AppColors.whiteAccent,
                         onChanged: (v) {
                           setState(() => _selectedImportance = v);
                           Navigator.pop(context);
@@ -1116,12 +1138,14 @@ class _RemindersScreenState extends State<RemindersScreen> {
         icon: Icons.bookmark_add_outlined,
         title: Translations.noSavedPosts(_locale),
         subtitle: Translations.noSavedPostsSubtitle(_locale),
+        onAction: () => _openSaveSheet(),
+        actionLabel: Translations.savePost(_locale),
       );
     }
 
     return RefreshIndicator(
       onRefresh: () async => _loadReminders(),
-      color: const Color(0xFF00D4C8),
+      color: AppColors.whiteAccent,
       child: ListView.builder(
         padding: const EdgeInsets.only(top: 12, bottom: 80),
         itemCount: reminders.length,
@@ -1131,9 +1155,12 @@ class _RemindersScreenState extends State<RemindersScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             child: GestureDetector(
               onLongPress: () => _showContextMenu(reminder),
-              child: ModernReminderCard(
-                reminder: reminder,
-                onTap: () => context.push('/post/${reminder.id}'),
+              child: Hero(
+                tag: 'reminder-${reminder.id}',
+                child: ModernReminderCard(
+                  reminder: reminder,
+                  onTap: () => context.push('/post/${reminder.id}'),
+                ),
               ),
             ),
           );

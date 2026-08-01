@@ -53,14 +53,17 @@ class _PaywallScreenState extends State<PaywallScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final customerInfo = await Purchases.purchasePackage(_selectedPackage!);
-      final isPremium = customerInfo.entitlements.active['premium']?.isActive ?? false;
+      final customerInfo = (await Purchases.purchasePackage(_selectedPackage!)).customerInfo;
+      final isPremium =
+          customerInfo.entitlements.active['premium']?.isActive ?? false;
 
       if (isPremium && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(Translations.premiumActivated(_locale)),
             backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
           ),
         );
         Navigator.pop(context, true);
@@ -72,6 +75,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
           SnackBar(
             content: Text(Translations.purchaseFailed(_locale)),
             backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
           ),
         );
       }
@@ -84,13 +89,16 @@ class _PaywallScreenState extends State<PaywallScreen> {
     setState(() => _isLoading = true);
     try {
       final customerInfo = await Purchases.restorePurchases();
-      final isPremium = customerInfo.entitlements.active['premium']?.isActive ?? false;
+      final isPremium =
+          customerInfo.entitlements.active['premium']?.isActive ?? false;
 
       if (isPremium && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(Translations.premiumActivated(_locale)),
             backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
           ),
         );
         Navigator.pop(context, true);
@@ -103,12 +111,12 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
   List<String> _getPremiumFeatures() {
     return [
-      'Unlimited reminders',
-      'Cloud sync across devices',
-      'Priority AI scheduling',
-      'Export to Excel & JSON',
-      'Advanced statistics',
-      'No ads',
+      Translations.premiumFeatureUnlimited(_locale),
+      Translations.premiumFeatureCloudSync(_locale),
+      Translations.premiumFeaturePriorityAI(_locale),
+      Translations.premiumFeatureExcelExport(_locale),
+      Translations.premiumFeatureAdvancedStats(_locale),
+      Translations.premiumFeatureNoAds(_locale),
     ];
   }
 
@@ -125,10 +133,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
         ),
         title: Text(
           Translations.upgradeToPremium(_locale),
-          style: const TextStyle(
-            color: AppColors.whiteTextPrimary,
-            fontWeight: FontWeight.w700,
-          ),
+          style: Theme.of(context).appBarTheme.titleTextStyle,
         ),
       ),
       body: Column(
@@ -155,20 +160,20 @@ class _PaywallScreenState extends State<PaywallScreen> {
                   const SizedBox(height: 24),
                   Text(
                     Translations.premiumTitle(_locale),
-                    style: const TextStyle(
-                      color: AppColors.whiteTextPrimary,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          color: AppColors.whiteTextPrimary,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
                   Text(
                     Translations.premiumSubtitle(_locale),
-                    style: const TextStyle(
-                      color: AppColors.whiteTextSecondary,
-                      fontSize: 14,
-                    ),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.whiteTextSecondary,
+                          fontSize: 14,
+                        ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 32),
@@ -186,7 +191,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                           Expanded(
                             child: Text(
                               _getPremiumFeatures()[i],
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: AppColors.whiteTextPrimary,
                                 fontSize: 16,
                               ),
@@ -200,7 +205,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
                   if (_isLoadingOfferings)
                     const Center(child: CircularProgressIndicator())
                   else if (_packages.isEmpty)
-                    const Text('No packages available')
+                    Text(
+                      Translations.noPackagesAvailable(_locale),
+                      style: TextStyle(color: AppColors.whiteTextSecondary),
+                    )
                   else
                     _buildPackageSelector(),
                 ],
@@ -217,8 +225,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Choose your plan',
+        Text(
+          Translations.choosePlan(_locale),
           style: TextStyle(
             color: AppColors.whiteTextPrimary,
             fontSize: 18,
@@ -241,10 +249,12 @@ class _PaywallScreenState extends State<PaywallScreen> {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.accent.withAlpha(25) : AppColors.whiteSurface,
+          color: isSelected
+              ? AppColors.accent.withAlpha(25)
+              : AppColors.whiteSurface,
           borderRadius: BorderRadius.zero,
           border: Border.all(
-            color: isSelected ? AppColors.accent : AppColors.whiteBorder,
+            color: isSelected ? AppColors.whiteAccent : AppColors.whiteBorder,
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -254,7 +264,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
               value: true,
               groupValue: isSelected,
               onChanged: (_) => setState(() => _selectedPackage = package),
-              activeColor: AppColors.accent,
+              activeColor: AppColors.whiteAccent,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -265,7 +275,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     children: [
                       Text(
                         package.storeProduct.title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.whiteTextPrimary,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -274,12 +284,15 @@ class _PaywallScreenState extends State<PaywallScreen> {
                       if (isMonthly) ...[
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          color: AppColors.accent,
-                          child: const Text(
-                            'POPULAR',
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          color: AppColors.whiteAccent,
+                          child: Text(
+                            Translations.popular(_locale),
                             style: TextStyle(
-                              color: Colors.white,
+                              color: AppColors.whiteBackground,
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
                             ),
@@ -291,7 +304,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                   const SizedBox(height: 4),
                   Text(
                     package.storeProduct.description,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.whiteTextSecondary,
                       fontSize: 12,
                     ),
@@ -301,7 +314,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
             ),
             Text(
               package.storeProduct.priceString,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.whiteTextPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -316,7 +329,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
   Widget _buildBottomSection() {
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.whiteSurface,
         border: Border(top: BorderSide(color: AppColors.whiteBorder)),
       ),
@@ -325,9 +338,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _isLoading || _selectedPackage == null ? null : _purchase,
+              onPressed:
+                  _isLoading || _selectedPackage == null ? null : _purchase,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.accent,
+                backgroundColor: AppColors.whiteAccent,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 disabledBackgroundColor: AppColors.whiteBorder,
@@ -336,11 +350,17 @@ class _PaywallScreenState extends State<PaywallScreen> {
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : Text(
                       Translations.subscribeNow(_locale),
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
             ),
           ),
@@ -349,7 +369,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
             onPressed: _isLoading ? null : _restore,
             child: Text(
               Translations.restorePurchases(_locale),
-              style: const TextStyle(color: AppColors.whiteTextSecondary, fontSize: 14),
+              style: TextStyle(
+                color: AppColors.whiteTextSecondary,
+                fontSize: 14,
+              ),
             ),
           ),
         ],

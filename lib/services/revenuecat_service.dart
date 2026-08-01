@@ -6,7 +6,7 @@ class RevenueCatService {
   factory RevenueCatService() => _instance;
   RevenueCatService._internal();
 
-  static const String _apiKey = 'sk_uaMbtjGkiDWRkhLPYFVzJDLErnpDb';
+  static const String _apiKey = 'goog_WnLgVtBcHCJndRicBHtliPtJENT';
   static const String _premiumEntitlement = 'premium';
 
   Offerings? _offerings;
@@ -54,7 +54,7 @@ class RevenueCatService {
   Future<bool> purchasePackage(Package package) async {
     try {
       debugPrint('Purchasing package: ${package.identifier}');
-      _customerInfo = await Purchases.purchasePackage(package);
+       _customerInfo = (await Purchases.purchasePackage(package)).customerInfo;
       _updatePremiumStatus();
       return _isPremium;
     } catch (e) {

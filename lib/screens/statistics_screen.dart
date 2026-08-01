@@ -53,8 +53,10 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   void _showResult(bool success, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${success ? '✅' : '❌'} $message'),
-        backgroundColor: success ? AppColors.whiteAccent : AppColors.error,
+        content: Text(message),
+        backgroundColor: success ? AppColors.accent : AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       ),
     );
   }
@@ -331,10 +333,10 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.whiteSurface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: AppColors.whiteShadow,
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -414,8 +416,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            '${(openRate * 100).toStringAsFixed(0)}% opened',
-            style: const TextStyle(
+            Translations.openedRate(_locale, (openRate * 100).round()),
+            style: TextStyle(
               color: AppColors.whiteTextSecondary,
               fontSize: 12,
             ),

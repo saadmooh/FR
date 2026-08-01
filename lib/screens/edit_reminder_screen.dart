@@ -137,7 +137,10 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
 
   Future<void> _rescheduleWithAI() async {
     if (!widget.aiService.hasApiKey()) {
-      _showSnackBar(Translations.pleaseConfigureApiKey(_locale), isError: true);
+      _showSnackBar(
+        Translations.pleaseConfigureApiKey(_locale),
+        isError: true,
+      );
       return;
     }
 
@@ -164,12 +167,10 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
       final freeTimes = widget.freeTimeRepository.getAllAsJson();
       final pendingReminders = widget.reminderRepository
           .getPendingReminders()
-          .map(
-            (r) => {
-              'scheduledAt': r.scheduledAt.toIso8601String(),
-              'title': r.title,
-            },
-          )
+          .map((r) => {
+            'scheduledAt': r.scheduledAt.toIso8601String(),
+            'title': r.title,
+          })
           .toList();
 
       final result = await widget.aiService.estimateBestTime(
@@ -178,7 +179,8 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
         importance: _selectedImportance,
         currentTime: currentTime,
         maxTime: maxTime,
-        userFreeTimesJson: freeTimes.isNotEmpty ? jsonEncode(freeTimes) : null,
+        userFreeTimesJson:
+            freeTimes.isNotEmpty ? jsonEncode(freeTimes) : null,
         pendingRemindersJson: pendingReminders.isNotEmpty
             ? jsonEncode(pendingReminders)
             : null,
@@ -195,7 +197,10 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
           result['explanation'] ?? Translations.reminderScheduled(_locale),
         );
       } else {
-        _showSnackBar(Translations.aiRescheduleFailed(_locale), isError: true);
+        _showSnackBar(
+          Translations.aiRescheduleFailed(_locale),
+          isError: true,
+        );
       }
     } catch (e) {
       _showSnackBar(
@@ -230,6 +235,8 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor: isError ? AppColors.error : AppColors.accent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       ),
     );
   }
@@ -241,24 +248,20 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.whiteBackground,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.accent),
+          icon: const Icon(Icons.arrow_back, color: AppColors.whiteAccent),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
           Translations.editReminder(_locale),
-          style: const TextStyle(
-            color: AppColors.whiteTextPrimary,
-            fontWeight: FontWeight.w700,
-            fontSize: 22,
-          ),
+          style: Theme.of(context).appBarTheme.titleTextStyle,
         ),
         actions: [
           TextButton(
             onPressed: _saveChanges,
             child: Text(
               Translations.save(_locale),
-              style: const TextStyle(
-                color: AppColors.accent,
+              style: TextStyle(
+                color: AppColors.whiteAccent,
                 fontWeight: FontWeight.w600,
                 fontSize: 16,
               ),
@@ -279,7 +282,7 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
                 border: Border.all(color: AppColors.whiteBorder, width: 1),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
+                    color: AppColors.whiteShadow,
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -290,11 +293,11 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.article, color: AppColors.accent),
+                      const Icon(Icons.article, color: AppColors.whiteAccent),
                       const SizedBox(width: 8),
                       Text(
                         Translations.reminder(_locale),
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.whiteTextPrimary,
                           fontWeight: FontWeight.w600,
                           fontSize: 16,
@@ -305,7 +308,7 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
                   const SizedBox(height: 12),
                   Text(
                     widget.reminder.title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.whiteTextSecondary,
                       fontSize: 14,
                     ),
@@ -324,7 +327,7 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
                 border: Border.all(color: AppColors.whiteBorder, width: 1),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
+                    color: AppColors.whiteShadow,
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -335,11 +338,14 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.calendar_today, color: AppColors.accent),
+                      const Icon(
+                        Icons.calendar_today,
+                        color: AppColors.whiteAccent,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         Translations.schedule(_locale),
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.whiteTextPrimary,
                           fontWeight: FontWeight.w600,
                           fontSize: 16,
@@ -377,7 +383,7 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
                                 const SizedBox(width: 8),
                                 Text(
                                   '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: AppColors.whiteTextPrimary,
                                     fontSize: 14,
                                   ),
@@ -415,7 +421,7 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
                                 const SizedBox(width: 8),
                                 Text(
                                   _selectedTime.format(context),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: AppColors.whiteTextPrimary,
                                     fontSize: 14,
                                   ),
@@ -445,13 +451,13 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
                           children: [
                             const Icon(
                               Icons.schedule,
-                              color: AppColors.accent,
+                              color: AppColors.whiteAccent,
                               size: 18,
                             ),
                             const SizedBox(width: 8),
                             Text(
                               '${Translations.scheduledFor(_locale)}: ${_formatDateTime(value)}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: AppColors.whiteTextPrimary,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
@@ -474,7 +480,7 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
                 border: Border.all(color: AppColors.whiteBorder, width: 1),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
+                    color: AppColors.whiteShadow,
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -485,11 +491,11 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.flag, color: AppColors.accent),
+                      const Icon(Icons.flag, color: AppColors.whiteAccent),
                       const SizedBox(width: 8),
                       Text(
                         Translations.importance(_locale),
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.whiteTextPrimary,
                           fontWeight: FontWeight.w600,
                           fontSize: 16,
@@ -510,8 +516,8 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
                               option == 'Day'
                                   ? Icons.today
                                   : option == 'Week'
-                                  ? Icons.date_range
-                                  : Icons.calendar_month,
+                                      ? Icons.date_range
+                                      : Icons.calendar_month,
                             ),
                           ),
                         )
@@ -527,7 +533,7 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
                         states,
                       ) {
                         if (states.contains(WidgetState.selected)) {
-                          return AppColors.accent;
+                          return AppColors.whiteAccent;
                         }
                         return AppColors.whiteBackground;
                       }),
@@ -547,7 +553,7 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
                       _selectedImportance,
                       _locale,
                     ),
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.whiteTextSecondary,
                       fontSize: 12,
                     ),
@@ -580,7 +586,7 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.accent,
+                  backgroundColor: AppColors.whiteAccent,
                   foregroundColor: AppColors.whiteBackground,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
@@ -594,7 +600,7 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
             const SizedBox(height: 12),
             Text(
               Translations.aiRescheduleHint(_locale),
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.whiteTextSecondary,
                 fontSize: 13,
               ),

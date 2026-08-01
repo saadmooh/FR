@@ -46,6 +46,14 @@
           }
         },
         {
+          "client_id": "1038373651011-vva5ih7bl64s7ccf5cuj7e4her41v146.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.saadmohammed2000.flex_reminder",
+            "certificate_hash": "e3d603f7e4e2a4f23000d3d8cb521ea1df055e66"
+          }
+        },
+        {
           "client_id": "1038373651011-aajl0k8goi5hknl4l0sqsnb78m7lnrfj.apps.googleusercontent.com",
           "client_type": 3
         }

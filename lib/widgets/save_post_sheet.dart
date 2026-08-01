@@ -81,6 +81,8 @@ class _SavePostSheetState extends State<SavePostSheet> {
       SnackBar(
         content: Text(message),
         backgroundColor: success ? AppColors.accent : AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       ),
     );
   }
@@ -104,13 +106,11 @@ class _SavePostSheetState extends State<SavePostSheet> {
     });
 
     try {
-      // Step 1: Fetch metadata
       final metadata = await _metadataService.fetchMetadata(url);
 
       if (!mounted) return;
       setState(() => _loadingStatus = Translations.classifyingContent(_locale));
 
-      // Step 2: AI classification
       final classification = await widget.aiService.classifyContent(
         title: metadata.title ?? 'Untitled',
         description: metadata.description,
@@ -120,14 +120,12 @@ class _SavePostSheetState extends State<SavePostSheet> {
       if (!mounted) return;
       setState(() => _loadingStatus = Translations.findingBestTime(_locale));
 
-      // Step 3: Get free times and pending reminders
       final freeTimes = widget.freeTimeRepository.getAllAsJson();
       final pendingReminders = widget.reminderRepository
           .getPendingReminders()
           .map((r) => {'scheduledAt': r.scheduledAt.toIso8601String()})
           .toList();
 
-      // Calculate deadline based on importance
       final now = DateTime.now();
       final maxTime = switch (_importance) {
         'Day' => now.add(const Duration(days: 1)),
@@ -136,7 +134,6 @@ class _SavePostSheetState extends State<SavePostSheet> {
         _ => now.add(const Duration(days: 7)),
       };
 
-      // Step 4: Estimate best time
       final bestTimeResult = await widget.aiService.estimateBestTime(
         category: classification['categoryEn'] ?? 'Other',
         complexity: classification['complexityEn'] ?? 'Medium',
@@ -149,10 +146,9 @@ class _SavePostSheetState extends State<SavePostSheet> {
 
       if (!mounted) return;
 
-      final scheduledAt =
-          bestTimeResult['bestTime'] ?? now.add(const Duration(hours: 24));
+      final scheduledAt = bestTimeResult['bestTime'] ??
+          now.add(const Duration(hours: 24));
 
-      // Get category in all languages
       final categoryData = classification['category'] ?? {};
       final categoryEnVal =
           categoryData['en'] ?? classification['categoryEn'] ?? 'Other';
@@ -161,7 +157,6 @@ class _SavePostSheetState extends State<SavePostSheet> {
       final categoryFrVal =
           categoryData['fr'] ?? classification['categoryFr'] ?? 'Autre';
 
-      // Get complexity in all languages
       final complexityData = classification['complexity_level'] ?? {};
       final complexityEnVal =
           complexityData['en'] ?? classification['complexityEn'] ?? 'Medium';
@@ -170,14 +165,12 @@ class _SavePostSheetState extends State<SavePostSheet> {
       final complexityFrVal =
           complexityData['fr'] ?? classification['complexityFr'] ?? 'Moyen';
 
-      // Get ethical reasoning in all languages
       final ethicalData = classification['ethical_reasoning'] ?? '';
       final ethicalParts = ethicalData.toString().split(' | ');
       final ethicalEn = ethicalParts.isNotEmpty ? ethicalParts[0] : '';
       final ethicalAr = ethicalParts.length > 1 ? ethicalParts[1] : '';
       final ethicalFr = ethicalParts.length > 2 ? ethicalParts[2] : '';
 
-      // Get explanation in all languages
       final explanationData = bestTimeResult['explanation'] ?? '';
       final explanationParts = explanationData.toString().split(' | ');
       final explanationEn = explanationParts.isNotEmpty
@@ -190,7 +183,6 @@ class _SavePostSheetState extends State<SavePostSheet> {
           ? explanationParts[2]
           : '';
 
-      // Step 5: Save reminder
       final reminder = Reminder(
         url: url,
         title: metadata.title ?? 'Untitled',
@@ -202,8 +194,9 @@ class _SavePostSheetState extends State<SavePostSheet> {
         complexityEn: complexityEnVal,
         complexityAr: complexityArVal,
         complexityFr: complexityFrVal,
-        isEthical:
-            classification['is_ethical'] ?? classification['isEthical'] ?? true,
+        isEthical: classification['is_ethical'] ??
+            classification['isEthical'] ??
+            true,
         ethicalReasoning: ethicalEn,
         ethicalReasoningAr: ethicalAr,
         ethicalReasoningFr: ethicalFr,
@@ -215,7 +208,6 @@ class _SavePostSheetState extends State<SavePostSheet> {
         aiExplanationFr: explanationFr,
       );
 
-      // Add playlist-specific fields if this is a playlist
       if (metadata.isPlaylist) {
         reminder.isPlaylist = true;
         reminder.playlistId = metadata.playlistId;
@@ -224,10 +216,8 @@ class _SavePostSheetState extends State<SavePostSheet> {
         reminder.playlistCurrentIndex = 0;
         reminder.playlistTotalItems = metadata.totalVideos;
 
-        // Use first video's URL as currentVideoUrl
         reminder.currentVideoUrl = metadata.firstVideoUrl ?? url;
 
-        // Use first video's thumbnail as reminder imageUrl if available
         if (metadata.firstVideoThumbnail != null) {
           reminder.imageUrl = metadata.firstVideoThumbnail;
         }
@@ -236,10 +226,8 @@ class _SavePostSheetState extends State<SavePostSheet> {
       final id = widget.reminderRepository.save(reminder);
       reminder.id = id;
 
-      // Step 6: Record statistics
       widget.categoryStatRepository.recordSaved(reminder);
 
-      // Step 7: Schedule notification
       await widget.notificationService.scheduleReminder(reminder);
 
       if (!mounted) return;
@@ -255,6 +243,8 @@ class _SavePostSheetState extends State<SavePostSheet> {
             '${Translations.reminderSaved(_locale)} ${Translations.reminderScheduledFor(_locale)} ${_formatDateTime(scheduledAt)}',
           ),
           backgroundColor: AppColors.accent,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         ),
       );
     } catch (e) {
@@ -280,7 +270,7 @@ class _SavePostSheetState extends State<SavePostSheet> {
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       decoration: const BoxDecoration(
-        color: AppColors.whiteSurface,
+        color: AppColors.whiteBackground,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: SingleChildScrollView(
@@ -289,7 +279,6 @@ class _SavePostSheetState extends State<SavePostSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Drag handle
             Center(
               child: Container(
                 width: 40,
@@ -302,25 +291,22 @@ class _SavePostSheetState extends State<SavePostSheet> {
             ),
             const SizedBox(height: 20),
 
-            // Title
             Text(
               Translations.savePost(_locale),
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: AppColors.whiteTextPrimary,
-              ),
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: AppColors.whiteTextPrimary,
+                  ),
             ),
             const SizedBox(height: 20),
 
-            // URL field
             TextField(
               controller: _urlController,
               autofocus: widget.initialUrl != null,
-              style: const TextStyle(color: AppColors.whiteTextPrimary),
+              style: TextStyle(color: AppColors.whiteTextPrimary),
               decoration: InputDecoration(
                 hintText: Translations.enterUrl(_locale),
-                hintStyle: const TextStyle(color: AppColors.whiteTextSecondary),
+                hintStyle:
+                    TextStyle(color: AppColors.whiteTextSecondary),
                 prefixIcon: const Icon(
                   Icons.link,
                   color: AppColors.whiteTextSecondary,
@@ -329,23 +315,24 @@ class _SavePostSheetState extends State<SavePostSheet> {
                   Icons.paste,
                   color: AppColors.whiteTextSecondary,
                 ),
-                enabledBorder: const OutlineInputBorder(
-                  borderSide: BorderSide(color: AppColors.whiteTextSecondary),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: const BorderSide(
+                    color: AppColors.whiteTextSecondary,
+                  ),
                 ),
-                focusedBorder: const OutlineInputBorder(
-                  borderSide: BorderSide(color: AppColors.accent),
+                focusedBorder: OutlineInputBorder(
+                  borderSide:
+                      const BorderSide(color: AppColors.whiteAccent),
                 ),
               ),
             ),
             const SizedBox(height: 16),
 
-            // Importance dropdown
             DropdownButtonFormField<String>(
               initialValue: _importance,
               dropdownColor: AppColors.whiteSurface,
-              style: const TextStyle(color: AppColors.whiteTextPrimary),
+              style: TextStyle(color: AppColors.whiteTextPrimary),
               decoration: const InputDecoration(
-                labelText: null,
                 labelStyle: TextStyle(color: AppColors.whiteTextSecondary),
               ),
               items: [
@@ -370,7 +357,6 @@ class _SavePostSheetState extends State<SavePostSheet> {
             ),
             const SizedBox(height: 16),
 
-            // Error message
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
@@ -380,7 +366,6 @@ class _SavePostSheetState extends State<SavePostSheet> {
                 ),
               ),
 
-            // Loading indicator
             if (_isLoading) ...[
               const SizedBox(height: 16),
               Row(
@@ -398,21 +383,23 @@ class _SavePostSheetState extends State<SavePostSheet> {
                   const SizedBox(width: 12),
                   Text(
                     _loadingStatus,
-                    style: const TextStyle(color: AppColors.whiteTextSecondary),
+                    style: TextStyle(color: AppColors.whiteTextSecondary),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
             ],
 
-            // Save button
             ElevatedButton(
               onPressed: _isLoading ? null : _save,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.accent,
+                backgroundColor: AppColors.whiteAccent,
                 foregroundColor: AppColors.whiteBackground,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.zero,
+                ),
+                elevation: 0,
               ),
               child: Text(
                 Translations.save(_locale),

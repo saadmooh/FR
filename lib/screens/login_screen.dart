@@ -34,6 +34,8 @@ class _LoginScreenState extends State<LoginScreen> {
         SnackBar(
           content: Text(Translations.signInFailed(_locale)),
           backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         ),
       );
     }
@@ -65,20 +67,20 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 24),
               Text(
                 Translations.signInTitle(_locale),
-                style: const TextStyle(
-                  color: AppColors.whiteTextPrimary,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: AppColors.whiteTextPrimary,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                    ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
               Text(
                 Translations.signInSubtitle(_locale),
-                style: const TextStyle(
-                  color: AppColors.whiteTextSecondary,
-                  fontSize: 16,
-                ),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.whiteTextSecondary,
+                      fontSize: 16,
+                    ),
                 textAlign: TextAlign.center,
               ),
               const Spacer(),
@@ -108,7 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 16),
               Text(
                 Translations.signInTerms(_locale),
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.whiteTextSecondary,
                   fontSize: 12,
                 ),

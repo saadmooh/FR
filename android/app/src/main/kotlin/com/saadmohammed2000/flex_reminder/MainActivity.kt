@@ -1,4 +1,4 @@
-package com.saadmohammed.smartpocket
+package com.saadmohammed2000.flex_reminder
 
 import android.content.Intent
 import io.flutter.embedding.android.FlutterActivity

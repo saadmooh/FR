@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.saadmohammed.smartpocket"
+    namespace = "com.saadmohammed2000.flex_reminder"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -21,7 +21,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.saadmohammed.smartpocket"
+        applicationId = "com.saadmohammed2000.flex_reminder"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

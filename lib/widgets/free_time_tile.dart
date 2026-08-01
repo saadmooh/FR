@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../models/free_time_slot.dart';
 import '../core/app_theme.dart';
+import '../core/translations.dart';
+import '../core/locale_manager.dart';
 
 class FreeTimeTile extends StatelessWidget {
   final FreeTimeSlot slot;
@@ -9,18 +11,10 @@ class FreeTimeTile extends StatelessWidget {
 
   const FreeTimeTile({super.key, required this.slot, required this.onDelete});
 
+  String get _locale => LocaleManager.instance.getLocale();
+
   String _getDayName(int dayOfWeek) {
-    const days = [
-      '',
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
-      'Sunday',
-    ];
-    return days[dayOfWeek];
+    return Translations.getDayName(dayOfWeek, _locale);
   }
 
   @override
@@ -35,8 +29,8 @@ class FreeTimeTile extends StatelessWidget {
             backgroundColor: AppColors.error,
             foregroundColor: Colors.white,
             icon: Icons.delete,
-            label: 'Delete',
-            borderRadius: const BorderRadius.only(bottomRight: Radius.zero),
+            label: Translations.delete(_locale),
+            borderRadius: BorderRadius.zero,
           ),
         ],
       ),
@@ -46,7 +40,7 @@ class FreeTimeTile extends StatelessWidget {
           color: AppColors.whiteBackground,
           borderRadius: BorderRadius.zero,
           border: Border.all(
-            color: AppColors.whiteTextSecondary.withOpacity(0.1),
+            color: AppColors.whiteTextSecondary.withValues(alpha: 0.1),
             width: 1,
           ),
         ),
@@ -59,7 +53,7 @@ class FreeTimeTile extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: AppColors.accent.withOpacity(0.1),
+              color: AppColors.accent.withValues(alpha: 0.1),
               borderRadius: BorderRadius.zero,
             ),
             child: const Icon(
@@ -70,23 +64,23 @@ class FreeTimeTile extends StatelessWidget {
           ),
           title: Text(
             '${slot.startTime} → ${slot.endTime}',
-            style: const TextStyle(
-              color: AppColors.whiteTextPrimary,
-              fontWeight: FontWeight.w600,
-              fontSize: 15,
-            ),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.whiteTextPrimary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
           ),
           subtitle: Text(
             _getDayName(slot.dayOfWeek),
             style: TextStyle(
-              color: AppColors.whiteTextSecondary.withOpacity(0.8),
+              color: AppColors.whiteTextSecondary.withValues(alpha: 0.8),
               fontSize: 12,
             ),
           ),
           trailing: IconButton(
             icon: Icon(
               Icons.delete_outline,
-              color: AppColors.whiteTextSecondary.withOpacity(0.5),
+              color: AppColors.whiteTextSecondary.withValues(alpha: 0.5),
               size: 20,
             ),
             onPressed: onDelete,

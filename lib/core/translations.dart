@@ -518,4 +518,92 @@ class Translations {
 
   static String premiumActivated(String locale) =>
       AppTranslations.getString('premiumActivated', locale: locale);
+
+  static String choosePlan(String locale) =>
+      AppTranslations.getString('choosePlan', locale: locale);
+
+  static String noPackagesAvailable(String locale) =>
+      AppTranslations.getString('noPackagesAvailable', locale: locale);
+
+  static String popular(String locale) =>
+      AppTranslations.getString('popular', locale: locale);
+
+  static String premiumFeatureUnlimited(String locale) =>
+      AppTranslations.getString('premiumFeatureUnlimited', locale: locale);
+
+  static String premiumFeatureCloudSync(String locale) =>
+      AppTranslations.getString('premiumFeatureCloudSync', locale: locale);
+
+  static String premiumFeaturePriorityAI(String locale) =>
+      AppTranslations.getString('premiumFeaturePriorityAI', locale: locale);
+
+  static String premiumFeatureExcelExport(String locale) =>
+      AppTranslations.getString('premiumFeatureExcelExport', locale: locale);
+
+  static String premiumFeatureAdvancedStats(String locale) =>
+      AppTranslations.getString('premiumFeatureAdvancedStats', locale: locale);
+
+  static String premiumFeatureNoAds(String locale) =>
+      AppTranslations.getString('premiumFeatureNoAds', locale: locale);
+
+  static String exportFormat(String locale) =>
+      AppTranslations.getString('exportFormat', locale: locale);
+
+  static String json(String locale) =>
+      AppTranslations.getString('json', locale: locale);
+
+  static String jsonFormatDesc(String locale) =>
+      AppTranslations.getString('jsonFormatDesc', locale: locale);
+
+  static String excel(String locale) =>
+      AppTranslations.getString('excel', locale: locale);
+
+  static String excelFormatDesc(String locale) =>
+      AppTranslations.getString('excelFormatDesc', locale: locale);
+
+  static String exportFailed(String locale) =>
+      AppTranslations.getString('exportFailed', locale: locale);
+
+  static String exportedSuccessfully(String locale) =>
+      AppTranslations.getString('exportedSuccessfully', locale: locale);
+
+  static String remindersImported(String locale) =>
+      AppTranslations.getString('remindersImported', locale: locale);
+
+  static String freeTimesImported(String locale) =>
+      AppTranslations.getString('freeTimesImported', locale: locale);
+
+  static String importFailed(String locale) =>
+      AppTranslations.getString('importFailed', locale: locale);
+
+  static String signOutConfirm(String locale) =>
+      AppTranslations.getString('signOutConfirm', locale: locale);
+
+  static String model(String locale) =>
+      AppTranslations.getString('model', locale: locale);
+
+  static String backupRestore(String locale) =>
+      AppTranslations.getString('backupRestore', locale: locale);
+
+  static String exportData(String locale) =>
+      AppTranslations.getString('exportData', locale: locale);
+
+  static String exportDataSubtitle(String locale) =>
+      AppTranslations.getString('exportDataSubtitle', locale: locale);
+
+  static String importData(String locale) =>
+      AppTranslations.getString('importData', locale: locale);
+
+  static String importDataSubtitle(String locale) =>
+      AppTranslations.getString('importDataSubtitle', locale: locale);
+
+  static String active(String locale) =>
+      AppTranslations.getString('active', locale: locale);
+
+  static String inactive(String locale) =>
+      AppTranslations.getString('inactive', locale: locale);
+
+  static String openedRate(String locale, int count) =>
+      AppTranslations.getString('openedRate', locale: locale)
+          .replaceAll('{count}', '$count');
 }

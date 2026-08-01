@@ -67,10 +67,10 @@ class AppRouter {
         ),
         ShellRoute(
           builder: (context, state, child) => MainShell(
-            child: child,
             authService: authService,
             revenueCatService: revenueCatService,
             settingsRepository: settingsRepository,
+            child: child,
           ),
           routes: [
             GoRoute(
@@ -104,6 +104,15 @@ class AppRouter {
               ),
             ),
           ],
+        ),
+        GoRoute(
+          path: '/settings',
+          builder: (context, state) => SettingsScreen(
+            aiService: aiService,
+            settingsRepository: settingsRepository,
+            authService: authService,
+            revenueCatService: revenueCatService,
+          ),
         ),
         GoRoute(
           path: '/post/:id',
@@ -141,15 +150,6 @@ class AppRouter {
               onSaved: () => context.go('/post/$id'),
             );
           },
-        ),
-        GoRoute(
-          path: '/settings',
-          builder: (context, state) => SettingsScreen(
-            aiService: aiService,
-            settingsRepository: settingsRepository,
-            authService: authService,
-            revenueCatService: revenueCatService,
-          ),
         ),
       ],
     );
@@ -195,68 +195,40 @@ class _MainShellState extends State<MainShell> {
 
   String get _locale => LocaleManager.instance.getLocale();
 
+  void _onNavTapped(int index) {
+    setState(() => _currentIndex = index);
+    switch (index) {
+      case 0:
+        context.go('/');
+        break;
+      case 1:
+        context.go('/statistics');
+        break;
+      case 2:
+        context.go('/free-times');
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Row(
-        children: [
-          Expanded(child: widget.child),
-          Container(
-            width: 1,
-            color: AppColors.surfaceLight,
-          ),
-          GestureDetector(
-            onTap: () => context.push('/settings'),
-            child: Container(
-              width: 56,
-              color: AppColors.surface,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    widget.revenueCatService.isPremium
-                        ? Icons.workspace_premium
-                        : Icons.account_circle,
-                    color: AppColors.accent,
-                    size: 24,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    Translations.settings(_locale),
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+      body: widget.child,
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
-          color: AppColors.surface,
+          color: AppColors.whiteSurface,
           border: Border(
-            top: BorderSide(color: AppColors.surfaceLight, width: 1),
+            top: BorderSide(color: AppColors.whiteBorder, width: 1),
           ),
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
-          onTap: (index) {
-            setState(() => _currentIndex = index);
-            switch (index) {
-              case 0:
-                context.go('/');
-                break;
-              case 1:
-                context.go('/statistics');
-                break;
-              case 2:
-                context.go('/free-times');
-                break;
-            }
-          },
+          onTap: _onNavTapped,
+          type: BottomNavigationBarType.fixed,
+          elevation: 8,
+          backgroundColor: AppColors.whiteSurface,
+          selectedItemColor: AppColors.whiteAccent,
+          unselectedItemColor: AppColors.whiteTextSecondary,
           items: [
             BottomNavigationBarItem(
               icon: const Icon(Icons.bookmark),

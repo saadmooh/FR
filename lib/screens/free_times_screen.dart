@@ -55,9 +55,11 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
     _loadSlots();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Time slot deleted'),
+        SnackBar(
+          content: Text(Translations.timeSlotDeleted(_locale)),
           backgroundColor: AppColors.accent,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         ),
       );
     }
@@ -73,41 +75,6 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
     );
   }
 
-  IconData _getDayIcon(int dayOfWeek) {
-    switch (dayOfWeek) {
-      case 1:
-        return Icons.looks_one;
-      case 2:
-        return Icons.looks_two;
-      case 3:
-        return Icons.looks_3;
-      case 4:
-        return Icons.looks_4;
-      case 5:
-        return Icons.looks_5;
-      case 6:
-        return Icons.looks_6;
-      case 7:
-        return Icons.looks_one;
-      default:
-        return Icons.calendar_today;
-    }
-  }
-
-  String _getDayName(int dayOfWeek) {
-    const days = [
-      '',
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
-      'Sunday',
-    ];
-    return days[dayOfWeek];
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -117,17 +84,13 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
         elevation: 0,
         title: Text(
           Translations.freeTimes(_locale),
-          style: const TextStyle(
-            color: AppColors.whiteTextPrimary,
-            fontWeight: FontWeight.w700,
-            fontSize: 22,
-          ),
+          style: Theme.of(context).appBarTheme.titleTextStyle,
         ),
       ),
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent),
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.whiteAccent),
               ),
             )
           : ListView.builder(
@@ -142,7 +105,7 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
                   color: AppColors.whiteSurface,
                   margin: const EdgeInsets.only(bottom: 12),
                   elevation: 2,
-                  shadowColor: Colors.black.withOpacity(0.1),
+                  shadowColor: AppColors.whiteShadow,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.zero,
                   ),
@@ -163,11 +126,11 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
                                 width: 40,
                                 height: 40,
                                 decoration: BoxDecoration(
-                                  color: AppColors.accent.withOpacity(0.1),
+                                  color: AppColors.accent.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.zero,
                                 ),
-                                child: Icon(
-                                  _getDayIcon(dayOfWeek),
+                                child: const Icon(
+                                  Icons.calendar_today,
                                   color: AppColors.accent,
                                   size: 20,
                                 ),
@@ -175,7 +138,7 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
                               const SizedBox(width: 12),
                               Text(
                                 Translations.getDayName(dayOfWeek, _locale),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: AppColors.whiteTextPrimary,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16,
@@ -196,13 +159,13 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: AppColors.accent.withOpacity(0.1),
+                                    color: AppColors.accent.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.zero,
                                   ),
                                   child: Text(
                                     '${slots.length}',
-                                    style: const TextStyle(
-                                      color: AppColors.accent,
+                                    style: TextStyle(
+                                      color: AppColors.whiteAccent,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 12,
                                     ),
@@ -234,16 +197,15 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
                               Icon(
                                 Icons.event_available,
                                 size: 16,
-                                color: AppColors.whiteTextSecondary.withOpacity(
-                                  0.5,
-                                ),
+                                color: AppColors.whiteTextSecondary
+                                    .withValues(alpha: 0.5),
                               ),
                               const SizedBox(width: 8),
                               Text(
                                 Translations.noFreeTimesSet(_locale),
                                 style: TextStyle(
                                   color: AppColors.whiteTextSecondary
-                                      .withOpacity(0.7),
+                                      .withValues(alpha: 0.7),
                                   fontStyle: FontStyle.italic,
                                   fontSize: 13,
                                 ),
@@ -258,8 +220,8 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddDialog,
-        backgroundColor: AppColors.accent,
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.whiteAccent,
+        foregroundColor: AppColors.whiteBackground,
         elevation: 4,
         child: const Icon(Icons.add),
       ),
@@ -292,12 +254,49 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
     final time = await showTimePicker(
       context: context,
       initialTime: _startTime,
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.whiteAccent,
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+              surface: Colors.white,
+            ),
+            textTheme: const TextTheme(
+              bodyLarge: TextStyle(color: Colors.black),
+              bodyMedium: TextStyle(color: Colors.black),
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (time != null) setState(() => _startTime = time);
   }
 
   Future<void> _selectEndTime() async {
-    final time = await showTimePicker(context: context, initialTime: _endTime);
+    final time = await showTimePicker(
+      context: context,
+      initialTime: _endTime,
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.whiteAccent,
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+              surface: Colors.white,
+            ),
+            textTheme: const TextTheme(
+              bodyLarge: TextStyle(color: Colors.black),
+              bodyMedium: TextStyle(color: Colors.black),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
     if (time != null) setState(() => _endTime = time);
   }
 
@@ -313,6 +312,8 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
         SnackBar(
           content: Text(Translations.endTimeMustBeAfter(_locale)),
           backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         ),
       );
       return;
@@ -334,6 +335,8 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
       SnackBar(
         content: Text(Translations.timeSlotAdded(_locale)),
         backgroundColor: AppColors.accent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       ),
     );
   }
@@ -355,10 +358,10 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppColors.accent.withOpacity(0.1),
+                    color: AppColors.accent.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.zero,
                   ),
-                  child: Icon(
+                  child: const Icon(
                     Icons.schedule,
                     color: AppColors.accent,
                     size: 24,
@@ -367,7 +370,7 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
                 const SizedBox(width: 12),
                 Text(
                   Translations.addFreeTime(_locale),
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.whiteTextPrimary,
                     fontWeight: FontWeight.w700,
                     fontSize: 20,
@@ -379,30 +382,28 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
             DropdownButtonFormField<int>(
               initialValue: _selectedDay,
               dropdownColor: AppColors.whiteSurface,
-              style: const TextStyle(color: AppColors.whiteTextPrimary),
+              style: TextStyle(color: AppColors.whiteTextPrimary),
               decoration: InputDecoration(
                 labelText: Translations.day(_locale),
-                labelStyle: const TextStyle(
-                  color: AppColors.whiteTextSecondary,
-                ),
+                labelStyle: TextStyle(color: AppColors.whiteTextSecondary),
                 filled: true,
                 fillColor: AppColors.whiteBackground,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.zero,
                   borderSide: BorderSide(
-                    color: AppColors.whiteTextSecondary.withOpacity(0.3),
+                    color: AppColors.whiteTextSecondary.withValues(alpha: 0.3),
                   ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.zero,
                   borderSide: BorderSide(
-                    color: AppColors.whiteTextSecondary.withOpacity(0.3),
+                    color: AppColors.whiteTextSecondary.withValues(alpha: 0.3),
                   ),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.zero,
                   borderSide: const BorderSide(
-                    color: AppColors.accent,
+                    color: AppColors.whiteAccent,
                     width: 2,
                   ),
                 ),
@@ -424,31 +425,29 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
               child: InputDecorator(
                 decoration: InputDecoration(
                   labelText: Translations.startTime(_locale),
-                  labelStyle: const TextStyle(
-                    color: AppColors.whiteTextSecondary,
-                  ),
+                  labelStyle: TextStyle(color: AppColors.whiteTextSecondary),
                   filled: true,
                   fillColor: AppColors.whiteBackground,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.zero,
                     borderSide: BorderSide(
-                      color: AppColors.whiteTextSecondary.withOpacity(0.3),
+                      color: AppColors.whiteTextSecondary.withValues(alpha: 0.3),
                     ),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.zero,
                     borderSide: BorderSide(
-                      color: AppColors.whiteTextSecondary.withOpacity(0.3),
+                      color: AppColors.whiteTextSecondary.withValues(alpha: 0.3),
                     ),
                   ),
                   suffixIcon: const Icon(
                     Icons.access_time,
-                    color: AppColors.accent,
+                    color: AppColors.whiteAccent,
                   ),
                 ),
                 child: Text(
                   _startTime.format(context),
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.whiteTextPrimary,
                     fontSize: 16,
                   ),
@@ -461,31 +460,29 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
               child: InputDecorator(
                 decoration: InputDecoration(
                   labelText: Translations.endTime(_locale),
-                  labelStyle: const TextStyle(
-                    color: AppColors.whiteTextSecondary,
-                  ),
+                  labelStyle: TextStyle(color: AppColors.whiteTextSecondary),
                   filled: true,
                   fillColor: AppColors.whiteBackground,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.zero,
                     borderSide: BorderSide(
-                      color: AppColors.whiteTextSecondary.withOpacity(0.3),
+                      color: AppColors.whiteTextSecondary.withValues(alpha: 0.3),
                     ),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.zero,
                     borderSide: BorderSide(
-                      color: AppColors.whiteTextSecondary.withOpacity(0.3),
+                      color: AppColors.whiteTextSecondary.withValues(alpha: 0.3),
                     ),
                   ),
                   suffixIcon: const Icon(
                     Icons.access_time,
-                    color: AppColors.accent,
+                    color: AppColors.whiteAccent,
                   ),
                 ),
                 child: Text(
                   _endTime.format(context),
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.whiteTextPrimary,
                     fontSize: 16,
                   ),
@@ -500,10 +497,8 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
                   onPressed: () => Navigator.of(context).pop(),
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.whiteTextSecondary,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   ),
                   child: Text(Translations.cancel(_locale)),
                 ),
@@ -511,15 +506,13 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
                 ElevatedButton(
                   onPressed: _save,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.accent,
-                    foregroundColor: Colors.white,
+                    backgroundColor: AppColors.whiteAccent,
+                    foregroundColor: AppColors.whiteBackground,
                     elevation: 2,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.zero,
                     ),
                   ),
                   child: Text(Translations.save(_locale)),

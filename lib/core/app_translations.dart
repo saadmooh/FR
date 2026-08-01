@@ -211,6 +211,39 @@ class AppTranslations {
     'restorePurchases': 'Restore Purchases',
     'purchaseFailed': 'Purchase failed. Please try again.',
     'premiumActivated': 'Premium activated! Enjoy!',
+
+    // Paywall
+    'choosePlan': 'Choose your plan',
+    'noPackagesAvailable': 'No packages available',
+    'popular': 'POPULAR',
+    'premiumFeatureUnlimited': 'Unlimited reminders',
+    'premiumFeatureCloudSync': 'Cloud sync across devices',
+    'premiumFeaturePriorityAI': 'Priority AI scheduling',
+    'premiumFeatureExcelExport': 'Export to Excel & JSON',
+    'premiumFeatureAdvancedStats': 'Advanced statistics',
+    'premiumFeatureNoAds': 'No ads',
+
+    // Settings - Backup/Restore
+    'exportFormat': 'Export Format',
+    'json': 'JSON',
+    'jsonFormatDesc': 'Plain text format, easy to edit',
+    'excel': 'Excel',
+    'excelFormatDesc': 'Spreadsheet format',
+    'exportFailed': 'Export failed',
+    'exportedSuccessfully': 'Exported successfully',
+    'remindersImported': 'reminders and',
+    'freeTimesImported': 'free times imported',
+    'importFailed': 'Import failed',
+    'signOutConfirm': 'Are you sure you want to sign out?',
+    'model': 'Model',
+    'backupRestore': 'Backup & Restore',
+    'exportData': 'Export Data',
+    'exportDataSubtitle': 'Save reminders to JSON or Excel',
+    'importData': 'Import Data',
+    'importDataSubtitle': 'Restore from backup file',
+    'active': 'Active',
+    'inactive': 'Inactive',
+    'openedRate': '{count}% opened',
   };
 
   static const Map<String, String> _arabicStrings = {
@@ -417,6 +450,39 @@ class AppTranslations {
     'restorePurchases': 'استعادة المشتريات',
     'purchaseFailed': 'فشل الشراء. حاول مرة أخرى.',
     'premiumActivated': 'تم تفعيل Premium! استمتع!',
+
+    // Paywall
+    'choosePlan': 'اختر خطتك',
+    'noPackagesAvailable': 'لا حزم متاحة',
+    'popular': 'شعبي',
+    'premiumFeatureUnlimited': 'تذكيرات غير محدودة',
+    'premiumFeatureCloudSync': 'مزامنة سحابية عبر الأجهزة',
+    'premiumFeaturePriorityAI': 'جدولة ذكاء اصطناعي أولوية',
+    'premiumFeatureExcelExport': 'تصدير إلى Excel و JSON',
+    'premiumFeatureAdvancedStats': 'إحصائيات متقدمة',
+    'premiumFeatureNoAds': 'بدون إعلانات',
+
+    // Settings - Backup/Restore
+    'exportFormat': 'تنسيق التصدير',
+    'json': 'JSON',
+    'jsonFormatDesc': 'تنسيق نص عادي، سهل التحرير',
+    'excel': 'Excel',
+    'excelFormatDesc': 'تنسيق جدول بيانات',
+    'exportFailed': 'فشل التصدير',
+    'exportedSuccessfully': 'تم التصدير بنجاح',
+    'remindersImported': 'تذكير تم استيرادها و',
+    'freeTimesImported': 'أوقات حرة تم استيرادها',
+    'importFailed': 'فشل الاستيراد',
+    'signOutConfirm': 'هل أنت متأكد من رغبتك في تسجيل الخروج؟',
+    'model': 'النموذج',
+    'backupRestore': 'النسخ الاحتياطي واستعادته',
+    'exportData': 'تصدير البيانات',
+    'exportDataSubtitle': 'حفظ التذكيرات في JSON أو Excel',
+    'importData': 'استيراد البيانات',
+    'importDataSubtitle': 'استعادة من ملف النسخ الاحتياطي',
+    'active': 'نشط',
+    'inactive': 'غير نشط',
+    'openedRate': '{count}% مفتوح',
   };
 
   static const Map<String, String> _frenchStrings = {
@@ -625,6 +691,39 @@ class AppTranslations {
     'restorePurchases': 'Restaurer les achats',
     'purchaseFailed': "L'achat a échoué. Veuillez réessayer.",
     'premiumActivated': 'Premium activé! Profitez!',
+
+    // Paywall
+    'choosePlan': 'Choisissez votre plan',
+    'noPackagesAvailable': 'Aucun forfait disponible',
+    'popular': 'POPULAIRE',
+    'premiumFeatureUnlimited': 'Rappels illimités',
+    'premiumFeatureCloudSync': 'Synchronisation cloud entre appareils',
+    'premiumFeaturePriorityAI': 'Planification IA prioritaire',
+    'premiumFeatureExcelExport': 'Exporter vers Excel & JSON',
+    'premiumFeatureAdvancedStats': 'Statistiques avancées',
+    'premiumFeatureNoAds': 'Sans publicités',
+
+    // Settings - Backup/Restore
+    'exportFormat': 'Format d\'exportation',
+    'json': 'JSON',
+    'jsonFormatDesc': 'Format texte brut, facile à modifier',
+    'excel': 'Excel',
+    'excelFormatDesc': 'Format de feuille de calcul',
+    'exportFailed': 'Échec de l\'exportation',
+    'exportedSuccessfully': 'Exporté avec succès',
+    'remindersImported': 'rappels et',
+    'freeTimesImported': 'temps libres importés',
+    'importFailed': 'Échec de l\'importation',
+    'signOutConfirm': 'Êtes-vous sûr de vouloir vous déconnecter?',
+    'model': 'Modèle',
+    'backupRestore': 'Sauvegarde et restauration',
+    'exportData': 'Exporter les données',
+    'exportDataSubtitle': 'Enregistrer les rappels en JSON ou Excel',
+    'importData': 'Importer les données',
+    'importDataSubtitle': 'Restaurer depuis un fichier de sauvegarde',
+    'active': 'Actif',
+    'inactive': 'Inactif',
+    'openedRate': '{count}% ouvert',
   };
 
   static String getString(String key, {String? locale}) {

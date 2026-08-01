@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import '../services/ai_service.dart';
 import '../services/backup_service.dart';
 import '../services/auth_service.dart';
@@ -8,13 +12,10 @@ import '../core/app_theme.dart';
 import '../core/locale_manager.dart';
 import '../core/translations.dart';
 import '../core/constants.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:share_plus/share_plus.dart';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 import '../models/reminder.dart';
 import '../models/free_time_slot.dart';
-import 'paywall_screen.dart';
+
+enum ExportFormat { json, excel }
 
 class SettingsScreen extends StatefulWidget {
   final AIService aiService;
@@ -62,15 +63,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildModelDropdown() {
     final models = _getModelsForProvider(_selectedProvider);
-    final currentModel =
-        _selectedModel.isEmpty && models.isNotEmpty ? models.first : _selectedModel;
+    final currentModel = _selectedModel.isEmpty && models.isNotEmpty
+        ? models.first
+        : _selectedModel;
 
     return DropdownButtonFormField<String>(
       initialValue: models.contains(currentModel) ? currentModel : null,
       dropdownColor: AppColors.whiteSurface,
       style: TextStyle(color: AppColors.whiteTextPrimary),
       decoration: InputDecoration(
-        hintText: 'Select model',
+        hintText: Translations.selectProvider(_locale),
         hintStyle: TextStyle(color: AppColors.whiteTextSecondary),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
@@ -79,19 +81,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
         border: OutlineInputBorder(
           borderRadius: BorderRadius.zero,
           borderSide: BorderSide(
-            color: AppColors.whiteTextSecondary.withOpacity(0.3),
+            color: AppColors.whiteTextSecondary.withValues(alpha: 0.3),
           ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.zero,
           borderSide: BorderSide(
-            color: AppColors.whiteTextSecondary.withOpacity(0.3),
+            color: AppColors.whiteTextSecondary.withValues(alpha: 0.3),
           ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.zero,
           borderSide: const BorderSide(
-            color: AppColors.accent,
+            color: AppColors.whiteAccent,
             width: 2,
           ),
         ),
@@ -122,7 +124,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final key = _apiKeyController.text.trim();
     if (key.isEmpty) {
       setState(() => _isTesting = false);
-      _showResult(false, 'Please enter an API key');
+      _showResult(false, Translations.enterApiKey(_locale));
       return;
     }
 
@@ -148,6 +150,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       SnackBar(
         content: Text(Translations.settingsSaved(_locale)),
         backgroundColor: AppColors.accent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       ),
     );
   }
@@ -155,8 +159,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showResult(bool success, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${success ? '✅' : '❌'} $message'),
-        backgroundColor: success ? AppColors.success : AppColors.error,
+        content: Text(message),
+        backgroundColor: success ? AppColors.accent : AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       ),
     );
   }
@@ -180,27 +186,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
       } else {
         final bytes = _backupService.exportToExcel(reminders, freeTimes);
         if (bytes.isEmpty) {
-          _showMessage(false, 'Export failed');
+          _showMessage(false, Translations.exportFailed(_locale));
           return;
         }
         fileName += '.xlsx';
         final dir = await getTemporaryDirectory();
         final file = File('${dir.path}/$fileName');
         await file.writeAsBytes(bytes);
-        await Share.shareXFiles([
-          XFile(file.path),
-        ], text: 'Smart Pocket Backup');
-        _showMessage(true, 'Exported successfully');
+        await Share.shareXFiles(
+          [XFile(file.path)],
+          text: AppConstants.appName,
+        );
+        _showMessage(true, Translations.exportedSuccessfully(_locale));
         return;
       }
 
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/$fileName');
       await file.writeAsString(content);
-      await Share.shareXFiles([XFile(file.path)], text: 'Smart Pocket Backup');
-      _showMessage(true, 'Exported successfully');
+      await Share.shareXFiles([XFile(file.path)], text: AppConstants.appName);
+      _showMessage(true, Translations.exportedSuccessfully(_locale));
     } catch (e) {
-      _showMessage(false, 'Export failed: $e');
+      _showMessage(false, '${Translations.exportFailed(_locale)}: $e');
     }
   }
 
@@ -247,10 +254,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       _showMessage(
         true,
-        'Imported ${reminders.length} reminders and ${freeTimes.length} free times',
+        '${reminders.length} ${Translations.remindersImported(_locale)} ${freeTimes.length} ${Translations.freeTimesImported(_locale)}',
       );
     } catch (e) {
-      _showMessage(false, 'Import failed: $e');
+      _showMessage(false, '${Translations.importFailed(_locale)}: $e');
     }
   }
 
@@ -258,7 +265,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: success ? AppColors.success : AppColors.error,
+        backgroundColor: success ? AppColors.accent : AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       ),
     );
   }
@@ -268,19 +277,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.whiteSurface,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         title: Text(
           Translations.signOut(_locale),
           style: TextStyle(color: AppColors.whiteTextPrimary),
         ),
         content: Text(
-          'Are you sure you want to sign out?',
+          Translations.signOutConfirm(_locale),
           style: TextStyle(color: AppColors.whiteTextSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(Translations.cancel(_locale)),
+            child: Text(
+              Translations.cancel(_locale),
+              style: TextStyle(color: AppColors.whiteTextSecondary),
+            ),
           ),
           TextButton(
             onPressed: () async {
@@ -292,7 +304,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
             child: Text(
               Translations.signOut(_locale),
-              style: const TextStyle(color: AppColors.error),
+              style: TextStyle(color: AppColors.error),
             ),
           ),
         ],
@@ -303,9 +315,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showExportDialog() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.whiteSurface,
+      backgroundColor: AppColors.whiteBackground,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.zero,
       ),
       builder: (context) => SafeArea(
         child: Column(
@@ -313,27 +325,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             const SizedBox(height: 20),
             Text(
-              'Export Format',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppColors.whiteTextPrimary,
-              ),
+              Translations.exportFormat(_locale),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppColors.whiteTextPrimary,
+                  ),
             ),
             const SizedBox(height: 20),
             ListTile(
-              leading: const Icon(Icons.code, color: AppColors.accent),
-              title: const Text('JSON'),
-              subtitle: const Text('Plain text format, easy to edit'),
+              leading: const Icon(Icons.code, color: AppColors.whiteAccent),
+              title: Text(Translations.json(_locale)),
+              subtitle: Text(Translations.jsonFormatDesc(_locale)),
               onTap: () {
                 Navigator.pop(context);
                 _exportData(ExportFormat.json);
               },
             ),
             ListTile(
-              leading: const Icon(Icons.table_chart, color: AppColors.accent),
-              title: const Text('Excel'),
-              subtitle: const Text('Spreadsheet format'),
+              leading:
+                  const Icon(Icons.table_chart, color: AppColors.whiteAccent),
+              title: Text(Translations.excel(_locale)),
+              subtitle: Text(Translations.excelFormatDesc(_locale)),
               onTap: () {
                 Navigator.pop(context);
                 _exportData(ExportFormat.excel);
@@ -353,15 +364,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       backgroundColor: AppColors.whiteBackground,
       appBar: AppBar(
-        backgroundColor: AppColors.whiteSurface,
+        backgroundColor: AppColors.whiteBackground,
         elevation: 0,
         title: Text(
           Translations.settings(locale),
-          style: TextStyle(
-            color: AppColors.whiteTextPrimary,
-            fontWeight: FontWeight.w700,
-            fontSize: 24,
-          ),
+          style: Theme.of(context).appBarTheme.titleTextStyle,
         ),
       ),
       body: ListView(
@@ -369,7 +376,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           const SizedBox(height: 8),
 
-          // AI Provider Section
           _buildSectionHeader(
             Translations.aiProvider(locale),
             Icons.smart_toy_outlined,
@@ -382,7 +388,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               borderRadius: BorderRadius.zero,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
+                  color: AppColors.whiteShadow,
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -406,7 +412,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   style: TextStyle(color: AppColors.whiteTextPrimary),
                   decoration: InputDecoration(
                     hintText: Translations.selectProvider(locale),
-                    hintStyle: TextStyle(color: AppColors.whiteTextSecondary),
+                    hintStyle:
+                        TextStyle(color: AppColors.whiteTextSecondary),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 14,
@@ -414,19 +421,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.zero,
                       borderSide: BorderSide(
-                        color: AppColors.whiteTextSecondary.withOpacity(0.3),
+                        color: AppColors.whiteTextSecondary.withValues(alpha: 0.3),
                       ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.zero,
                       borderSide: BorderSide(
-                        color: AppColors.whiteTextSecondary.withOpacity(0.3),
+                        color: AppColors.whiteTextSecondary.withValues(alpha: 0.3),
                       ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.zero,
                       borderSide: const BorderSide(
-                        color: AppColors.accent,
+                        color: AppColors.whiteAccent,
                         width: 2,
                       ),
                     ),
@@ -434,22 +441,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   items: AppConstants.availableProviders.map((p) {
                     return DropdownMenuItem(
                       value: p,
-                      child: Text(AppConstants.providerLabels[p] ?? p),
+                      child: Text(
+                        Translations.getProviderLabel(p, locale),
+                      ),
                     );
                   }).toList(),
                   onChanged: (value) {
                     if (value != null) {
                       setState(() {
                         _selectedProvider = value;
-                        final models = AppConstants.availableModels[value] ?? [];
-                        _selectedModel = models.isNotEmpty ? models.first : '';
+                        final models =
+                            AppConstants.availableModels[value] ?? [];
+                        _selectedModel =
+                            models.isNotEmpty ? models.first : '';
                       });
                     }
                   },
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Model',
+                  Translations.model(locale),
                   style: TextStyle(
                     color: AppColors.whiteTextPrimary,
                     fontWeight: FontWeight.w600,
@@ -463,7 +474,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 24),
 
-          // API Key Section
           _buildSectionHeader(Translations.apiKey(locale), Icons.key_outlined),
           const SizedBox(height: 12),
           Container(
@@ -473,7 +483,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               borderRadius: BorderRadius.zero,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
+                  color: AppColors.whiteShadow,
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -497,7 +507,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   style: TextStyle(color: AppColors.whiteTextPrimary),
                   decoration: InputDecoration(
                     hintText: Translations.enterApiKey(locale),
-                    hintStyle: TextStyle(color: AppColors.whiteTextSecondary),
+                    hintStyle:
+                        TextStyle(color: AppColors.whiteTextSecondary),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 14,
@@ -515,19 +526,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.zero,
                       borderSide: BorderSide(
-                        color: AppColors.whiteTextSecondary.withOpacity(0.3),
+                        color: AppColors.whiteTextSecondary.withValues(alpha: 0.3),
                       ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.zero,
                       borderSide: BorderSide(
-                        color: AppColors.whiteTextSecondary.withOpacity(0.3),
+                        color: AppColors.whiteTextSecondary.withValues(alpha: 0.3),
                       ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.zero,
                       borderSide: const BorderSide(
-                        color: AppColors.accent,
+                        color: AppColors.whiteAccent,
                         width: 2,
                       ),
                     ),
@@ -552,15 +563,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ? Text(Translations.aiRescheduling(locale))
                             : Text(Translations.testKey(locale)),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.accent,
+                          foregroundColor: AppColors.whiteAccent,
                           side: const BorderSide(
-                            color: AppColors.accent,
+                            color: AppColors.whiteAccent,
                             width: 1.5,
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          textStyle: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                          ),
+                          textStyle:
+                              const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
                     ),
@@ -571,13 +581,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         icon: const Icon(Icons.save_outlined),
                         label: Text(Translations.save(locale)),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.accent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          backgroundColor: AppColors.whiteAccent,
+                          foregroundColor: AppColors.whiteBackground,
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 14),
                           elevation: 2,
-                          textStyle: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                          ),
+                          textStyle:
+                              const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
                     ),
@@ -588,11 +598,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Status Section
-          _buildSectionHeader(
-            Translations.apiStatus(locale),
-            Icons.info_outline,
-          ),
+          _buildSectionHeader(Translations.apiStatus(locale), Icons.info_outline),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(20),
@@ -601,7 +607,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               borderRadius: BorderRadius.zero,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
+                  color: AppColors.whiteShadow,
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -632,18 +638,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: widget.aiService.hasApiKey()
-                        ? AppColors.success.withOpacity(0.1)
-                        : AppColors.error.withOpacity(0.1),
+                        ? AppColors.success.withValues(alpha: 0.1)
+                        : AppColors.error.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.zero,
                   ),
                   child: Text(
-                    widget.aiService.hasApiKey() ? 'Active' : 'Inactive',
+                    widget.aiService.hasApiKey()
+                        ? Translations.active(locale)
+                        : Translations.inactive(locale),
                     style: TextStyle(
                       color: widget.aiService.hasApiKey()
                           ? AppColors.success
@@ -658,8 +664,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 32),
 
-          // Account Section
-          _buildSectionHeader(Translations.account(_locale), Icons.account_circle_outlined),
+          _buildSectionHeader(Translations.account(locale), Icons.account_circle_outlined),
           const SizedBox(height: 12),
           Container(
             decoration: BoxDecoration(
@@ -667,7 +672,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               borderRadius: BorderRadius.zero,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withAlpha(20),
+                  color: AppColors.whiteShadow,
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -678,7 +683,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ListTile(
                   leading: const Icon(
                     Icons.person_outline,
-                    color: AppColors.accent,
+                    color: AppColors.whiteAccent,
                   ),
                   title: Text(
                     widget.authService.currentUser?.displayName ?? 'User',
@@ -706,8 +711,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 32),
 
-          // Backup Section
-          _buildSectionHeader('Backup & Restore', Icons.backup_outlined),
+          _buildSectionHeader(Translations.backupRestore(locale), Icons.backup_outlined),
           const SizedBox(height: 12),
           Container(
             decoration: BoxDecoration(
@@ -715,7 +719,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               borderRadius: BorderRadius.zero,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
+                  color: AppColors.whiteShadow,
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -726,14 +730,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ListTile(
                   leading: const Icon(
                     Icons.upload_outlined,
-                    color: AppColors.accent,
+                    color: AppColors.whiteAccent,
                   ),
                   title: Text(
-                    'Export Data',
+                    Translations.exportData(locale),
                     style: TextStyle(color: AppColors.whiteTextPrimary),
                   ),
                   subtitle: Text(
-                    'Save reminders to JSON or Excel',
+                    Translations.exportDataSubtitle(locale),
                     style: TextStyle(color: AppColors.whiteTextSecondary),
                   ),
                   onTap: _showExportDialog,
@@ -742,14 +746,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ListTile(
                   leading: const Icon(
                     Icons.download_outlined,
-                    color: AppColors.accent,
+                    color: AppColors.whiteAccent,
                   ),
                   title: Text(
-                    'Import Data',
+                    Translations.importData(locale),
                     style: TextStyle(color: AppColors.whiteTextPrimary),
                   ),
                   subtitle: Text(
-                    'Restore from backup file',
+                    Translations.importDataSubtitle(locale),
                     style: TextStyle(color: AppColors.whiteTextSecondary),
                   ),
                   onTap: _importData,
@@ -768,7 +772,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.only(left: 4),
       child: Row(
         children: [
-          Icon(icon, color: AppColors.accent, size: 20),
+          Icon(icon, color: AppColors.whiteAccent, size: 20),
           const SizedBox(width: 8),
           Text(
             title,

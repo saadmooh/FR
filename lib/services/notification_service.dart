@@ -84,7 +84,7 @@ class NotificationService {
     _createNotificationChannel();
 
     // Request permissions
-    _requestPermissions();
+    await _requestPermissions();
 
     // Initialize timezone
     tz_data.initializeTimeZones();
@@ -131,15 +131,17 @@ class NotificationService {
   }
 
   /// Request notification permissions
-  void _requestPermissions() {
+  Future<void> _requestPermissions() async {
     try {
       final androidPlugin = _plugin
           .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin
           >();
 
-      androidPlugin?.requestNotificationsPermission();
-      androidPlugin?.requestExactAlarmsPermission();
+      if (androidPlugin != null) {
+        await androidPlugin.requestNotificationsPermission();
+        await androidPlugin.requestExactAlarmsPermission();
+      }
     } catch (e) {}
 
     try {
@@ -148,7 +150,7 @@ class NotificationService {
             IOSFlutterLocalNotificationsPlugin
           >();
 
-      iosPlugin?.requestPermissions(alert: true, badge: true, sound: true);
+      await iosPlugin?.requestPermissions(alert: true, badge: true, sound: true);
     } catch (e) {}
   }
 
@@ -277,7 +279,7 @@ class NotificationService {
             importance: Importance.high,
             priority: Priority.high,
             icon: '@mipmap/ic_launcher',
-            color: const Color(0xFF00D4C8),
+            color: const Color(0xFF22C55E),
             enableVibration: true,
             playSound: true,
             category: AndroidNotificationCategory.reminder,
