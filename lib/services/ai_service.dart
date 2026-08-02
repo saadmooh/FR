@@ -1,16 +1,17 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
-import 'package:http/http.dart' as http;
 import '../repositories/app_settings_repository.dart';
 import '../core/constants.dart';
 import '../models/category_statistic.dart';
+import '../services/ai_proxy_service.dart';
+import '../core/app_config.dart';
 
 class AIService {
   final AppSettingsRepository _settings;
-  static const String _defaultGoogleModel = 'gemini-flash-latest';
+  final AiProxyService _aiProxy;
 
-  AIService(this._settings);
+  AIService(this._settings, {AiProxyService? aiProxy})
+      : _aiProxy = aiProxy ?? AiProxyService.fromConfig();
 
   void setApiKey(String key) {
     _settings.setApiKey(key);
@@ -35,7 +36,7 @@ class AIService {
     if (model.isNotEmpty) return model;
     return provider == 'openrouter'
         ? 'google/gemma-4-31b-it'
-        : _defaultGoogleModel;
+        : 'gemini-flash-latest';
   }
 
   Future<Map<String, dynamic>> testApiKey() async {
@@ -45,35 +46,14 @@ class AIService {
         return {'success': false, 'message': 'No API key set'};
       }
 
-      final provider = _settings.getProvider();
-      if (provider == 'google') {
-        final model = GenerativeModel(
-          model: getModel(),
-          apiKey: key,
-        );
-        final response = await model.generateContent([
-          Content.text('Say HAHA'),
-        ]);
-
-        if (response.text != null) {
-          return {'success': true, 'message': response.text};
-        }
-        return {'success': false, 'message': 'Invalid response from API'};
+      if (!AppConfig.isSupabaseConfigured) {
+        return {'success': false, 'message': 'Supabase not configured'};
       }
 
-      if (provider == 'openrouter') {
-        final result = await _callOpenRouter([
-          {'role': 'system', 'content': 'You are a test assistant.'},
-          {'role': 'user', 'content': 'Say HAHA'},
-        ], maxTokens: 20);
-
-        if (result != null && result['content'] != null) {
-          return {'success': true, 'message': result['content']};
-        }
-        return {'success': false, 'message': 'Invalid response from OpenRouter'};
-      }
-
-      return {'success': false, 'message': 'Unsupported provider: $provider'};
+      final response = await _aiProxy.sendPrompt(
+        prompt: 'Say HAHA',
+      );
+      return {'success': true, 'message': response.text};
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
@@ -84,78 +64,15 @@ class AIService {
     int maxTokens = 1000,
   }) async {
     try {
-      final key = _settings.getApiKey();
-      debugPrint('_callAI - key present: ${key != null && key.isNotEmpty}');
-      if (key == null || key.isEmpty) return null;
+      final prompt = messages
+          .map((m) => '${m['role']}: ${m['content']}')
+          .join('\n\n');
 
-      final provider = _settings.getProvider();
-      debugPrint('_callAI - provider: $provider, model: ${getModel()}');
-
-      if (provider == 'google') {
-        final model = GenerativeModel(
-          model: getModel(),
-          apiKey: key,
-        );
-
-        final contents = messages
-            .map((m) => Content.text('${m['role']}: ${m['content']}'))
-            .toList();
-
-        debugPrint('_callAI - sending request to Google...');
-        final response = await model.generateContent(contents);
-        debugPrint('_callAI - response received: ${response.text?.substring(0, 100) ?? "empty"}');
-        return {'content': response.text ?? ''};
-      }
-
-      if (provider == 'openrouter') {
-        return await _callOpenRouter(messages, maxTokens: maxTokens);
-      }
-
-      return null;
+      final response = await _aiProxy.sendPrompt(prompt: prompt);
+      return {'content': response.text};
     } catch (e) {
       debugPrint('_callAI error: $e');
       rethrow;
-    }
-  }
-
-  Future<Map<String, dynamic>?> _callOpenRouter(
-    List<Map<String, String>> messages, {
-    int maxTokens = 1000,
-  }) async {
-    final key = _settings.getApiKey();
-    if (key == null || key.isEmpty) return null;
-
-    final model = getModel();
-    final url = Uri.parse(
-      AppConstants.providerApiUrls['openrouter']!,
-    );
-
-    final body = jsonEncode({
-      'model': model,
-      'messages': messages
-          .map((m) => {'role': m['role'], 'content': m['content']})
-          .toList(),
-      'max_tokens': maxTokens,
-    });
-
-    final response = await http.post(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $key',
-        'HTTP-Referer': 'https://smartpocket.app',
-        'X-Title': 'Smart Pocket',
-      },
-      body: body,
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final content = data['choices']?[0]?['message']?['content'] ?? '';
-      return {'content': content};
-    } else {
-      debugPrint('OpenRouter error: ${response.statusCode} ${response.body}');
-      throw Exception('OpenRouter API error (${response.statusCode}): ${response.body}');
     }
   }
 

@@ -6,9 +6,11 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:workmanager/workmanager.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'objectbox.g.dart';
 import 'package:objectbox_flutter_libs/objectbox_flutter_libs.dart';
+import 'core/app_config.dart';
 import 'core/app_theme.dart';
 import 'core/app_router.dart';
 import 'core/constants.dart';
@@ -18,6 +20,7 @@ import 'repositories/free_time_repository.dart';
 import 'repositories/category_statistic_repository.dart';
 import 'repositories/app_settings_repository.dart';
 import 'services/ai_service.dart';
+import 'services/ai_proxy_service.dart';
 import 'services/notification_service.dart';
 import 'services/workmanager_service.dart';
 import 'services/auth_service.dart';
@@ -91,9 +94,43 @@ void main() async {
 
 Future<void> _initApp() async {
   await Firebase.initializeApp();
+
+  // Initialize Supabase (guarded: skip when --dart-define placeholders are used)
+  if (AppConfig.isSupabaseConfigured) {
+    try {
+      await Supabase.initialize(
+        url: AppConfig.supabaseUrl,
+        publishableKey: AppConfig.supabaseAnonKey,
+      );
+    } catch (e) {
+      debugPrint('Supabase initialization failed: $e');
+    }
+  } else {
+    debugPrint(
+      'Supabase not configured — pass --dart-define '
+      'SUPABASE_URL / SUPABASE_ANON_KEY / GCP_CLOUD_PROJECT_NUMBER',
+    );
+  }
+
   authService = AuthService();
   revenueCatService = RevenueCatService();
   await revenueCatService.initialize();
+
+  // Restore Supabase session from Firebase user if already signed in
+  if (AppConfig.isSupabaseConfigured && authService.currentUser != null) {
+    try {
+      final idToken = await authService.currentUser!.getIdToken();
+      if (idToken != null) {
+        await Supabase.instance.client.auth.signInWithIdToken(
+          provider: OAuthProvider('custom:firebase'),
+          idToken: idToken,
+        );
+        debugPrint('Supabase session restored from Firebase user');
+      }
+    } catch (e) {
+      debugPrint('Failed to restore Supabase session: $e');
+    }
+  }
 
   // Initialize timezone
   tz_data.initializeTimeZones();
@@ -154,6 +191,8 @@ Future<void> _initApp() async {
 
   // Initialize services
   aiService = AIService(settingsRepository);
+  final aiProxy = AiProxyService.fromConfig();
+  aiService = AIService(settingsRepository, aiProxy: aiProxy);
   notificationService = NotificationService();
 
   // Initialize WorkManager for background monitoring (Android/iOS only)

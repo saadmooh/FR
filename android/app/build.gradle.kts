@@ -35,9 +35,9 @@ android {
     signingConfigs {
         create("release") {
             storeFile = file("upload-keystore.jks")
-            storePassword = "040878001Saad"
+            storePassword = "040878001Saad."
             keyAlias = "upload"
-            keyPassword = "040878001Saad"
+            keyPassword = "040878001Saad."
         }
     }
 
@@ -54,4 +54,5 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    implementation("com.google.android.play:integrity:1.4.0")
 }

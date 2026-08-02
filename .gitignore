@@ -43,3 +43,15 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Secrets & environment
+.env
+.env.local
+*.env
+!*.env.example
+supabase/.temp/
+*.service_account*.json
+*service-account*.json
+flex-reminders-app-*.json
+*.jks
+!android/app/upload-keystore.jks

@@ -11,6 +11,7 @@ import '../repositories/free_time_repository.dart';
 import '../repositories/app_settings_repository.dart';
 import '../objectbox.g.dart';
 import 'ai_service.dart';
+import 'ai_proxy_service.dart';
 
 const String _monitoringTaskName = 'reminder_monitoring_task';
 const String _notificationChannelId = 'flex_reminders_channel';
@@ -108,7 +109,8 @@ Future<AIService> _createAIService({
     await prefs.setString('ai_model', model);
   }
   final settingsRepo = AppSettingsRepository(prefs);
-  return AIService(settingsRepo);
+  final aiProxy = AiProxyService.fromConfig();
+  return AIService(settingsRepo, aiProxy: aiProxy);
 }
 
 Future<void> _initNotificationsInBackground() async {
