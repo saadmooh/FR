@@ -249,7 +249,7 @@ class _SavePostSheetState extends State<SavePostSheet> {
       );
     } catch (e) {
       if (mounted) {
-        _showResult(false, Translations.errorOccurred(_locale));
+        _showResult(false, '${Translations.errorSavingPost(_locale)}: $e');
         setState(() {
           _error = '${Translations.errorSavingPost(_locale)}: $e';
           _isLoading = false;

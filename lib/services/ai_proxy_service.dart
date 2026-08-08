@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 
 import '../core/app_config.dart';
 import '../models/ai_proxy_response.dart';
@@ -48,7 +49,28 @@ class AiProxyService {
     }
 
     final client = Supabase.instance.client;
-    final session = client.auth.currentSession;
+    var session = client.auth.currentSession;
+
+    // If Supabase session is missing/expired, try to refresh from Firebase user
+    if (session == null) {
+      final firebaseUser = firebase_auth.FirebaseAuth.instance.currentUser;
+      if (firebaseUser != null) {
+        try {
+          final idToken = await firebaseUser.getIdToken();
+          if (idToken != null) {
+            await client.auth.signInWithIdToken(
+              provider: OAuthProvider('custom:firebase'),
+              idToken: idToken,
+            );
+            session = client.auth.currentSession;
+            debugPrint('Supabase session refreshed from Firebase user');
+          }
+        } catch (e) {
+          debugPrint('Failed to refresh Supabase session: $e');
+        }
+      }
+    }
+
     if (session == null) {
       throw const AiProxyException(
         401,
@@ -67,7 +89,7 @@ class AiProxyService {
         throw AiProxyException(
           403,
           e.code,
-          'فشل التحقق من التطبيق، تأكد من تثبيته من متجر Play',
+          'فشل التحقق من التطبيق (${e.code}): ${e.message}',
         );
       }
     }
@@ -159,7 +181,7 @@ class AiProxyService {
         return AiProxyException(
           403,
           code,
-          'فشل التحقق من التطبيق، قم بتحديث التطبيق من متجر Play',
+          'فشل التحقق من التطبيق ($code): $message',
         );
       case 'RATE_LIMIT_MINUTE':
         return const AiProxyException(

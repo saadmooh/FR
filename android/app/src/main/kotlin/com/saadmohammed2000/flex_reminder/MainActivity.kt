@@ -1,6 +1,7 @@
 package com.saadmohammed2000.flex_reminder
 
 import android.content.Intent
+import android.util.Log
 import com.google.android.play.core.integrity.IntegrityManager
 import com.google.android.play.core.integrity.IntegrityManagerFactory
 import com.google.android.play.core.integrity.IntegrityTokenRequest
@@ -10,6 +11,9 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private val integrityChannel = "com.saadmohammed2000.flex_reminder/play_integrity"
+    private companion object {
+        const val TAG = "PlayIntegrity"
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -23,7 +27,9 @@ class MainActivity : FlutterActivity() {
                     "requestIntegrityToken" -> {
                         val nonce = call.argument<String>("nonce")
                         val cloudProjectNumber = call.argument<Number>("cloudProjectNumber")?.toLong()
+                        Log.d(TAG, "requestIntegrityToken called: nonce=${nonce?.take(10)}..., cloudProjectNumber=$cloudProjectNumber")
                         if (nonce.isNullOrEmpty() || cloudProjectNumber == null || cloudProjectNumber <= 0) {
+                            Log.e(TAG, "INVALID_ARGUMENTS: nonce=$nonce, cloudProjectNumber=$cloudProjectNumber")
                             result.error(
                                 "INVALID_ARGUMENTS",
                                 "nonce and cloudProjectNumber are required",
@@ -39,8 +45,11 @@ class MainActivity : FlutterActivity() {
                                 .setCloudProjectNumber(cloudProjectNumber)
                                 .build()
                         ).addOnSuccessListener { response ->
-                            result.success(response.token())
+                            val token = response.token()
+                            Log.d(TAG, "Integrity token received, length=${token?.length}")
+                            result.success(token)
                         }.addOnFailureListener { e ->
+                            Log.e(TAG, "Play Integrity request failed: ${e.message}", e)
                             result.error(
                                 "INTEGRITY_ERROR",
                                 e.message ?: "Play Integrity request failed",
