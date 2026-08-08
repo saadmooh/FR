@@ -81,10 +81,12 @@ class AiProxyService {
 
     final nonce = _integrity.generateNonce(prompt);
     String? integrityToken;
+    bool integrityFailed = false;
     try {
       integrityToken = await _integrity.requestIntegrityToken(nonce: nonce);
     } on IntegrityException catch (e) {
       debugPrint('Integrity token unavailable: $e');
+      integrityFailed = true;
       if (strictIntegrityCheck) {
         throw AiProxyException(
           403,
@@ -99,10 +101,15 @@ class AiProxyService {
       if (conversationHistory != null && conversationHistory.isNotEmpty)
         'conversationHistory': conversationHistory,
     };
-    final headers = <String, String>{
-      if (integrityToken != null) 'X-Integrity-Token': integrityToken,
-      if (integrityToken != null) 'X-Request-Nonce': nonce,
-    };
+    final headers = <String, String>{};
+    if (integrityToken != null && !integrityFailed) {
+      headers['X-Integrity-Token'] = integrityToken;
+      headers['X-Request-Nonce'] = nonce;
+    }
+    // Send debug build header to allow server-side bypass when strict check is off
+    if (!strictIntegrityCheck) {
+      headers['X-Debug-Build'] = 'true';
+    }
 
     for (int attempt = 0; attempt < 2; attempt++) {
       try {
@@ -177,6 +184,14 @@ class AiProxyService {
           'يجب تسجيل الدخول أولاً',
         );
       case 'INTEGRITY_MISSING':
+        if (!strictIntegrityCheck) {
+          return AiProxyException(e.status, code, 'Integrity not available in debug build');
+        }
+        return AiProxyException(
+          403,
+          code,
+          'فشل التحقق من التطبيق ($code): $message',
+        );
       case 'INTEGRITY_FAILED':
         return AiProxyException(
           403,

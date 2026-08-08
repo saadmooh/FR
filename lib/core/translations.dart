@@ -316,6 +316,12 @@ class Translations {
   static String errorSavingPost(String locale) =>
       AppTranslations.getString('errorSavingPost', locale: locale);
 
+  static String refreshingSession(String locale) =>
+      AppTranslations.getString('refreshingSession', locale: locale);
+
+  static String pleaseSignInAgain(String locale) =>
+      AppTranslations.getString('pleaseSignInAgain', locale: locale);
+
   static String errorOccurred(String locale) =>
       AppTranslations.getString('errorOccurred', locale: locale);
 

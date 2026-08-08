@@ -152,9 +152,11 @@ class AppTranslations {
     'close': 'Close',
     'ok': 'OK',
 
-    // Error Messages
+// Error Messages
     'error': 'Error',
     'errorSavingPost': 'Error saving post',
+    'refreshingSession': 'Refreshing session...',
+    'pleaseSignInAgain': 'Please sign in again to continue',
     'errorOccurred': 'An error occurred',
     'pleaseEnterUrl': 'Please enter a URL',
     'pleaseEnterValidUrl': 'Please enter a valid URL',
@@ -394,6 +396,8 @@ class AppTranslations {
     // Error Messages
     'error': 'خطأ',
     'errorSavingPost': 'خطأ في حفظ المنشور',
+    'refreshingSession': 'جاري تحديث الجلسة...',
+    'pleaseSignInAgain': 'الرجاء تسجيل الدخول مرة أخرى للمتابعة',
     'errorOccurred': 'حدث خطأ',
     'pleaseEnterUrl': 'الرجاء إدخال الرابط',
     'pleaseEnterValidUrl': 'الرجاء إدخال رابط صالح',
@@ -634,6 +638,8 @@ class AppTranslations {
     // Error Messages
     'error': 'Erreur',
     'errorSavingPost': 'Erreur lors de l\'enregistrement',
+    'refreshingSession': 'Actualisation de la session...',
+    'pleaseSignInAgain': 'Veuillez vous connecter à nouveau pour continuer',
     'errorOccurred': 'Une erreur s\'est produite',
     'pleaseEnterUrl': 'Veuillez entrer une URL',
     'pleaseEnterValidUrl': 'Veuillez entrer une URL valide',

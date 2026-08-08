@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 import '../services/ai_service.dart';
 import '../services/metadata_service.dart';
 import '../services/notification_service.dart';
@@ -9,10 +11,12 @@ import '../repositories/reminder_repository.dart';
 import '../repositories/free_time_repository.dart';
 import '../repositories/category_statistic_repository.dart';
 import '../models/reminder.dart';
+import '../models/ai_proxy_response.dart';
 import '../core/app_theme.dart';
 import '../core/constants.dart';
 import '../core/locale_manager.dart';
 import '../core/translations.dart';
+import '../core/app_config.dart';
 
 class SavePostSheet extends StatefulWidget {
   final String? initialUrl;
@@ -47,8 +51,28 @@ class _SavePostSheetState extends State<SavePostSheet> {
   bool _isLoading = false;
   String _loadingStatus = '';
   String? _error;
+  bool _retrying = false;
 
   String get _locale => LocaleManager.instance.getLocale();
+
+  Future<void> _refreshSupabaseSession() async {
+    if (!AppConfig.isSupabaseConfigured) return;
+    final firebaseUser = firebase_auth.FirebaseAuth.instance.currentUser;
+    if (firebaseUser == null) return;
+    try {
+      final idToken = await firebaseUser.getIdToken();
+      if (idToken != null) {
+        await supabase.Supabase.instance.client.auth.signInWithIdToken(
+          provider: const supabase.OAuthProvider('custom:firebase'),
+          idToken: idToken,
+        );
+        debugPrint('Supabase session refreshed from Firebase user');
+      }
+    } catch (e) {
+      debugPrint('Failed to refresh Supabase session: $e');
+      rethrow;
+    }
+  }
 
   @override
   void initState() {
@@ -248,11 +272,60 @@ class _SavePostSheetState extends State<SavePostSheet> {
         ),
       );
     } catch (e) {
+      // Handle 401 UNAUTHENTICATED by trying to refresh Supabase session
+      if (e is AiProxyException &&
+          e.statusCode == 401 &&
+          e.code == 'UNAUTHENTICATED' &&
+          !_retrying &&
+          mounted) {
+        try {
+          setState(() {
+            _retrying = true;
+            _loadingStatus = Translations.refreshingSession(_locale);
+          });
+          await _refreshSupabaseSession();
+          // Retry the save operation
+          await _save();
+          return;
+        } catch (refreshError) {
+          // If refresh fails, fall through to show error
+          debugPrint('Session refresh failed: $refreshError');
+        }
+      }
+
       if (mounted) {
-        _showResult(false, '${Translations.errorSavingPost(_locale)}: $e');
+        String errorMessage;
+        if (e is AiProxyException) {
+          if (e.statusCode == 401 && e.code == 'UNAUTHENTICATED') {
+            errorMessage =
+                '${Translations.errorSavingPost(_locale)}: ${Translations.pleaseSignInAgain(_locale)}';
+          } else if (e.code == 'INTEGRITY_FAILED' || e.code == 'INTEGRITY_MISSING') {
+            // Google Play Integrity error - distinguish from Supabase errors
+            final source = e.code == 'INTEGRITY_FAILED' 
+                ? 'Google Play Integrity' 
+                : 'App Integrity Check';
+            errorMessage =
+                '${Translations.errorSavingPost(_locale)}: [$source] ${e.message}\nCode: ${e.code}\nStatus: ${e.statusCode}';
+          } else if (e.code.startsWith('UPSTREAM_') || e.code == 'BAD_RESPONSE' || e.code == 'UNKNOWN') {
+            // Supabase/Edge Function errors
+            errorMessage =
+                '${Translations.errorSavingPost(_locale)}: [Supabase/Edge Function] ${e.message}\nCode: ${e.code}\nStatus: ${e.statusCode}';
+          } else if (e.code.startsWith('RATE_LIMIT')) {
+            // Rate limiting from Supabase
+            errorMessage =
+                '${Translations.errorSavingPost(_locale)}: [Rate Limit] ${e.message}\nCode: ${e.code}\nStatus: ${e.statusCode}';
+          } else {
+            errorMessage =
+                '${Translations.errorSavingPost(_locale)}: ${e.message}\nCode: ${e.code}\nStatus: ${e.statusCode}\nRetryable: ${e.isRetryable}';
+          }
+        } else {
+          errorMessage = '${Translations.errorSavingPost(_locale)}: $e';
+        }
+        _showResult(false, errorMessage);
         setState(() {
-          _error = '${Translations.errorSavingPost(_locale)}: $e';
+          _error = errorMessage;
           _isLoading = false;
+          _retrying = false;
         });
       }
     }
