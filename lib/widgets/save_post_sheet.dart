@@ -3,15 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
+import 'package:flutter_play_integrity_wrapper/flutter_play_integrity_wrapper.dart';
 import '../services/ai_service.dart';
 import '../services/metadata_service.dart';
 import '../services/notification_service.dart';
 import '../services/youtube_service.dart';
+import '../services/integrity_service.dart';
 import '../repositories/reminder_repository.dart';
 import '../repositories/free_time_repository.dart';
 import '../repositories/category_statistic_repository.dart';
 import '../models/reminder.dart';
 import '../models/ai_proxy_response.dart';
+import '../models/integrity_diagnostic.dart';
 import '../core/app_theme.dart';
 import '../core/constants.dart';
 import '../core/locale_manager.dart';
@@ -107,6 +110,19 @@ class _SavePostSheetState extends State<SavePostSheet> {
         backgroundColor: success ? AppColors.accent : AppColors.error,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      ),
+    );
+  }
+
+  void _showResultWithToken(bool success, String message, {String? integrityToken}) {
+    final tokenInfo = integrityToken != null ? '\n\nIntegrity Token: $integrityToken' : '';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$message$tokenInfo'),
+        backgroundColor: success ? AppColors.accent : AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        duration: const Duration(seconds: 5),
       ),
     );
   }
@@ -261,17 +277,14 @@ class _SavePostSheetState extends State<SavePostSheet> {
       widget.onSaved();
       Navigator.of(context).pop();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${Translations.reminderSaved(_locale)} ${Translations.reminderScheduledFor(_locale)} ${_formatDateTime(scheduledAt)}',
-          ),
-          backgroundColor: AppColors.accent,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-        ),
+      _showResult(
+        true,
+        '${Translations.reminderSaved(_locale)} ${Translations.reminderScheduledFor(_locale)} ${_formatDateTime(scheduledAt)}',
       );
     } catch (e) {
+      // INTEGRITY_TRACE_POINT_002: Final exception caught in UI
+      debugPrint('INTEGRITY_TRACE: Caught exception type=${e.runtimeType}, message=$e');
+
       // Handle 401 UNAUTHENTICATED by trying to refresh Supabase session
       if (e is AiProxyException &&
           e.statusCode == 401 &&
@@ -294,33 +307,170 @@ class _SavePostSheetState extends State<SavePostSheet> {
       }
 
       if (mounted) {
+        IntegrityDiagnostic? diagnostic;
+        String source = 'UNKNOWN';
+        bool tokenRequested = false;
+        bool tokenReceived = false;
+        bool backendRequestSent = false;
+        bool backendResponseReceived = false;
+        int? httpStatus;
+        String? originalCode;
+        String? originalMessage;
+        String? exceptionType;
+
+        if (e is AiProxyException) {
+          diagnostic = e.diagnostic;
+          originalCode = e.code;
+          originalMessage = e.message;
+          httpStatus = e.statusCode;
+          
+          // Determine source based on error code and diagnostic
+          if (e.code == 'INTEGRITY_FAILED' || e.code == 'INTEGRITY_MISSING' || e.code == 'INTEGRITY_DISABLED') {
+            // Check if diagnostic indicates client-side failure
+            if (diagnostic != null && diagnostic.stage == 'token_request_failed') {
+              source = 'CLIENT';
+              backendRequestSent = false;
+              backendResponseReceived = false;
+            } else {
+              source = 'BACKEND';
+              backendRequestSent = true;
+              backendResponseReceived = true;
+            }
+          } else if (e.code == 'NETWORK_ERROR' || e.code == 'TIMEOUT') {
+            source = 'BACKEND_CONNECTION';
+            backendRequestSent = true;
+            backendResponseReceived = false;
+          } else {
+            source = 'BACKEND';
+            backendRequestSent = true;
+            backendResponseReceived = true;
+          }
+          exceptionType = 'AiProxyException';
+        } else if (e is IntegrityException) {
+          diagnostic = e.diagnostic;
+          originalCode = e.code;
+          originalMessage = e.message;
+          source = 'CLIENT';
+          backendRequestSent = false;
+          backendResponseReceived = false;
+          exceptionType = 'IntegrityException';
+        } else if (e is PlayIntegrityException) {
+          originalCode = e.code;
+          originalMessage = e.message;
+          source = 'CLIENT';
+          backendRequestSent = false;
+          backendResponseReceived = false;
+          exceptionType = 'PlayIntegrityException';
+        } else {
+          originalMessage = e.toString();
+          exceptionType = e.runtimeType.toString();
+        }
+
+        // Determine token status from diagnostic
+        if (diagnostic != null) {
+          tokenRequested = diagnostic.nonceLength != null && diagnostic.nonceLength! > 0;
+          tokenReceived = diagnostic.tokenReceived == true;
+        } else if (e is AiProxyException) {
+          // Fallback: if we got to backend, token was likely received
+          tokenRequested = true;
+          tokenReceived = backendRequestSent;
+        }
+
+        // Build trace message
+        final traceBuffer = StringBuffer();
+        traceBuffer.writeln('━━━━━━━━━━━━━━━━━━━━');
+        traceBuffer.writeln('INTEGRITY TRACE');
+        traceBuffer.writeln('━━━━━━━━━━━━━━━━━━━━');
+        traceBuffer.writeln('');
+        traceBuffer.writeln('Exception type: $exceptionType');
+        traceBuffer.writeln('Source: $source');
+        traceBuffer.writeln('Code: ${originalCode ?? 'N/A'}');
+        traceBuffer.writeln('HTTP status: ${httpStatus?.toString() ?? 'NONE'}');
+        traceBuffer.writeln('Message: ${originalMessage ?? 'N/A'}');
+        traceBuffer.writeln('');
+        traceBuffer.writeln('Integrity token requested: ${tokenRequested ? 'YES' : 'NO'}');
+        traceBuffer.writeln('Integrity token received: ${tokenReceived ? 'YES' : 'NO'}');
+        traceBuffer.writeln('Backend request started: ${backendRequestSent ? 'YES' : 'NO'}');
+        traceBuffer.writeln('Backend response received: ${backendResponseReceived ? 'YES' : 'NO'}');
+        if (diagnostic != null) {
+          traceBuffer.writeln('');
+          traceBuffer.writeln('--- Diagnostic ---');
+          traceBuffer.writeln('Stage: ${diagnostic.stage ?? 'N/A'}');
+          traceBuffer.writeln('Token received: ${diagnostic.tokenReceived == true ? 'YES' : 'NO'}');
+          if (diagnostic.tokenLength != null) {
+            traceBuffer.writeln('Token length: ${diagnostic.tokenLength}');
+          }
+          traceBuffer.writeln('Backend status: ${diagnostic.backendStatus?.toString() ?? 'N/A'}');
+          traceBuffer.writeln('App recognition: ${diagnostic.appRecognitionVerdict ?? 'N/A'}');
+          traceBuffer.writeln('Package: ${diagnostic.packageName ?? 'N/A'}');
+          traceBuffer.writeln('Package matches: ${diagnostic.packageNameMatches == true ? 'YES' : (diagnostic.packageNameMatches == false ? 'NO' : 'N/A')}');
+          traceBuffer.writeln('Request hash: ${diagnostic.requestHashMatches == true ? 'MATCH' : (diagnostic.requestHashMatches == false ? 'MISMATCH' : 'N/A')}');
+          if (diagnostic.deviceRecognitionVerdict != null && diagnostic.deviceRecognitionVerdict!.isNotEmpty) {
+            traceBuffer.writeln('Device integrity: ${diagnostic.deviceRecognitionVerdict!.join(', ')}');
+          }
+          if (diagnostic.tokenAgeSeconds != null) {
+            traceBuffer.writeln('Token age: ${diagnostic.tokenAgeSeconds}s');
+          }
+          if (diagnostic.failedChecks != null && diagnostic.failedChecks!.isNotEmpty) {
+            traceBuffer.writeln('Failed checks: ${diagnostic.failedChecks!.join(', ')}');
+          }
+        }
+        traceBuffer.writeln('━━━━━━━━━━━━━━━━━━━━');
+
+        // Build original error message
         String errorMessage;
         if (e is AiProxyException) {
           if (e.statusCode == 401 && e.code == 'UNAUTHENTICATED') {
-            errorMessage =
-                '${Translations.errorSavingPost(_locale)}: ${Translations.pleaseSignInAgain(_locale)}';
-          } else if (e.code == 'INTEGRITY_FAILED' || e.code == 'INTEGRITY_MISSING') {
-            // Google Play Integrity error - distinguish from Supabase errors
-            final source = e.code == 'INTEGRITY_FAILED' 
-                ? 'Google Play Integrity' 
-                : 'App Integrity Check';
-            errorMessage =
-                '${Translations.errorSavingPost(_locale)}: [$source] ${e.message}\nCode: ${e.code}\nStatus: ${e.statusCode}';
+            errorMessage = '${Translations.errorSavingPost(_locale)}: [Supabase Auth] ${e.message} (Code: ${e.code}, Status: ${e.statusCode})';
+          } else if (e.code == 'INTEGRITY_FAILED' || e.code == 'INTEGRITY_MISSING' || e.code == 'INTEGRITY_DISABLED') {
+            errorMessage = '${Translations.errorSavingPost(_locale)}: [Google Play Integrity] ${e.message} (Code: ${e.code}, Status: ${e.statusCode})';
+          } else if (e.code == 'SUPABASE_NOT_CONFIGURED') {
+            errorMessage = '${Translations.errorSavingPost(_locale)}: [Supabase Config] ${e.message} (Code: ${e.code}, Status: ${e.statusCode})';
           } else if (e.code.startsWith('UPSTREAM_') || e.code == 'BAD_RESPONSE' || e.code == 'UNKNOWN') {
-            // Supabase/Edge Function errors
-            errorMessage =
-                '${Translations.errorSavingPost(_locale)}: [Supabase/Edge Function] ${e.message}\nCode: ${e.code}\nStatus: ${e.statusCode}';
+            errorMessage = '${Translations.errorSavingPost(_locale)}: [Supabase Edge Function] ${e.message} (Code: ${e.code}, Status: ${e.statusCode})';
           } else if (e.code.startsWith('RATE_LIMIT')) {
-            // Rate limiting from Supabase
-            errorMessage =
-                '${Translations.errorSavingPost(_locale)}: [Rate Limit] ${e.message}\nCode: ${e.code}\nStatus: ${e.statusCode}';
+            errorMessage = '${Translations.errorSavingPost(_locale)}: [Supabase Rate Limit] ${e.message} (Code: ${e.code}, Status: ${e.statusCode})';
+          } else if (e.code == 'NETWORK_ERROR' || e.code == 'TIMEOUT') {
+            errorMessage = '${Translations.errorSavingPost(_locale)}: [Network] ${e.message} (Code: ${e.code}, Status: ${e.statusCode}, Retryable: ${e.isRetryable})';
           } else {
-            errorMessage =
-                '${Translations.errorSavingPost(_locale)}: ${e.message}\nCode: ${e.code}\nStatus: ${e.statusCode}\nRetryable: ${e.isRetryable}';
+            errorMessage = '${Translations.errorSavingPost(_locale)}: [AI Proxy] ${e.message} (Code: ${e.code}, Status: ${e.statusCode}, Retryable: ${e.isRetryable})';
           }
+        } else if (e is IntegrityException) {
+          errorMessage = '${Translations.errorSavingPost(_locale)}: [IntegrityService] ${e.message} (Code: ${e.code})';
+        } else if (e is PlayIntegrityException) {
+          errorMessage = '${Translations.errorSavingPost(_locale)}: [Google Play Integrity] ${e.message} (Code: ${e.code}${e.details != null ? ', Details: ${e.details}' : ''})';
         } else {
           errorMessage = '${Translations.errorSavingPost(_locale)}: $e';
         }
+
+        // Combine trace + error into ONE SnackBar
+        traceBuffer.writeln('');
+        traceBuffer.writeln('━━━━━━━━━━━━━━━━━━━━');
+        traceBuffer.writeln('ERROR MESSAGE');
+        traceBuffer.writeln('━━━━━━━━━━━━━━━━━━━━');
+        traceBuffer.writeln(errorMessage);
+
+        // Show combined trace + error SnackBar
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: SingleChildScrollView(
+              child: SelectableText(
+                traceBuffer.toString(),
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  height: 1.3,
+                ),
+              ),
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+            duration: const Duration(seconds: 20),
+            padding: const EdgeInsets.all(12),
+          ),
+        );
+
         _showResult(false, errorMessage);
         setState(() {
           _error = errorMessage;

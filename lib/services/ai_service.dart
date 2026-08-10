@@ -5,13 +5,17 @@ import '../core/constants.dart';
 import '../models/category_statistic.dart';
 import '../services/ai_proxy_service.dart';
 import '../core/app_config.dart';
+import '../models/integrity_diagnostic.dart';
 
 class AIService {
   final AppSettingsRepository _settings;
   final AiProxyService _aiProxy;
+  IntegrityDiagnostic? _lastIntegrityDiagnostic;
 
   AIService(this._settings, {AiProxyService? aiProxy})
       : _aiProxy = aiProxy ?? AiProxyService.fromConfig();
+
+  IntegrityDiagnostic? get lastIntegrityDiagnostic => _lastIntegrityDiagnostic;
 
   void setApiKey(String key) {
     _settings.setApiKey(key);
@@ -69,6 +73,7 @@ class AIService {
           .join('\n\n');
 
       final response = await _aiProxy.sendPrompt(prompt: prompt);
+      _lastIntegrityDiagnostic = _aiProxy.lastIntegrityDiagnostic;
       return {'content': response.text};
     } catch (e) {
       debugPrint('_callAI error: $e');

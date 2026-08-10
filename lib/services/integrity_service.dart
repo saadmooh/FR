@@ -3,68 +3,120 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter_play_integrity_wrapper/flutter_play_integrity_wrapper.dart';
+
+import '../models/integrity_diagnostic.dart';
 
 class IntegrityException implements Exception {
   final String code;
   final String message;
+  final IntegrityDiagnostic? diagnostic;
 
-  const IntegrityException(this.code, this.message);
+  const IntegrityException(this.code, this.message, {this.diagnostic});
 
   @override
   String toString() => 'IntegrityException($code): $message';
 }
 
 class IntegrityService {
-  static const MethodChannel _channel =
-      MethodChannel('com.saadmohammed2000.flex_reminder/play_integrity');
-
+  final FlutterPlayIntegrityWrapper _wrapper;
   final int cloudProjectNumber;
   final bool enabled;
 
-  IntegrityService({this.cloudProjectNumber = 0, this.enabled = true});
+  IntegrityService({this.cloudProjectNumber = 0, this.enabled = true})
+      : _wrapper = FlutterPlayIntegrityWrapper();
 
-  /// Generates a per-request nonce: base64url(SHA-256(prompt || 16 random bytes)).
   String generateNonce(String prompt) {
     final random = Random.secure();
     final salt = List<int>.generate(16, (_) => random.nextInt(256));
     final hash = sha256.convert([...utf8.encode(prompt), ...salt]);
-    return base64UrlEncode(hash.bytes);
+    return base64UrlEncode(hash.bytes).replaceAll('=', '');
   }
 
   Future<String> requestIntegrityToken({required String nonce}) async {
-    debugPrint('IntegrityService: enabled=$enabled, cloudProjectNumber=$cloudProjectNumber');
+    final diagnostic = IntegrityDiagnostic(
+      stage: 'request_start',
+      cloudProjectNumber: cloudProjectNumber,
+      nonceLength: nonce.length,
+    );
+    _logDiagnostic(diagnostic);
+
     if (!enabled || cloudProjectNumber <= 0) {
-      debugPrint('IntegrityService: INTEGRITY_DISABLED - not configured');
-      throw const IntegrityException(
+      final disabledDiag = IntegrityDiagnostic(
+        stage: 'token_request_failed',
+        code: 'INTEGRITY_DISABLED',
+        message: 'Play Integrity is not configured for this build',
+        cloudProjectNumber: cloudProjectNumber,
+      );
+      _logDiagnostic(disabledDiag);
+      throw IntegrityException(
         'INTEGRITY_DISABLED',
         'Play Integrity is not configured for this build',
+        diagnostic: disabledDiag,
       );
     }
     try {
-      debugPrint('IntegrityService: requesting token with nonce length=${nonce.length}');
-      final token = await _channel.invokeMethod<String>('requestIntegrityToken', {
-        'nonce': nonce,
-        'cloudProjectNumber': cloudProjectNumber,
-      });
+      final requestDiag = IntegrityDiagnostic(
+        stage: 'token_request',
+        nonceLength: nonce.length,
+      );
+      _logDiagnostic(requestDiag);
+
+      final token = await _wrapper.requestIntegrityToken(
+        cloudProjectNumber: cloudProjectNumber.toString(),
+        nonce: nonce,
+      );
       if (token == null || token.isEmpty) {
-        debugPrint('IntegrityService: EMPTY_TOKEN');
-        throw const IntegrityException('EMPTY_TOKEN', 'Empty integrity token');
+        final emptyDiag = IntegrityDiagnostic(
+          stage: 'token_request_failed',
+          code: 'EMPTY_TOKEN',
+          message: 'Empty integrity token',
+          tokenReceived: false,
+        );
+        _logDiagnostic(emptyDiag);
+        throw IntegrityException(
+          'EMPTY_TOKEN',
+          'Empty integrity token',
+          diagnostic: emptyDiag,
+        );
       }
-      debugPrint('IntegrityService: token received, length=${token.length}');
+      final successDiag = IntegrityDiagnostic(
+        stage: 'token_received',
+        tokenReceived: true,
+        tokenLength: token.length,
+      );
+      _logDiagnostic(successDiag);
       return token;
-    } on PlatformException catch (e) {
-      debugPrint('IntegrityService: PlatformException code=${e.code}, message=${e.message}, details=${e.details}');
+    } on PlayIntegrityException catch (e) {
+      final failedDiag = IntegrityDiagnostic(
+        stage: 'token_request_failed',
+        code: e.code,
+        message: e.message,
+        details: e.details,
+      );
+      _logDiagnostic(failedDiag);
       throw IntegrityException(
         e.code,
-        '${e.message ?? "Play Integrity request failed"} (details: ${e.details})',
+        e.message,
+        diagnostic: failedDiag,
       );
-    } on MissingPluginException {
-      debugPrint('IntegrityService: PLUGIN_MISSING');
-      throw const IntegrityException(
-        'PLUGIN_MISSING',
-        'Play Integrity is not available on this platform',
+    } catch (e) {
+      final errorDiag = IntegrityDiagnostic(
+        stage: 'unexpected_error',
+        code: 'UNKNOWN',
+        message: e.toString(),
+        errorType: e.runtimeType.toString(),
+      );
+      _logDiagnostic(errorDiag);
+      throw IntegrityException(
+        'UNKNOWN',
+        e.toString(),
+        diagnostic: errorDiag,
       );
     }
+  }
+
+  void _logDiagnostic(IntegrityDiagnostic diagnostic) {
+    debugPrint('INTEGRITY_DIAGNOSTIC: ${diagnostic.toJson()}');
   }
 }

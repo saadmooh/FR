@@ -1,3 +1,5 @@
+import '../models/integrity_diagnostic.dart';
+
 class AiProxyResponse {
   final String text;
   final String? model;
@@ -17,12 +19,14 @@ class AiProxyException implements Exception {
   final String code;
   final String message;
   final bool isRetryable;
+  final IntegrityDiagnostic? diagnostic;
 
   const AiProxyException(
     this.statusCode,
     this.code,
     this.message, {
     this.isRetryable = false,
+    this.diagnostic,
   });
 
   @override

@@ -1,0 +1,23 @@
+Google Sign-In - SHA-1 Certificate Fingerprints
+=================================================
+
+Add these fingerprints to Firebase Console:
+Project settings -> Your apps -> Android app -> SHA certificate fingerprints
+
+DEBUG keystore (used for debug builds / flutter run):
+    7567A6463642CFA1D3768DA8442E56D53DBC41BA
+    (keytool alias: androiddebugkey, storepass: android)
+
+RELEASE keystore (upload-keystore.jks, used for release builds):
+    E3D603F7E4E2A4F23000D3D8CB521EA1DF055E66
+    (alias: upload)
+
+Fingerprints currently registered in android/app/google-services.json
+(these DO NOT match the keystores above, which is why sign-in fails):
+    6b4118869aca198c6a517355de5fbc90e7f494cb
+    e6cae99a3671dc516cebb9b195b835a246be1907
+    4f2f0bd01e81193cb04f23f5e7260ef1017699c1
+    cf166c48d4682ed6d6c65a0b144e5892ed21397e
+
+After adding the fingerprints, re-download google-services.json from
+Firebase and replace android/app/google-services.json.

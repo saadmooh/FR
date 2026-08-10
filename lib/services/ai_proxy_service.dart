@@ -9,12 +9,14 @@ import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 
 import '../core/app_config.dart';
 import '../models/ai_proxy_response.dart';
+import '../models/integrity_diagnostic.dart';
 import 'integrity_service.dart';
 
 class AiProxyService {
   final IntegrityService _integrity;
   final bool strictIntegrityCheck;
   final bool _isSupabaseAvailable;
+  IntegrityDiagnostic? _lastIntegrityDiagnostic;
 
   AiProxyService({
     IntegrityService? integrity,
@@ -22,6 +24,8 @@ class AiProxyService {
     bool? isSupabaseAvailable,
   })  : _integrity = integrity ?? IntegrityService(),
         _isSupabaseAvailable = isSupabaseAvailable ?? AppConfig.isSupabaseConfigured;
+
+  IntegrityDiagnostic? get lastIntegrityDiagnostic => _lastIntegrityDiagnostic;
 
   factory AiProxyService.fromConfig({bool? strictIntegrityCheck}) {
     final cloudProjectNumber = AppConfig.cloudProjectNumber;
@@ -87,11 +91,13 @@ class AiProxyService {
     } on IntegrityException catch (e) {
       debugPrint('Integrity token unavailable: $e');
       integrityFailed = true;
+      _lastIntegrityDiagnostic = e.diagnostic;
       if (strictIntegrityCheck) {
         throw AiProxyException(
           403,
           e.code,
           'فشل التحقق من التطبيق (${e.code}): ${e.message}',
+          diagnostic: e.diagnostic,
         );
       }
     }
@@ -110,6 +116,8 @@ class AiProxyService {
     if (!strictIntegrityCheck) {
       headers['X-Debug-Build'] = 'true';
     }
+    // Add debug header for diagnostics
+    headers['X-Debug-Integrity'] = 'true';
 
     for (int attempt = 0; attempt < 2; attempt++) {
       try {
@@ -120,6 +128,10 @@ class AiProxyService {
         );
         final data = response.data;
         if (data is Map<String, dynamic>) {
+          // Check if response contains diagnostic info
+          if (data['diagnostic'] is Map<String, dynamic>) {
+            _lastIntegrityDiagnostic = IntegrityDiagnostic.fromJson(data['diagnostic']);
+          }
           return AiProxyResponse.fromJson(data);
         }
         throw const AiProxyException(
@@ -168,13 +180,36 @@ class AiProxyService {
         details = jsonDecode(details);
       } catch (_) {}
     }
+    IntegrityDiagnostic? diagnostic;
     if (details is Map<String, dynamic>) {
       final error = details['error'];
       if (error is Map<String, dynamic>) {
         code = error['code'] as String? ?? code;
         message = error['message'] as String? ?? message;
+        // Extract diagnostic from error.diagnostic (backend puts it there)
+        dynamic diagnosticData = error['diagnostic'];
+        // Fallback to details.diagnostic if not in error
+        diagnosticData ??= details['diagnostic'];
+        if (diagnosticData is Map<String, dynamic>) {
+          try {
+            diagnostic = IntegrityDiagnostic.fromJson(diagnosticData);
+          } catch (e) {
+            debugPrint('INTEGRITY_TRACE_BACKEND_RESPONSE: Failed to parse IntegrityDiagnostic: $e');
+          }
+        }
+      } else {
+        // No error object, check details directly
+        if (details['diagnostic'] is Map<String, dynamic>) {
+          try {
+            diagnostic = IntegrityDiagnostic.fromJson(details['diagnostic']);
+          } catch (e) {
+            debugPrint('INTEGRITY_TRACE_BACKEND_RESPONSE: Failed to parse IntegrityDiagnostic: $e');
+          }
+        }
       }
     }
+
+    debugPrint('INTEGRITY_TRACE_BACKEND_RESPONSE: code=$code, diagnosticPresent=${diagnostic != null}');
 
     switch (code) {
       case 'UNAUTHENTICATED':
@@ -191,12 +226,14 @@ class AiProxyService {
           403,
           code,
           'فشل التحقق من التطبيق ($code): $message',
+          diagnostic: diagnostic,
         );
       case 'INTEGRITY_FAILED':
         return AiProxyException(
           403,
           code,
           'فشل التحقق من التطبيق ($code): $message',
+          diagnostic: diagnostic,
         );
       case 'RATE_LIMIT_MINUTE':
         return const AiProxyException(
@@ -211,7 +248,7 @@ class AiProxyService {
           'وصلت إلى الحد الشهري، حاول الشهر القادم',
         );
       default:
-        return AiProxyException(e.status, code, message);
+        return AiProxyException(e.status, code, message, diagnostic: diagnostic);
     }
   }
 }

@@ -42,6 +42,9 @@ final ValueNotifier<String?> pendingSharedUrl = ValueNotifier<String?>(null);
 final ValueNotifier<String?> aiRescheduleError = ValueNotifier<String?>(null);
 final ValueNotifier<int> storeReopenSignal = ValueNotifier<int>(0);
 
+// Global scaffold messenger key for IntegritySnackBar
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
