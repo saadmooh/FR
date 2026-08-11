@@ -1,19 +1,16 @@
 // ai-proxy — Secure proxy that forwards prompts to the Gemini API.
 //
-// Security layers (in order):
-//   1. Supabase Auth: rejects requests without a valid user session.
-//   2. Play Integrity: verifies the client's integrity token against
-//      Google's Play Integrity API and confirms the nonce matches.
-//   3. Rate limiting: per-user minute and monthly windows.
-//
-// Server-side secrets (set with `supabase secrets set`, NEVER in code):
-//   GEMINI_API_KEY              — Google AI (Gemini) API key
-//   GOOGLE_SERVICE_ACCOUNT_JSON — full contents of your GCP service-account
-//                                  JSON (used to call Play Integrity)
-//   GEMINI_MODEL                — optional, default gemini-3.1-flash-lite
-//   EXPECTED_PACKAGE_NAME       — optional, default com.saadmohammed2000.flex_reminder
-//   RATE_LIMIT_PER_MINUTE       — optional, default 10
-//   RATE_LIMIT_PER_MONTH        — optional, default 500
+ // Security layers (in order):
+ //   1. Supabase Auth: rejects requests without a valid user session.
+ //   2. Play Integrity: verifies the client's integrity token against
+ //      Google's Play Integrity API and confirms the nonce matches.
+ //   3. Rate limiting: per-user minute and monthly windows.
+ //
+ // Server-side secrets (set with `supabase secrets set`, NEVER in code):
+ //   GEMINI_API_KEY              — Google AI (Gemini) API key
+ //   GOOGLE_SERVICE_ACCOUNT_JSON — full contents of your GCP service-account
+ //                                  JSON (used to call Play Integrity)
+ //   EXPECTED_PACKAGE_NAME       — optional, default com.saadmohammed2000.flex_reminder
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
@@ -22,13 +19,91 @@ const SUPABASE_ANON_KEY =
   process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY ?? '';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? '';
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-3.1-flash-lite';
 const EXPECTED_PACKAGE_NAME =
   process.env.EXPECTED_PACKAGE_NAME ?? 'com.saadmohammed2000.flex_reminder';
-const RATE_LIMIT_PER_MINUTE = Number(process.env.RATE_LIMIT_PER_MINUTE ?? 10);
-const RATE_LIMIT_PER_MONTH = Number(process.env.RATE_LIMIT_PER_MONTH ?? 500);
-const MAX_HISTORY_TURNS = 20;
-const ALLOW_DEBUG_BYPASS = process.env.ALLOW_DEBUG_BYPASS === 'true';
+
+// Config cache (TTL: 60 seconds)
+let configCache: {
+  rateLimitPerMinute: number;
+  rateLimitPerHour: number;
+  rateLimitPerMonth: number;
+  geminiModel: string;
+  maxHistoryTurns: number;
+  allowDebugBypass: boolean;
+} | null = null;
+let configCacheExpiry = 0;
+
+async function loadConfig(supabase: ReturnType<typeof createClient>): Promise<void> {
+  const now = Date.now();
+  if (configCache && now < configCacheExpiry) {
+    return;
+  }
+
+  const { data, error } = await supabase.rpc('get_ai_proxy_config');
+  if (error) {
+    console.error('Failed to load config, using defaults:', error);
+    // Use defaults if config load fails
+    configCache = {
+      rateLimitPerMinute: 10,
+      rateLimitPerHour: 1,
+      rateLimitPerMonth: 500,
+      geminiModel: 'gemini-3.1-flash-lite',
+      maxHistoryTurns: 20,
+      allowDebugBypass: false,
+    };
+  } else {
+    const cfg = data ?? {};
+    configCache = {
+      rateLimitPerMinute: Number(cfg.rate_limit_per_minute ?? 10),
+      rateLimitPerHour: Number(cfg.rate_limit_per_hour ?? 1),
+      rateLimitPerMonth: Number(cfg.rate_limit_per_month ?? 500),
+      geminiModel: cfg.gemini_model ?? 'gemini-3.1-flash-lite',
+      maxHistoryTurns: Number(cfg.max_history_turns ?? 20),
+      allowDebugBypass: cfg.allow_debug_bypass === true || cfg.allow_debug_bypass === 'true',
+    };
+  }
+  configCacheExpiry = now + 60 * 1000; // 60 second TTL
+}
+
+// ---------------------------------------------------------------------------
+// Rate limiting (database-backed, works across function instances)
+// ---------------------------------------------------------------------------
+
+async function checkRateLimit(supabase: ReturnType<typeof createClient>, userId: string): Promise<{ allowed: boolean; period?: 'minute' | 'hour' | 'month' }> {
+  await loadConfig(supabase);
+  const cfg = configCache!;
+
+  const now = new Date().toISOString();
+  const minuteAgo = new Date(Date.now() - 60 * 1000).toISOString();
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const monthStartIso = monthStart.toISOString();
+
+  // Use a single RPC call for atomic check-and-increment
+  const { data, error } = await supabase.rpc('check_rate_limit', {
+    p_user_id: userId,
+    p_minute_limit: cfg.rateLimitPerMinute,
+    p_hour_limit: cfg.rateLimitPerHour,
+    p_month_limit: cfg.rateLimitPerMonth,
+    p_minute_window_start: minuteAgo,
+    p_hour_window_start: hourAgo,
+    p_month_window_start: monthStartIso,
+  });
+
+  if (error) {
+    console.error('Rate limit RPC error:', error);
+    // Fail open on DB error to not block legitimate traffic
+    return { allowed: true };
+  }
+
+  if (!data?.allowed) {
+    return { allowed: false, period: data?.period };
+  }
+
+  return { allowed: true };
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -108,6 +183,33 @@ function jsonError(status: number, code: string, message: string, diagnostic?: R
       headers: { 'Content-Type': 'application/json' },
     },
   );
+}
+
+function logRequest(stage: string, data: Record<string, unknown>): void {
+  const timestamp = new Date().toISOString();
+  const logEntry = {
+    timestamp,
+    stage,
+    function: 'ai-proxy',
+    ...data,
+  };
+  console.log(JSON.stringify(logEntry));
+}
+
+function logError(stage: string, error: unknown, context?: Record<string, unknown>): void {
+  const timestamp = new Date().toISOString();
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const errorStack = error instanceof Error ? error.stack : undefined;
+  const logEntry = {
+    timestamp,
+    stage,
+    function: 'ai-proxy',
+    level: 'ERROR',
+    error: errorMessage,
+    stack: errorStack,
+    ...context,
+  };
+  console.error(JSON.stringify(logEntry));
 }
 
 function cors(): Headers {
@@ -347,47 +449,6 @@ async function verifyIntegrityToken(
 }
 
 // ---------------------------------------------------------------------------
-// Rate limiting (best-effort in-memory; works for a single function instance).
-// ---------------------------------------------------------------------------
-
-const minuteWindows = new Map<string, number[]>();
-const monthlyWindows = new Map<string, string>();
-
-function checkRateLimit(userId: string): { allowed: boolean; period?: 'minute' | 'month' } {
-  const now = Date.now();
-
-  // Minute window
-  const minuteKey = userId;
-  const recent = (minuteWindows.get(minuteKey) ?? []).filter(
-    (t) => now - t < 60 * 1000,
-  );
-  if (recent.length >= RATE_LIMIT_PER_MINUTE) {
-    return { allowed: false, period: 'minute' };
-  }
-  recent.push(now);
-  minuteWindows.set(minuteKey, recent);
-
-  // Monthly window
-  const month = new Date().toISOString().slice(0, 7); // YYYY-MM
-  const monthKey = `${userId}:${month}`;
-  const currentMonth = monthlyWindows.get(monthKey);
-  if (currentMonth && currentMonth !== month) {
-    monthlyWindows.set(monthKey, month);
-  }
-  const monthlyCount = [...monthlyWindows.keys()].filter(
-    (k) => k === monthKey,
-  ).length;
-  if (monthlyCount >= RATE_LIMIT_PER_MONTH) {
-    return { allowed: false, period: 'month' };
-  }
-  if (!monthlyWindows.has(monthKey)) {
-    monthlyWindows.set(monthKey, month);
-  }
-
-  return { allowed: true };
-}
-
-// ---------------------------------------------------------------------------
 // Gemini call
 // ---------------------------------------------------------------------------
 
@@ -396,7 +457,7 @@ interface ChatTurn {
   content: string;
 }
 
-async function callGemini(prompt: string, history: ChatTurn[]): Promise<string> {
+async function callGemini(prompt: string, history: ChatTurn[], model: string): Promise<string> {
   const contents = history.map((turn) => ({
     role: turn.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: turn.content }],
@@ -404,7 +465,7 @@ async function callGemini(prompt: string, history: ChatTurn[]): Promise<string> 
   contents.push({ role: 'user', parts: [{ text: prompt }] });
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -437,11 +498,27 @@ async function callGemini(prompt: string, history: ChatTurn[]): Promise<string> 
 // ---------------------------------------------------------------------------
 
 Deno.serve(async (req: Request) => {
+  const requestId = crypto.randomUUID();
+  const startTime = Date.now();
   const headers = cors();
+
+  logRequest('request_start', {
+    requestId,
+    method: req.method,
+    url: req.url,
+    userAgent: req.headers.get('User-Agent'),
+    hasAuthHeader: !!req.headers.get('Authorization'),
+    hasIntegrityToken: !!req.headers.get('X-Integrity-Token'),
+    hasRequestNonce: !!req.headers.get('X-Request-Nonce'),
+    isDebugBuild: req.headers.get('X-Debug-Build') === 'true',
+  });
+
   if (req.method === 'OPTIONS') {
+    logRequest('request_end', { requestId, status: 204, durationMs: Date.now() - startTime });
     return new Response(null, { status: 204, headers });
   }
   if (req.method !== 'POST') {
+    logRequest('request_end', { requestId, status: 405, durationMs: Date.now() - startTime, error: 'METHOD_NOT_ALLOWED' });
     return jsonError(405, 'METHOD_NOT_ALLOWED', 'Only POST is allowed');
   }
 
@@ -450,24 +527,37 @@ Deno.serve(async (req: Request) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     global: { headers: { Authorization: authHeader } },
   });
+
+  logRequest('auth_start', { requestId });
   const {
     data: { user },
     error: authError,
   } = await supabase.auth.getUser();
 
   if (authError || !user) {
+    logError('auth_failed', authError ?? new Error('No user'), { requestId });
+    logRequest('request_end', { requestId, status: 401, durationMs: Date.now() - startTime, error: 'UNAUTHENTICATED' });
     return jsonError(401, 'UNAUTHENTICATED', 'You must be signed in first');
   }
+  logRequest('auth_success', { requestId, userId: user.id });
+
+  // Load config from database (cached)
+  await loadConfig(supabase);
+  const cfg = configCache!;
 
   // ---- 2. Play Integrity ----------------------------------------------------
   const integrityToken = req.headers.get('X-Integrity-Token');
   const requestNonce = req.headers.get('X-Request-Nonce');
   const isDebugBuild = req.headers.get('X-Debug-Build') === 'true';
 
-  if (ALLOW_DEBUG_BYPASS && isDebugBuild) {
-    console.log('Debug build detected, skipping integrity check');
+  logRequest('integrity_start', { requestId, userId: user.id, isDebugBuild, hasToken: !!integrityToken, hasNonce: !!requestNonce });
+
+  if (cfg.allowDebugBypass && isDebugBuild) {
+    logRequest('integrity_bypass', { requestId, userId: user.id, reason: 'debug_build' });
   } else {
     if (!integrityToken || !requestNonce) {
+      logError('integrity_missing', new Error('Missing integrity token or nonce'), { requestId, userId: user.id });
+      logRequest('request_end', { requestId, status: 403, durationMs: Date.now() - startTime, error: 'INTEGRITY_MISSING' });
       return jsonError(
         403,
         'INTEGRITY_MISSING',
@@ -477,7 +567,11 @@ Deno.serve(async (req: Request) => {
     }
 
     const { passed, diagnostic } = await verifyIntegrityToken(integrityToken, requestNonce);
+    logRequest('integrity_result', { requestId, userId: user.id, passed, stage: diagnostic.stage, failedChecks: diagnostic.failedChecks });
+
     if (!passed) {
+      logError('integrity_failed', new Error('Integrity check failed'), { requestId, userId: user.id, diagnostic });
+      logRequest('request_end', { requestId, status: 403, durationMs: Date.now() - startTime, error: 'INTEGRITY_FAILED' });
       return jsonError(
         403,
         'INTEGRITY_FAILED',
@@ -488,31 +582,43 @@ Deno.serve(async (req: Request) => {
   }
 
   // ---- 3. Rate limiting -----------------------------------------------------
-  const limit = checkRateLimit(user.id);
+  logRequest('rate_limit_start', { requestId, userId: user.id });
+  const limit = await checkRateLimit(supabase, user.id);
   if (!limit.allowed) {
+    logError('rate_limit_exceeded', new Error(`Rate limit exceeded: ${limit.period}`), { requestId, userId: user.id, period: limit.period });
+    logRequest('request_end', { requestId, status: 429, durationMs: Date.now() - startTime, error: `RATE_LIMIT_${limit.period?.toUpperCase()}` });
     const isMinute = limit.period === 'minute';
+    const isHour = limit.period === 'hour';
     return jsonError(
       429,
-      isMinute ? 'RATE_LIMIT_MINUTE' : 'RATE_LIMIT_MONTH',
+      isMinute ? 'RATE_LIMIT_MINUTE' : isHour ? 'RATE_LIMIT_HOUR' : 'RATE_LIMIT_MONTH',
       isMinute
         ? 'Rate limit exceeded, try again in a minute'
+        : isHour
+        ? 'Hourly limit reached, try again in an hour'
         : 'Monthly usage limit reached, try again next month',
     );
   }
+  logRequest('rate_limit_ok', { requestId, userId: user.id });
 
   // ---- 4. Parse body --------------------------------------------------------
+  logRequest('body_parse_start', { requestId, userId: user.id });
   let body: { prompt?: unknown; conversationHistory?: unknown };
   try {
     body = await req.json();
-  } catch {
+  } catch (e) {
+    logError('body_parse_failed', e, { requestId, userId: user.id });
+    logRequest('request_end', { requestId, status: 400, durationMs: Date.now() - startTime, error: 'INVALID_BODY' });
     return jsonError(400, 'INVALID_BODY', 'Request body must be valid JSON');
   }
 
   const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
   if (!prompt) {
+    logRequest('request_end', { requestId, status: 400, durationMs: Date.now() - startTime, error: 'EMPTY_PROMPT' });
     return jsonError(400, 'EMPTY_PROMPT', 'Prompt cannot be empty');
   }
   if (prompt.length > 4000) {
+    logRequest('request_end', { requestId, status: 400, durationMs: Date.now() - startTime, error: 'PROMPT_TOO_LONG' });
     return jsonError(400, 'PROMPT_TOO_LONG', 'Prompt is too long (max 4000 chars)');
   }
 
@@ -523,26 +629,32 @@ Deno.serve(async (req: Request) => {
             t && typeof t.content === 'string' &&
             (t.role === 'user' || t.role === 'assistant'),
         )
-        .slice(-MAX_HISTORY_TURNS)
+        .slice(-cfg.maxHistoryTurns)
     : [];
+  logRequest('body_parse_ok', { requestId, userId: user.id, promptLength: prompt.length, historyTurns: history.length });
 
   // ---- 5. Call Gemini -------------------------------------------------------
+  logRequest('gemini_start', { requestId, userId: user.id, model: cfg.geminiModel });
   try {
-    const text = await callGemini(prompt, history);
+    const text = await callGemini(prompt, history, cfg.geminiModel);
+    logRequest('gemini_success', { requestId, userId: user.id, responseLength: text.length });
+    logRequest('request_end', { requestId, status: 200, durationMs: Date.now() - startTime });
     return new Response(
-      JSON.stringify({ text, model: GEMINI_MODEL }),
+      JSON.stringify({ text, model: cfg.geminiModel }),
       { status: 200, headers: { ...headers, 'Content-Type': 'application/json' } },
     );
   } catch (e) {
-    console.error('Upstream error:', e);
+    logError('gemini_failed', e, { requestId, userId: user.id });
     const message = e instanceof Error ? e.message : 'Unknown error';
     if (message.includes('Gemini error 429')) {
+      logRequest('request_end', { requestId, status: 502, durationMs: Date.now() - startTime, error: 'UPSTREAM_RATE_LIMITED' });
       return jsonError(
         502,
         'UPSTREAM_RATE_LIMITED',
         'The AI provider is busy, try again later',
       );
     }
+    logRequest('request_end', { requestId, status: 502, durationMs: Date.now() - startTime, error: 'UPSTREAM_ERROR' });
     return jsonError(502, 'UPSTREAM_ERROR', 'The AI provider failed, try again later');
   }
 });
