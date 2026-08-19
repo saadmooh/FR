@@ -1,26 +1,58 @@
 // ai-proxy — Secure proxy that forwards prompts to the Gemini API.
 //
- // Security layers (in order):
- //   1. Supabase Auth: rejects requests without a valid user session.
- //   2. Play Integrity: verifies the client's integrity token against
- //      Google's Play Integrity API and confirms the nonce matches.
- //   3. Rate limiting: per-user minute and monthly windows.
- //
- // Server-side secrets (set with `supabase secrets set`, NEVER in code):
- //   GEMINI_API_KEY              — Google AI (Gemini) API key
- //   GOOGLE_SERVICE_ACCOUNT_JSON — full contents of your GCP service-account
- //                                  JSON (used to call Play Integrity)
- //   EXPECTED_PACKAGE_NAME       — optional, default com.saadmohammed2000.flex_reminder
+// Security layers (in order):
+//   1. Supabase Auth: rejects requests without a valid user session.
+//   2. Body parsing: prompt/history/timestamp are read early because the
+//      integrity + nonce-binding checks below need them.
+//   3. Play Integrity: verifies the client's integrity token against
+//      Google's Play Integrity API, confirms the nonce matches, AND now
+//      pins the signing certificate so only your real signed APK passes.
+//   4. Request binding: the nonce must be derived from THIS request's
+//      content (prompt + user + timestamp), not just present — this stops
+//      a token/nonce pair captured from one request being replayed with a
+//      different prompt.
+//   5. Nonce replay protection: each nonce can be claimed (used) exactly
+//      once, stored in the `used_nonces` table, closing the "token farm"
+//      window where a valid pair is reused multiple times within its
+//      5-minute validity.
+//   6. Rate limiting: per-user minute/hour/month windows.
+//
+// Server-side secrets (set with `supabase secrets set`, NEVER in code):
+//   GEMINI_API_KEY              — Google AI (Gemini) API key
+//   GOOGLE_SERVICE_ACCOUNT_JSON — full contents of your GCP service-account
+//                                  JSON (used to call Play Integrity)
+//   EXPECTED_PACKAGE_NAME       — optional, default com.saadmohammed2000.flex_reminder
+//   EXPECTED_CERT_SHA256        — comma-separated SHA-256 cert digest(s) of
+//                                  your Play signing key(s), from Play Console
+//                                  → Setup → App integrity. REQUIRED for
+//                                  certificate pinning to take effect.
+//
+// Database migration required (see used_nonces table at bottom of this file
+// as a comment, or run separately):
+//   create table used_nonces (
+//     nonce text primary key,
+//     user_id uuid not null,
+//     used_at timestamptz not null default now()
+//   );
+//   create index used_nonces_used_at_idx on used_nonces (used_at);
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_ANON_KEY =
-  process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY ?? '';
+  Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_PUBLISHABLE_KEY') ?? '';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? '';
+const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') ?? '';
 const EXPECTED_PACKAGE_NAME =
-  process.env.EXPECTED_PACKAGE_NAME ?? 'com.saadmohammed2000.flex_reminder';
+  Deno.env.get('EXPECTED_PACKAGE_NAME') ?? 'com.saadmohammed2000.flex_reminder';
+
+// Certificate pinning: one or more SHA-256 digests (as returned by Play
+// Integrity's certificateSha256Digest field), comma-separated. Supports
+// multiple values so you can rotate signing keys without downtime.
+const EXPECTED_CERT_HASHES = (Deno.env.get('EXPECTED_CERT_SHA256') ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 // Config cache (TTL: 60 seconds)
 let configCache: {
@@ -42,7 +74,6 @@ async function loadConfig(supabase: ReturnType<typeof createClient>): Promise<vo
   const { data, error } = await supabase.rpc('get_ai_proxy_config');
   if (error) {
     console.error('Failed to load config, using defaults:', error);
-    // Use defaults if config load fails
     configCache = {
       rateLimitPerMinute: 10,
       rateLimitPerHour: 1,
@@ -62,18 +93,20 @@ async function loadConfig(supabase: ReturnType<typeof createClient>): Promise<vo
       allowDebugBypass: cfg.allow_debug_bypass === true || cfg.allow_debug_bypass === 'true',
     };
   }
-  configCacheExpiry = now + 60 * 1000; // 60 second TTL
+  configCacheExpiry = now + 60 * 1000;
 }
 
 // ---------------------------------------------------------------------------
 // Rate limiting (database-backed, works across function instances)
 // ---------------------------------------------------------------------------
 
-async function checkRateLimit(supabase: ReturnType<typeof createClient>, userId: string): Promise<{ allowed: boolean; period?: 'minute' | 'hour' | 'month' }> {
+async function checkRateLimit(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<{ allowed: boolean; period?: 'minute' | 'hour' | 'month' }> {
   await loadConfig(supabase);
   const cfg = configCache!;
 
-  const now = new Date().toISOString();
   const minuteAgo = new Date(Date.now() - 60 * 1000).toISOString();
   const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const monthStart = new Date();
@@ -81,7 +114,6 @@ async function checkRateLimit(supabase: ReturnType<typeof createClient>, userId:
   monthStart.setHours(0, 0, 0, 0);
   const monthStartIso = monthStart.toISOString();
 
-  // Use a single RPC call for atomic check-and-increment
   const { data, error } = await supabase.rpc('check_rate_limit', {
     p_user_id: userId,
     p_minute_limit: cfg.rateLimitPerMinute,
@@ -94,7 +126,6 @@ async function checkRateLimit(supabase: ReturnType<typeof createClient>, userId:
 
   if (error) {
     console.error('Rate limit RPC error:', error);
-    // Fail open on DB error to not block legitimate traffic
     return { allowed: true };
   }
 
@@ -103,6 +134,38 @@ async function checkRateLimit(supabase: ReturnType<typeof createClient>, userId:
   }
 
   return { allowed: true };
+}
+
+// ---------------------------------------------------------------------------
+// Nonce replay protection
+// ---------------------------------------------------------------------------
+
+/**
+ * Atomically claims a nonce for a user. Returns false if the nonce has
+ * already been used (primary-key conflict on `used_nonces.nonce`), which
+ * means this exact request was already processed — reject it as a replay.
+ */
+async function claimNonce(
+  supabase: ReturnType<typeof createClient>,
+  nonce: string,
+  userId: string,
+): Promise<boolean> {
+  const { error } = await supabase
+    .from('used_nonces')
+    .insert({ nonce, user_id: userId });
+  if (error) {
+    // Only a true unique violation (Postgres 23505) means this exact nonce was
+    // already claimed → a genuine replay. Any other error (table missing, RLS,
+    // transient) must NOT be reported as a replay, otherwise healthy requests
+    // are wrongly rejected. Fail open for non-replay DB errors.
+    const isUniqueViolation = (error as { code?: string }).code === '23505';
+    if (isUniqueViolation) {
+      return false;
+    }
+    logError('claimNonce_db_error', error, { code: (error as { code?: string }).code });
+    return true;
+  }
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -121,7 +184,8 @@ function base64UrlEncode(input: Uint8Array | string): string {
 }
 
 function pemToDer(pem: string): Uint8Array {
-  const body = pem.replace(/-----BEGIN PRIVATE KEY-----/, '')
+  const body = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
     .replace(/-----END PRIVATE KEY-----/, '')
     .replace(/\s+/g, '');
   const binary = atob(body);
@@ -132,21 +196,18 @@ function pemToDer(pem: string): Uint8Array {
   return bytes;
 }
 
-async function sha256Hex(input: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', encoder.encode(input));
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
 async function sha256Base64(input: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', encoder.encode(input));
-  const bytes = new Uint8Array(digest);
+  // Use the first 30 bytes (a multiple of 3) so the Base64 is a clean 40-char
+  // string with no padding. Must match the client's generateNonce().
+  const bytes = new Uint8Array(digest).slice(0, 30);
   let binary = '';
   for (let i = 0; i < bytes.length; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
-  return btoa(binary);
+  // URL-safe Base64 (alphabet A-Za-z0-9-_), no padding — matches the client
+  // nonce exactly (string compare) and what Play Services expects.
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 function base64ToBytes(input: string): Uint8Array {
@@ -171,24 +232,25 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
   return true;
 }
 
-function jsonError(status: number, code: string, message: string, diagnostic?: Record<string, unknown>): Response {
+function jsonError(
+  status: number,
+  code: string,
+  message: string,
+  diagnostic?: Record<string, unknown>,
+): Response {
   const body: Record<string, unknown> = { error: { code, message } };
   if (diagnostic) {
     body.diagnostic = diagnostic;
   }
-  return new Response(
-    JSON.stringify(body),
-    {
-      status,
-      headers: { 'Content-Type': 'application/json' },
-    },
-  );
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
 function logRequest(stage: string, data: Record<string, unknown>): void {
-  const timestamp = new Date().toISOString();
   const logEntry = {
-    timestamp,
+    timestamp: new Date().toISOString(),
     stage,
     function: 'ai-proxy',
     ...data,
@@ -197,11 +259,10 @@ function logRequest(stage: string, data: Record<string, unknown>): void {
 }
 
 function logError(stage: string, error: unknown, context?: Record<string, unknown>): void {
-  const timestamp = new Date().toISOString();
   const errorMessage = error instanceof Error ? error.message : String(error);
   const errorStack = error instanceof Error ? error.stack : undefined;
   const logEntry = {
-    timestamp,
+    timestamp: new Date().toISOString(),
     stage,
     function: 'ai-proxy',
     level: 'ERROR',
@@ -226,7 +287,7 @@ function cors(): Headers {
 // ---------------------------------------------------------------------------
 
 async function getGoogleAccessToken(): Promise<string> {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  const raw = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON');
   if (!raw) {
     throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is not configured');
   }
@@ -311,16 +372,19 @@ interface DiagnosticData {
   packageName?: string;
   packageNameMatches?: boolean;
   certificatePresent?: boolean;
+  certificateMatches?: boolean;
   deviceIntegrityPresent?: boolean;
   deviceRecognitionVerdict?: string[];
   licensingVerdict?: string;
   licensingPresent?: boolean;
   failedChecks?: string[];
+  [key: string]: unknown;
 }
 
 async function verifyIntegrityToken(
   integrityToken: string,
   requestNonce: string,
+  expectedNonceHash: string,
 ): Promise<{ passed: boolean; diagnostic: DiagnosticData }> {
   const diagnostic: DiagnosticData = {
     stage: 'decode_integrity_token',
@@ -356,10 +420,10 @@ async function verifyIntegrityToken(
     const payload: IntegrityPayload = data.tokenPayloadExternal ?? {};
     diagnostic.decodeSuccess = true;
 
-    // A. requestDetails
+    // A. requestDetails / nonce
     diagnostic.requestDetailsPresent = !!payload.requestDetails;
     const nonceFromToken = payload.requestDetails?.nonce;
-    diagnostic.requestHashPresent = !!nonceFromToken; // reflects nonce presence for backward compat
+    diagnostic.requestHashPresent = !!nonceFromToken;
     diagnostic.timestampPresent = !!payload.requestDetails?.timestampMillis;
 
     let nonceMatches = false;
@@ -367,7 +431,14 @@ async function verifyIntegrityToken(
       try {
         const tokenNonceBytes = base64ToBytes(nonceFromToken);
         const requestNonceBytes = base64ToBytes(requestNonce);
-        nonceMatches = bytesEqual(tokenNonceBytes, requestNonceBytes);
+        const expectedNonceBytes = base64ToBytes(expectedNonceHash);
+        // The token nonce must equal the request nonce OR the expected hash
+        // derived from the request. Comparing decoded bytes makes this
+        // resilient to Base64 encoding differences (standard vs url-safe,
+        // padding) between the client, Play Services and Google's echo.
+        nonceMatches =
+          bytesEqual(tokenNonceBytes, requestNonceBytes) ||
+          bytesEqual(tokenNonceBytes, expectedNonceBytes);
       } catch {
         nonceMatches = false;
       }
@@ -377,7 +448,7 @@ async function verifyIntegrityToken(
     } else {
       diagnostic.failedChecks!.push('nonceMissing');
     }
-    diagnostic.requestHashMatches = nonceMatches; // keep field name for compat
+    diagnostic.requestHashMatches = nonceMatches;
 
     if (payload.requestDetails?.timestampMillis) {
       const issued = Number(payload.requestDetails.timestampMillis);
@@ -391,14 +462,33 @@ async function verifyIntegrityToken(
     diagnostic.appRecognitionVerdict = payload.appIntegrity?.appRecognitionVerdict ?? 'MISSING';
     diagnostic.packageName = payload.appIntegrity?.packageName ?? 'MISSING';
     diagnostic.packageNameMatches = payload.appIntegrity?.packageName === EXPECTED_PACKAGE_NAME;
-    diagnostic.certificatePresent = !!(payload.appIntegrity?.certificateSha256Digest && payload.appIntegrity.certificateSha256Digest.length > 0);
+
+    const certDigests = payload.appIntegrity?.certificateSha256Digest ?? [];
+    diagnostic.certificatePresent = certDigests.length > 0;
+
+    // --- Certificate pinning ---------------------------------------------
+    const certificateMatches =
+      EXPECTED_CERT_HASHES.length > 0 && certDigests.some((d) => EXPECTED_CERT_HASHES.includes(d));
+    diagnostic.certificateMatches = certificateMatches;
+
+    if (EXPECTED_CERT_HASHES.length === 0) {
+      // Misconfiguration guard: don't silently skip pinning, make it loud
+      // in logs so it gets fixed, without blocking traffic if you haven't
+      // rolled this out yet. Once EXPECTED_CERT_SHA256 is set, this branch
+      // stops firing and pinning becomes mandatory (see check below).
+      diagnostic.failedChecks!.push('certPinningNotConfigured');
+    } else if (!certificateMatches) {
+      diagnostic.failedChecks!.push('certificateMismatch');
+    }
 
     if (!diagnostic.packageNameMatches) {
       diagnostic.failedChecks!.push('packageNameMismatch');
     }
 
     if (payload.appIntegrity?.appRecognitionVerdict !== 'PLAY_RECOGNIZED') {
-      diagnostic.failedChecks!.push(`appRecognitionVerdict=${payload.appIntegrity?.appRecognitionVerdict ?? 'MISSING'}`);
+      diagnostic.failedChecks!.push(
+        `appRecognitionVerdict=${payload.appIntegrity?.appRecognitionVerdict ?? 'MISSING'}`,
+      );
     }
 
     // C. deviceIntegrity
@@ -417,7 +507,10 @@ async function verifyIntegrityToken(
     }
 
     // 2. Replay protection: token must be fresh (issued < 5 minutes ago).
-    if (!payload.requestDetails?.timestampMillis || Date.now() - Number(payload.requestDetails.timestampMillis) > 5 * 60 * 1000) {
+    if (
+      !payload.requestDetails?.timestampMillis ||
+      Date.now() - Number(payload.requestDetails.timestampMillis) > 5 * 60 * 1000
+    ) {
       diagnostic.failedChecks!.push('tokenExpired');
       return { passed: false, diagnostic };
     }
@@ -430,10 +523,45 @@ async function verifyIntegrityToken(
       return { passed: false, diagnostic };
     }
 
-    // 4. Device must meet integrity requirements.
+    // 4. Certificate must match your known signing key(s).
+    //    Enforced once EXPECTED_CERT_SHA256 is configured — set this secret
+    //    before relying on it, otherwise this check is a no-op (logged as
+    //    certPinningNotConfigured above, but does not block requests).
+    if (EXPECTED_CERT_HASHES.length > 0 && !certificateMatches) {
+      return { passed: false, diagnostic };
+    }
+
+    // 5. Device must meet integrity requirements.
+    //    We intentionally cap at MEETS_DEVICE_INTEGRITY (NOT STRONG).
+    //    MEETS_STRONG_INTEGRITY depends on the device's hardware-backed
+    //    attestation capabilities (e.g. StrongBox / keymaster), which many
+    //    legitimate, Play-distributed devices do not support regardless of
+    //    how the app was installed. Requiring STRONG would wrongly block
+    //    real users on older / lower-end hardware, not just attackers.
     const deviceVerdicts = payload.deviceIntegrity?.deviceRecognitionVerdict ?? [];
     if (!deviceVerdicts.includes('MEETS_DEVICE_INTEGRITY')) {
       diagnostic.failedChecks!.push('deviceIntegrityFailed');
+      return { passed: false, diagnostic };
+    }
+
+    // 6. Licensing — the real signal that the app was obtained through a
+    //    legitimate Google Play account (even when free). This — not the
+    //    deviceIntegrity hardware level — is what distinguishes a
+    //    sideloaded / locally-built APK from a genuine Play install.
+    const licensingVerdict = payload.accountDetails?.appLicensingVerdict;
+    diagnostic.licensingVerdict = licensingVerdict ?? 'MISSING';
+    diagnostic.licensingPresent = !!payload.accountDetails;
+    if (licensingVerdict === 'UNEVALUATED') {
+      // Account not linked as a Play tester / licensed user. Often a real
+      // user who simply isn't registered as a tester in Play Console (common
+      // in internal / closed testing) — NOT necessarily a tampering attempt.
+      diagnostic.failedChecks!.push('licensingUnevaluated');
+      return { passed: false, diagnostic };
+    }
+    if (licensingVerdict !== 'LICENSED') {
+      // UNLICENSED (or MISSING) — app not obtained through a licensed Play
+      // account. This is the genuine anti-tamper signal.
+      diagnostic.failedChecks!.push('licensingNotVerified');
       return { passed: false, diagnostic };
     }
 
@@ -518,11 +646,16 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 204, headers });
   }
   if (req.method !== 'POST') {
-    logRequest('request_end', { requestId, status: 405, durationMs: Date.now() - startTime, error: 'METHOD_NOT_ALLOWED' });
+    logRequest('request_end', {
+      requestId,
+      status: 405,
+      durationMs: Date.now() - startTime,
+      error: 'METHOD_NOT_ALLOWED',
+    });
     return jsonError(405, 'METHOD_NOT_ALLOWED', 'Only POST is allowed');
   }
 
-  // ---- 1. Supabase Auth ----------------------------------------------------
+  // ---- 1. Supabase Auth -----------------------------------------------------
   const authHeader = req.headers.get('Authorization') ?? '';
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     global: { headers: { Authorization: authHeader } },
@@ -536,57 +669,216 @@ Deno.serve(async (req: Request) => {
 
   if (authError || !user) {
     logError('auth_failed', authError ?? new Error('No user'), { requestId });
-    logRequest('request_end', { requestId, status: 401, durationMs: Date.now() - startTime, error: 'UNAUTHENTICATED' });
+    logRequest('request_end', {
+      requestId,
+      status: 401,
+      durationMs: Date.now() - startTime,
+      error: 'UNAUTHENTICATED',
+    });
     return jsonError(401, 'UNAUTHENTICATED', 'You must be signed in first');
   }
   logRequest('auth_success', { requestId, userId: user.id });
 
-  // Load config from database (cached)
   await loadConfig(supabase);
   const cfg = configCache!;
 
-  // ---- 2. Play Integrity ----------------------------------------------------
+  // ---- 2. Parse body ---------------------------------------------------------
+  // Moved ahead of Play Integrity: the nonce-binding check (step 4) needs
+  // `prompt` and `timestamp` from the body, so we must parse it first.
+  logRequest('body_parse_start', { requestId, userId: user.id });
+  let body: { prompt?: unknown; conversationHistory?: unknown; timestamp?: unknown };
+  try {
+    body = await req.json();
+  } catch (e) {
+    logError('body_parse_failed', e, { requestId, userId: user.id });
+    logRequest('request_end', {
+      requestId,
+      status: 400,
+      durationMs: Date.now() - startTime,
+      error: 'INVALID_BODY',
+    });
+    return jsonError(400, 'INVALID_BODY', 'Request body must be valid JSON');
+  }
+
+  const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
+  if (!prompt) {
+    logRequest('request_end', {
+      requestId,
+      status: 400,
+      durationMs: Date.now() - startTime,
+      error: 'EMPTY_PROMPT',
+    });
+    return jsonError(400, 'EMPTY_PROMPT', 'Prompt cannot be empty');
+  }
+  if (prompt.length > 4000) {
+    logRequest('request_end', {
+      requestId,
+      status: 400,
+      durationMs: Date.now() - startTime,
+      error: 'PROMPT_TOO_LONG',
+    });
+    return jsonError(400, 'PROMPT_TOO_LONG', 'Prompt is too long (max 4000 chars)');
+  }
+
+  const clientTimestamp = typeof body.timestamp === 'number' ? body.timestamp : null;
+  if (!clientTimestamp) {
+    logRequest('request_end', {
+      requestId,
+      status: 400,
+      durationMs: Date.now() - startTime,
+      error: 'MISSING_TIMESTAMP',
+    });
+    return jsonError(
+      400,
+      'MISSING_TIMESTAMP',
+      'timestamp is required to bind the request to its integrity nonce',
+    );
+  }
+
+  const history: ChatTurn[] = Array.isArray(body.conversationHistory)
+    ? (body.conversationHistory as ChatTurn[])
+        .filter(
+          (t) => t && typeof t.content === 'string' && (t.role === 'user' || t.role === 'assistant'),
+        )
+        .slice(-cfg.maxHistoryTurns)
+    : [];
+  logRequest('body_parse_ok', {
+    requestId,
+    userId: user.id,
+    promptLength: prompt.length,
+    historyTurns: history.length,
+  });
+
+  // ---- 3. Play Integrity ------------------------------------------------------
   const integrityToken = req.headers.get('X-Integrity-Token');
   const requestNonce = req.headers.get('X-Request-Nonce');
   const isDebugBuild = req.headers.get('X-Debug-Build') === 'true';
 
-  logRequest('integrity_start', { requestId, userId: user.id, isDebugBuild, hasToken: !!integrityToken, hasNonce: !!requestNonce });
+  // Expected nonce is derived from THIS request's content. Computed up-front so
+  // both the token-nonce check and the request-binding check use the same value.
+  const expectedNonceInput = `${prompt}|${user.id}|${clientTimestamp}`;
+  const expectedNonceHash = await sha256Base64(expectedNonceInput);
+
+  logRequest('integrity_start', {
+    requestId,
+    userId: user.id,
+    isDebugBuild,
+    hasToken: !!integrityToken,
+    hasNonce: !!requestNonce,
+  });
 
   if (cfg.allowDebugBypass && isDebugBuild) {
     logRequest('integrity_bypass', { requestId, userId: user.id, reason: 'debug_build' });
   } else {
     if (!integrityToken || !requestNonce) {
-      logError('integrity_missing', new Error('Missing integrity token or nonce'), { requestId, userId: user.id });
-      logRequest('request_end', { requestId, status: 403, durationMs: Date.now() - startTime, error: 'INTEGRITY_MISSING' });
+      logError('integrity_missing', new Error('Missing integrity token or nonce'), {
+        requestId,
+        userId: user.id,
+      });
+      logRequest('request_end', {
+        requestId,
+        status: 403,
+        durationMs: Date.now() - startTime,
+        error: 'INTEGRITY_MISSING',
+      });
+      return jsonError(403, 'INTEGRITY_MISSING', 'Integrity token and nonce are required', {
+        stage: 'request_validation',
+        decodeSuccess: false,
+        errorMessage: 'Missing integrity token or nonce',
+      });
+    }
+
+    const { passed, diagnostic } = await verifyIntegrityToken(
+      integrityToken,
+      requestNonce,
+      expectedNonceHash,
+    );
+    logRequest('integrity_result', {
+      requestId,
+      userId: user.id,
+      passed,
+      stage: diagnostic.stage,
+      failedChecks: diagnostic.failedChecks,
+    });
+
+    if (!passed) {
+      logError('integrity_failed', new Error('Integrity check failed'), {
+        requestId,
+        userId: user.id,
+        diagnostic,
+      });
+      logRequest('request_end', {
+        requestId,
+        status: 403,
+        durationMs: Date.now() - startTime,
+        error: 'INTEGRITY_FAILED',
+      });
+
+      // Pick an actionable message so a legit-but-unregistered tester is not
+      // confused with a real tampering attempt.
+      const failed = diagnostic.failedChecks ?? [];
+      let message = 'App integrity check failed, update the app to the latest version';
+      if (failed.includes('licensingUnevaluated')) {
+        message =
+          'تعذّر التحقق من ترخيص Play. إذا كنت من المختبِرين، تأكد أن حساب Google الخاص بك مسجّل كمختبِر في Play Console وحمّلت التطبيق عبر رابط المتجر (وليس ملف APK مُثبّت جانبياً).';
+      } else if (failed.includes('licensingNotVerified')) {
+        message =
+          'نسخة التطبيق غير مرخّصة من Google Play. يرجى تثبيت النسخة الرسمية من متجر Play.';
+      }
+
+      return jsonError(403, 'INTEGRITY_FAILED', message, diagnostic);
+    }
+
+    // ---- 4. Request binding: nonce must be derived from THIS request ------
+    // Stops a captured (token, nonce) pair from being replayed with a
+    // different prompt within its 5-minute validity window.
+    if (expectedNonceHash !== requestNonce) {
+      logError('nonce_binding_mismatch', new Error('nonce does not match request content'), {
+        requestId,
+        userId: user.id,
+      });
+      logRequest('request_end', {
+        requestId,
+        status: 403,
+        durationMs: Date.now() - startTime,
+        error: 'NONCE_BINDING_MISMATCH',
+      });
       return jsonError(
         403,
-        'INTEGRITY_MISSING',
-        'Integrity token and nonce are required',
-        { stage: 'request_validation', decodeSuccess: false, errorMessage: 'Missing integrity token or nonce' },
+        'NONCE_BINDING_MISMATCH',
+        'Request content does not match the attached integrity token',
       );
     }
 
-    const { passed, diagnostic } = await verifyIntegrityToken(integrityToken, requestNonce);
-    logRequest('integrity_result', { requestId, userId: user.id, passed, stage: diagnostic.stage, failedChecks: diagnostic.failedChecks });
-
-    if (!passed) {
-      logError('integrity_failed', new Error('Integrity check failed'), { requestId, userId: user.id, diagnostic });
-      logRequest('request_end', { requestId, status: 403, durationMs: Date.now() - startTime, error: 'INTEGRITY_FAILED' });
-      return jsonError(
-        403,
-        'INTEGRITY_FAILED',
-        'App integrity check failed, update the app to the latest version',
-        diagnostic,
-      );
+    // ---- 5. Nonce replay protection: claim it, one use only ---------------
+    const nonceClaimed = await claimNonce(supabase, requestNonce, user.id);
+    if (!nonceClaimed) {
+      logError('nonce_replay', new Error('nonce already used'), { requestId, userId: user.id });
+      logRequest('request_end', {
+        requestId,
+        status: 403,
+        durationMs: Date.now() - startTime,
+        error: 'NONCE_REPLAY',
+      });
+      return jsonError(403, 'NONCE_REPLAY', 'This request has already been processed');
     }
   }
 
-  // ---- 3. Rate limiting -----------------------------------------------------
+  // ---- 6. Rate limiting -------------------------------------------------------
   logRequest('rate_limit_start', { requestId, userId: user.id });
   const limit = await checkRateLimit(supabase, user.id);
   if (!limit.allowed) {
-    logError('rate_limit_exceeded', new Error(`Rate limit exceeded: ${limit.period}`), { requestId, userId: user.id, period: limit.period });
-    logRequest('request_end', { requestId, status: 429, durationMs: Date.now() - startTime, error: `RATE_LIMIT_${limit.period?.toUpperCase()}` });
+    logError('rate_limit_exceeded', new Error(`Rate limit exceeded: ${limit.period}`), {
+      requestId,
+      userId: user.id,
+      period: limit.period,
+    });
+    logRequest('request_end', {
+      requestId,
+      status: 429,
+      durationMs: Date.now() - startTime,
+      error: `RATE_LIMIT_${limit.period?.toUpperCase()}`,
+    });
     const isMinute = limit.period === 'minute';
     const isHour = limit.period === 'hour';
     return jsonError(
@@ -601,60 +893,34 @@ Deno.serve(async (req: Request) => {
   }
   logRequest('rate_limit_ok', { requestId, userId: user.id });
 
-  // ---- 4. Parse body --------------------------------------------------------
-  logRequest('body_parse_start', { requestId, userId: user.id });
-  let body: { prompt?: unknown; conversationHistory?: unknown };
-  try {
-    body = await req.json();
-  } catch (e) {
-    logError('body_parse_failed', e, { requestId, userId: user.id });
-    logRequest('request_end', { requestId, status: 400, durationMs: Date.now() - startTime, error: 'INVALID_BODY' });
-    return jsonError(400, 'INVALID_BODY', 'Request body must be valid JSON');
-  }
-
-  const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
-  if (!prompt) {
-    logRequest('request_end', { requestId, status: 400, durationMs: Date.now() - startTime, error: 'EMPTY_PROMPT' });
-    return jsonError(400, 'EMPTY_PROMPT', 'Prompt cannot be empty');
-  }
-  if (prompt.length > 4000) {
-    logRequest('request_end', { requestId, status: 400, durationMs: Date.now() - startTime, error: 'PROMPT_TOO_LONG' });
-    return jsonError(400, 'PROMPT_TOO_LONG', 'Prompt is too long (max 4000 chars)');
-  }
-
-  const history: ChatTurn[] = Array.isArray(body.conversationHistory)
-    ? (body.conversationHistory as ChatTurn[])
-        .filter(
-          (t) =>
-            t && typeof t.content === 'string' &&
-            (t.role === 'user' || t.role === 'assistant'),
-        )
-        .slice(-cfg.maxHistoryTurns)
-    : [];
-  logRequest('body_parse_ok', { requestId, userId: user.id, promptLength: prompt.length, historyTurns: history.length });
-
-  // ---- 5. Call Gemini -------------------------------------------------------
+  // ---- 7. Call Gemini -----------------------------------------------------------
   logRequest('gemini_start', { requestId, userId: user.id, model: cfg.geminiModel });
   try {
     const text = await callGemini(prompt, history, cfg.geminiModel);
     logRequest('gemini_success', { requestId, userId: user.id, responseLength: text.length });
     logRequest('request_end', { requestId, status: 200, durationMs: Date.now() - startTime });
-    return new Response(
-      JSON.stringify({ text, model: cfg.geminiModel }),
-      { status: 200, headers: { ...headers, 'Content-Type': 'application/json' } },
-    );
+    return new Response(JSON.stringify({ text, model: cfg.geminiModel }), {
+      status: 200,
+      headers: { ...headers, 'Content-Type': 'application/json' },
+    });
   } catch (e) {
     logError('gemini_failed', e, { requestId, userId: user.id });
     const message = e instanceof Error ? e.message : 'Unknown error';
     if (message.includes('Gemini error 429')) {
-      logRequest('request_end', { requestId, status: 502, durationMs: Date.now() - startTime, error: 'UPSTREAM_RATE_LIMITED' });
-      return jsonError(
-        502,
-        'UPSTREAM_RATE_LIMITED',
-        'The AI provider is busy, try again later',
-      );
+      logRequest('request_end', {
+        requestId,
+        status: 502,
+        durationMs: Date.now() - startTime,
+        error: 'UPSTREAM_RATE_LIMITED',
+      });
+      return jsonError(502, 'UPSTREAM_RATE_LIMITED', 'The AI provider is busy, try again later');
     }
-    logRequest('request_end', { requestId, status: 502, durationMs: Date.now() - startTime, error: 'UPSTREAM_ERROR' });
+    logRequest('request_end', {
+      requestId,
+      status: 502,
+      durationMs: Date.now() - startTime,
+      error: 'UPSTREAM_ERROR',
+    });
     return jsonError(502, 'UPSTREAM_ERROR', 'The AI provider failed, try again later');
   }
 });

@@ -22,8 +22,9 @@ class AiProxyService {
     IntegrityService? integrity,
     this.strictIntegrityCheck = true,
     bool? isSupabaseAvailable,
-  })  : _integrity = integrity ?? IntegrityService(),
-        _isSupabaseAvailable = isSupabaseAvailable ?? AppConfig.isSupabaseConfigured;
+  }) : _integrity = integrity ?? IntegrityService(),
+       _isSupabaseAvailable =
+           isSupabaseAvailable ?? AppConfig.isSupabaseConfigured;
 
   IntegrityDiagnostic? get lastIntegrityDiagnostic => _lastIntegrityDiagnostic;
 
@@ -83,43 +84,56 @@ class AiProxyService {
       );
     }
 
-    final nonce = _integrity.generateNonce(prompt);
-    String? integrityToken;
-    bool integrityFailed = false;
-    try {
-      integrityToken = await _integrity.requestIntegrityToken(nonce: nonce);
-    } on IntegrityException catch (e) {
-      debugPrint('Integrity token unavailable: $e');
-      integrityFailed = true;
-      _lastIntegrityDiagnostic = e.diagnostic;
-      if (strictIntegrityCheck) {
-        throw AiProxyException(
-          403,
-          e.code,
-          'فشل التحقق من التطبيق (${e.code}): ${e.message}',
-          diagnostic: e.diagnostic,
-        );
-      }
-    }
+    final userId = session.user.id;
 
-    final body = <String, dynamic>{
-      'prompt': prompt,
-      if (conversationHistory != null && conversationHistory.isNotEmpty)
-        'conversationHistory': conversationHistory,
-    };
-    final headers = <String, String>{};
-    if (integrityToken != null && !integrityFailed) {
-      headers['X-Integrity-Token'] = integrityToken;
-      headers['X-Request-Nonce'] = nonce;
-    }
-    // Send debug build header to allow server-side bypass when strict check is off
-    if (!strictIntegrityCheck) {
-      headers['X-Debug-Build'] = 'true';
-    }
-    // Add debug header for diagnostics
-    headers['X-Debug-Integrity'] = 'true';
-
+    // NOTE: timestamp, nonce and the Play Integrity token are generated PER
+    // attempt. The request is sent with a single-use nonce (claimed in the
+    // `used_nonces` table server-side), so a network-error retry must use a
+    // FRESH nonce — reusing the same one would be rejected as NONCE_REPLAY
+    // even on a legitimate retry.
     for (int attempt = 0; attempt < 2; attempt++) {
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final nonce = _integrity.generateNonce(
+        prompt: prompt,
+        userId: userId,
+        timestamp: timestamp,
+      );
+      String? integrityToken;
+      bool integrityFailed = false;
+      try {
+        integrityToken = await _integrity.requestIntegrityToken(nonce: nonce);
+      } on IntegrityException catch (e) {
+        debugPrint('Integrity token unavailable: $e');
+        integrityFailed = true;
+        _lastIntegrityDiagnostic = e.diagnostic;
+        if (strictIntegrityCheck) {
+          throw AiProxyException(
+            403,
+            e.code,
+            'فشل التحقق من التطبيق (${e.code}): ${e.message}',
+            diagnostic: e.diagnostic,
+          );
+        }
+      }
+
+      final body = <String, dynamic>{
+        'prompt': prompt,
+        'timestamp': timestamp,
+        if (conversationHistory != null && conversationHistory.isNotEmpty)
+          'conversationHistory': conversationHistory,
+      };
+      final headers = <String, String>{};
+      if (integrityToken != null && !integrityFailed) {
+        headers['X-Integrity-Token'] = integrityToken;
+        headers['X-Request-Nonce'] = nonce;
+      }
+      // Send debug build header to allow server-side bypass when strict check is off
+      if (!strictIntegrityCheck) {
+        headers['X-Debug-Build'] = 'true';
+      }
+      // Add debug header for diagnostics
+      headers['X-Debug-Integrity'] = 'true';
+
       try {
         final response = await client.functions.invoke(
           'ai-proxy',
@@ -130,7 +144,9 @@ class AiProxyService {
         if (data is Map<String, dynamic>) {
           // Check if response contains diagnostic info
           if (data['diagnostic'] is Map<String, dynamic>) {
-            _lastIntegrityDiagnostic = IntegrityDiagnostic.fromJson(data['diagnostic']);
+            _lastIntegrityDiagnostic = IntegrityDiagnostic.fromJson(
+              data['diagnostic'],
+            );
           }
           return AiProxyResponse.fromJson(data);
         }
@@ -194,7 +210,9 @@ class AiProxyService {
           try {
             diagnostic = IntegrityDiagnostic.fromJson(diagnosticData);
           } catch (e) {
-            debugPrint('INTEGRITY_TRACE_BACKEND_RESPONSE: Failed to parse IntegrityDiagnostic: $e');
+            debugPrint(
+              'INTEGRITY_TRACE_BACKEND_RESPONSE: Failed to parse IntegrityDiagnostic: $e',
+            );
           }
         }
       } else {
@@ -203,13 +221,17 @@ class AiProxyService {
           try {
             diagnostic = IntegrityDiagnostic.fromJson(details['diagnostic']);
           } catch (e) {
-            debugPrint('INTEGRITY_TRACE_BACKEND_RESPONSE: Failed to parse IntegrityDiagnostic: $e');
+            debugPrint(
+              'INTEGRITY_TRACE_BACKEND_RESPONSE: Failed to parse IntegrityDiagnostic: $e',
+            );
           }
         }
       }
     }
 
-    debugPrint('INTEGRITY_TRACE_BACKEND_RESPONSE: code=$code, diagnosticPresent=${diagnostic != null}');
+    debugPrint(
+      'INTEGRITY_TRACE_BACKEND_RESPONSE: code=$code, diagnosticPresent=${diagnostic != null}',
+    );
 
     switch (code) {
       case 'UNAUTHENTICATED':
@@ -220,7 +242,11 @@ class AiProxyService {
         );
       case 'INTEGRITY_MISSING':
         if (!strictIntegrityCheck) {
-          return AiProxyException(e.status, code, 'Integrity not available in debug build');
+          return AiProxyException(
+            e.status,
+            code,
+            'Integrity not available in debug build',
+          );
         }
         return AiProxyException(
           403,
@@ -248,7 +274,12 @@ class AiProxyService {
           'وصلت إلى الحد الشهري، حاول الشهر القادم',
         );
       default:
-        return AiProxyException(e.status, code, message, diagnostic: diagnostic);
+        return AiProxyException(
+          e.status,
+          code,
+          message,
+          diagnostic: diagnostic,
+        );
     }
   }
 }

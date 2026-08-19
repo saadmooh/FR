@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
@@ -24,13 +23,23 @@ class IntegrityService {
   final bool enabled;
 
   IntegrityService({this.cloudProjectNumber = 0, this.enabled = true})
-      : _wrapper = FlutterPlayIntegrityWrapper();
+    : _wrapper = FlutterPlayIntegrityWrapper();
 
-  String generateNonce(String prompt) {
-    final random = Random.secure();
-    final salt = List<int>.generate(16, (_) => random.nextInt(256));
-    final hash = sha256.convert([...utf8.encode(prompt), ...salt]);
-    return base64UrlEncode(hash.bytes).replaceAll('=', '');
+  String generateNonce({
+    required String prompt,
+    required String userId,
+    required int timestamp,
+  }) {
+    final input = utf8.encode('$prompt|$userId|$timestamp');
+    final hash = sha256.convert(input);
+    // Play Integrity's setNonce() decoder is URL-safe Base64 (alphabet
+    // A-Za-z0-9-_), NOT standard (which uses + /). Standard Base64 with + or /
+    // gets silently mis-decoded by Play Services, so the nonce echoed back in
+    // the token never matches the header. Use base64url (URL-safe, no padding).
+    // A 30-byte (multiple of 3) payload yields a clean 40-char string with no
+    // padding and no ambiguity.
+    final bytes = hash.bytes.length >= 30 ? hash.bytes.sublist(0, 30) : hash.bytes;
+    return base64UrlEncode(bytes);
   }
 
   Future<String> requestIntegrityToken({required String nonce}) async {
@@ -95,11 +104,7 @@ class IntegrityService {
         details: e.details,
       );
       _logDiagnostic(failedDiag);
-      throw IntegrityException(
-        e.code,
-        e.message,
-        diagnostic: failedDiag,
-      );
+      throw IntegrityException(e.code, e.message, diagnostic: failedDiag);
     } catch (e) {
       final errorDiag = IntegrityDiagnostic(
         stage: 'unexpected_error',
@@ -108,11 +113,7 @@ class IntegrityService {
         errorType: e.runtimeType.toString(),
       );
       _logDiagnostic(errorDiag);
-      throw IntegrityException(
-        'UNKNOWN',
-        e.toString(),
-        diagnostic: errorDiag,
-      );
+      throw IntegrityException('UNKNOWN', e.toString(), diagnostic: errorDiag);
     }
   }
 

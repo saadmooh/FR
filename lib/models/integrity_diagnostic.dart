@@ -18,6 +18,8 @@ class IntegrityDiagnostic {
   final bool? packageNameMatches;
   final bool? deviceIntegrityPresent;
   final List<String>? deviceRecognitionVerdict;
+  final bool? licensingPresent;
+  final String? licensingVerdict;
   final bool? decodeSuccess;
   final String? errorType;
   final String? errorMessage;
@@ -43,6 +45,8 @@ class IntegrityDiagnostic {
     this.packageNameMatches,
     this.deviceIntegrityPresent,
     this.deviceRecognitionVerdict,
+    this.licensingPresent,
+    this.licensingVerdict,
     this.decodeSuccess,
     this.errorType,
     this.errorMessage,
@@ -70,6 +74,8 @@ class IntegrityDiagnostic {
       packageNameMatches: json['packageNameMatches'] as bool?,
       deviceIntegrityPresent: json['deviceIntegrityPresent'] as bool?,
       deviceRecognitionVerdict: (json['deviceRecognitionVerdict'] as List<dynamic>?)?.cast<String>(),
+      licensingPresent: json['licensingPresent'] as bool?,
+      licensingVerdict: json['licensingVerdict'] as String?,
       decodeSuccess: json['decodeSuccess'] as bool?,
       errorType: json['errorType'] as String?,
       errorMessage: json['errorMessage'] as String?,
@@ -98,6 +104,8 @@ class IntegrityDiagnostic {
       'packageNameMatches': packageNameMatches,
       'deviceIntegrityPresent': deviceIntegrityPresent,
       'deviceRecognitionVerdict': deviceRecognitionVerdict,
+      'licensingPresent': licensingPresent,
+      'licensingVerdict': licensingVerdict,
       'decodeSuccess': decodeSuccess,
       'errorType': errorType,
       'errorMessage': errorMessage,
@@ -130,6 +138,9 @@ class IntegrityDiagnostic {
     }
     if (deviceRecognitionVerdict != null && deviceRecognitionVerdict!.isNotEmpty) {
       buffer.writeln('Device integrity: ${deviceRecognitionVerdict!.join(', ')}');
+    }
+    if (licensingVerdict != null) {
+      buffer.writeln('Licensing: $licensingVerdict');
     }
     if (tokenAgeSeconds != null) {
       buffer.writeln('Token age: ${tokenAgeSeconds}s');

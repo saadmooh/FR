@@ -22,6 +22,18 @@ class Translations {
   static String noSavedPostsSubtitle(String locale) =>
       AppTranslations.getString('noSavedPostsSubtitle', locale: locale);
 
+  static String noUnopenedPosts(String locale) =>
+      AppTranslations.getString('noUnopenedPosts', locale: locale);
+
+  static String noUnopenedSubtitle(String locale) =>
+      AppTranslations.getString('noUnopenedSubtitle', locale: locale);
+
+  static String noOpenedPosts(String locale) =>
+      AppTranslations.getString('noOpenedPosts', locale: locale);
+
+  static String noOpenedSubtitle(String locale) =>
+      AppTranslations.getString('noOpenedSubtitle', locale: locale);
+
   static String noResultsFound(String locale) =>
       AppTranslations.getString('noResultsFound', locale: locale);
 
@@ -612,4 +624,50 @@ class Translations {
   static String openedRate(String locale, int count) =>
       AppTranslations.getString('openedRate', locale: locale)
           .replaceAll('{count}', '$count');
+
+  static String unopened(String locale) =>
+      AppTranslations.getString('unopened', locale: locale);
+
+  static String openedTab(String locale) =>
+      AppTranslations.getString('openedTab', locale: locale);
+
+  static String markAsRead(String locale) =>
+      AppTranslations.getString('markAsRead', locale: locale);
+
+  static String deleteSelected(String locale) =>
+      AppTranslations.getString('deleteSelected', locale: locale);
+
+  static String selectAll(String locale) =>
+      AppTranslations.getString('selectAll', locale: locale);
+
+  static String markAllAsRead(String locale) =>
+      AppTranslations.getString('markAllAsRead', locale: locale);
+
+  static String selectedCount(String locale, int count) =>
+      AppTranslations.getString('selectedCount', locale: locale)
+          .replaceAll('{count}', '$count');
+
+  static String retry(String locale) =>
+      AppTranslations.getString('retry', locale: locale);
+
+  static String loadError(String locale) =>
+      AppTranslations.getString('loadError', locale: locale);
+
+  static String clearSearch(String locale) =>
+      AppTranslations.getString('clearSearch', locale: locale);
+
+  static String sortBy(String locale) =>
+      AppTranslations.getString('sortBy', locale: locale);
+
+  static String sortDateNewest(String locale) =>
+      AppTranslations.getString('sortDateNewest', locale: locale);
+
+  static String sortDateOldest(String locale) =>
+      AppTranslations.getString('sortDateOldest', locale: locale);
+
+  static String sortCategory(String locale) =>
+      AppTranslations.getString('sortCategory', locale: locale);
+
+  static String sortImportance(String locale) =>
+      AppTranslations.getString('sortImportance', locale: locale);
 }

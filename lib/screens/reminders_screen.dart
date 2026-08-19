@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../repositories/reminder_repository.dart';
 import '../repositories/free_time_repository.dart';
 import '../repositories/category_statistic_repository.dart';
@@ -13,6 +14,41 @@ import '../core/app_theme.dart';
 import '../core/constants.dart';
 import '../core/locale_manager.dart';
 import '../core/translations.dart';
+
+enum SortOption { dateNewest, dateOldest, category, importance }
+
+class _TabFilterState {
+  final TextEditingController searchController = TextEditingController();
+  String searchQuery = '';
+  String? selectedCategory;
+  String? selectedComplexity;
+  String? selectedImportance;
+  String? selectedDomain;
+  SortOption sort = SortOption.dateNewest;
+  final Set<int> selectedIds = {};
+
+  bool get hasActiveFilters =>
+      searchQuery.isNotEmpty ||
+      selectedCategory != null ||
+      selectedComplexity != null ||
+      selectedImportance != null ||
+      selectedDomain != null;
+
+  bool get hasSelection => selectedIds.isNotEmpty;
+
+  void clearFilters() {
+    searchQuery = '';
+    searchController.clear();
+    selectedCategory = null;
+    selectedComplexity = null;
+    selectedImportance = null;
+    selectedDomain = null;
+  }
+
+  void dispose() {
+    searchController.dispose();
+  }
+}
 
 class RemindersScreen extends StatefulWidget {
   final ReminderRepository reminderRepository;
@@ -38,39 +74,103 @@ class RemindersScreen extends StatefulWidget {
   State<RemindersScreen> createState() => _RemindersScreenState();
 }
 
-class _RemindersScreenState extends State<RemindersScreen> {
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
-  String? _selectedCategory;
-  String? _selectedComplexity;
-  String? _selectedImportance;
-  String? _selectedDomain;
+class _RemindersScreenState extends State<RemindersScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  final _unopenedTab = _TabFilterState();
+  final _openedTab = _TabFilterState();
+
   List<String> _availableCategories = [];
   List<String> _availableComplexities = [];
   List<String> _availableDomains = [];
-  List<Reminder> _allReminders = [];
-  bool _isLoading = true;
+
+  List<Reminder> _openedReminders = [];
+  List<Reminder> _unopenedReminders = [];
+
+  bool _isReady = false;
+  int _initialTabIndex = 0;
+
   bool _isSearchVisible = false;
+  bool _isSelectionMode = false;
+
+  bool _refreshingUnopened = false;
+  bool _refreshingOpened = false;
+  String? _unopenedError;
+  String? _openedError;
+
+  static const String _prefsTabIndex = 'reminders_tab_index';
+  static const int _tabCount = 2;
 
   String get _locale => LocaleManager.instance.getLocale();
+
+  _TabFilterState get _currentTab =>
+      _tabController.index == 0 ? _unopenedTab : _openedTab;
+
+  List<Reminder> get _currentSource =>
+      _tabController.index == 0 ? _unopenedReminders : _openedReminders;
 
   @override
   void initState() {
     super.initState();
-    _loadReminders();
+    _tabController = TabController(
+      length: _tabCount,
+      vsync: this,
+      initialIndex: 0,
+    );
+    _tabController.addListener(_onTabChanged);
     widget.pendingSharedUrl.addListener(_onPendingSharedUrlChanged);
     LocaleManager.instance.localeNotifier.addListener(_onLocaleChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showAiRescheduleErrorIfNeeded();
     });
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    int saved = 0;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      saved = prefs.getInt(_prefsTabIndex) ?? 0;
+    } catch (_) {
+      saved = 0;
+    }
+    if (saved < 0 || saved >= _tabCount) saved = 0;
+    _initialTabIndex = saved;
+    if (mounted && _tabController.index != _initialTabIndex) {
+      _tabController.index = _initialTabIndex;
+    }
+    _loadInitialData();
+    if (mounted) setState(() => _isReady = true);
   }
 
   @override
   void dispose() {
     widget.pendingSharedUrl.removeListener(_onPendingSharedUrlChanged);
     LocaleManager.instance.localeNotifier.removeListener(_onLocaleChanged);
-    _searchController.dispose();
+    _tabController.removeListener(_onTabChanged);
+    _tabController.dispose();
+    _unopenedTab.dispose();
+    _openedTab.dispose();
     super.dispose();
+  }
+
+  Future<void> _saveTabIndex(int index) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_prefsTabIndex, index);
+    } catch (_) {
+      // Ignore persistence failures; non-critical.
+    }
+  }
+
+  void _onTabChanged() {
+    if (!_tabController.indexIsChanging) {
+      final index = _tabController.index;
+      _saveTabIndex(index);
+      _clearSelection();
+      if (mounted) setState(() {});
+    }
   }
 
   void _onLocaleChanged() {
@@ -97,41 +197,58 @@ class _RemindersScreenState extends State<RemindersScreen> {
     }
   }
 
-  bool get _hasActiveFilters =>
-      _searchQuery.isNotEmpty ||
-      _selectedCategory != null ||
-      _selectedComplexity != null ||
-      _selectedImportance != null ||
-      _selectedDomain != null;
-
-  List<Reminder> get _filteredReminders {
-    return _allReminders.where((reminder) {
-      if (_searchQuery.isNotEmpty) {
-        final query = _searchQuery.toLowerCase();
-        final titleMatch =
-            reminder.title.toLowerCase().contains(query);
+  List<Reminder> _applyFiltersAndSort(
+    List<Reminder> source,
+    _TabFilterState tab,
+  ) {
+    final query = tab.searchQuery.toLowerCase();
+    final result = source.where((reminder) {
+      if (tab.searchQuery.isNotEmpty) {
+        final titleMatch = reminder.title.toLowerCase().contains(query);
         final descMatch =
             reminder.description?.toLowerCase().contains(query) ?? false;
         if (!titleMatch && !descMatch) return false;
       }
-      if (_selectedCategory != null &&
-          reminder.categoryEn != _selectedCategory) {
+      if (tab.selectedCategory != null &&
+          reminder.categoryEn != tab.selectedCategory) {
         return false;
       }
-      if (_selectedComplexity != null &&
-          reminder.complexityEn != _selectedComplexity) {
+      if (tab.selectedComplexity != null &&
+          reminder.complexityEn != tab.selectedComplexity) {
         return false;
       }
-      if (_selectedImportance != null &&
-          reminder.importance != _selectedImportance) {
+      if (tab.selectedImportance != null &&
+          reminder.importance != tab.selectedImportance) {
         return false;
       }
-      if (_selectedDomain != null &&
-          _extractDomain(reminder.url) != _selectedDomain) {
+      if (tab.selectedDomain != null &&
+          _extractDomain(reminder.url) != tab.selectedDomain) {
         return false;
       }
       return true;
     }).toList();
+
+    switch (tab.sort) {
+      case SortOption.dateNewest:
+        result.sort((a, b) => b.scheduledAt.compareTo(a.scheduledAt));
+        break;
+      case SortOption.dateOldest:
+        result.sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+        break;
+      case SortOption.category:
+        result.sort(
+          (a, b) => (a.categoryEn ?? '').compareTo(b.categoryEn ?? ''),
+        );
+        break;
+      case SortOption.importance:
+        const order = {'Day': 0, 'Week': 1, 'Month': 2};
+        result.sort(
+          (a, b) =>
+              (order[a.importance] ?? 99).compareTo(order[b.importance] ?? 99),
+        );
+        break;
+    }
+    return result;
   }
 
   void _showResult(bool success, String message) {
@@ -155,14 +272,52 @@ class _RemindersScreenState extends State<RemindersScreen> {
     }
   }
 
-  void _loadReminders() {
-    final unread = widget.reminderRepository.getUnread();
-    final read = widget.reminderRepository.getRead();
-    setState(() {
-      _allReminders = [...unread, ...read];
-      _isLoading = false;
-    });
-    _loadFilterOptions();
+  void _loadInitialData() {
+    try {
+      _unopenedReminders = widget.reminderRepository.getUnread();
+      _openedReminders = widget.reminderRepository.getRead();
+      _unopenedError = null;
+      _openedError = null;
+      _loadFilterOptions();
+    } catch (e) {
+      _unopenedError = e.toString();
+      _openedError = e.toString();
+    }
+  }
+
+  Future<void> _refreshTab(bool isOpened) async {
+    final refreshing =
+        isOpened ? _refreshingOpened : _refreshingUnopened;
+    if (refreshing) return;
+    if (isOpened) {
+      _refreshingOpened = true;
+    } else {
+      _refreshingUnopened = true;
+    }
+    if (mounted) setState(() {});
+    try {
+      if (isOpened) {
+        _openedReminders = widget.reminderRepository.getRead();
+        _openedError = null;
+      } else {
+        _unopenedReminders = widget.reminderRepository.getUnread();
+        _unopenedError = null;
+      }
+      _loadFilterOptions();
+    } catch (e) {
+      if (isOpened) {
+        _openedError = e.toString();
+      } else {
+        _unopenedError = e.toString();
+      }
+    } finally {
+      if (isOpened) {
+        _refreshingOpened = false;
+      } else {
+        _refreshingUnopened = false;
+      }
+      if (mounted) setState(() {});
+    }
   }
 
   void _loadFilterOptions() {
@@ -207,17 +362,6 @@ class _RemindersScreenState extends State<RemindersScreen> {
     }
   }
 
-  void _clearFilters() {
-    setState(() {
-      _searchQuery = '';
-      _selectedCategory = null;
-      _selectedComplexity = null;
-      _selectedImportance = null;
-      _selectedDomain = null;
-      _searchController.clear();
-    });
-  }
-
   void _openSaveSheet({String? initialUrl}) {
     showModalBottomSheet(
       context: context,
@@ -230,7 +374,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
         categoryStatRepository: widget.categoryStatRepository,
         notificationService: widget.notificationService,
         aiService: widget.aiService,
-        onSaved: _loadReminders,
+        onSaved: () => _loadRemindersAndSync(),
       ),
     );
   }
@@ -335,7 +479,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
             ),
           );
-          _loadReminders();
+          _loadRemindersAndSync();
         }
       }
     } catch (e) {
@@ -381,11 +525,117 @@ class _RemindersScreenState extends State<RemindersScreen> {
     if (confirm == true) {
       await widget.notificationService.cancelReminder(reminder.id);
       widget.reminderRepository.delete(reminder.id);
-      _loadReminders();
+      _loadRemindersAndSync();
+    }
+  }
+
+  void _loadRemindersAndSync() {
+    _loadInitialData();
+    if (mounted) setState(() {});
+  }
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _isSelectionMode = !_isSelectionMode;
+      if (!_isSelectionMode) _clearSelection();
+    });
+  }
+
+  void _enterSelection(Reminder reminder, bool isOpened) {
+    setState(() {
+      _isSelectionMode = true;
+      final selectedIds =
+          isOpened ? _openedTab.selectedIds : _unopenedTab.selectedIds;
+      selectedIds.add(reminder.id);
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _unopenedTab.selectedIds.clear();
+      _openedTab.selectedIds.clear();
+    });
+  }
+
+  void _toggleReminderSelection(int id, bool isOpened) {
+    setState(() {
+      final selectedIds =
+          isOpened ? _openedTab.selectedIds : _unopenedTab.selectedIds;
+      if (selectedIds.contains(id)) {
+        selectedIds.remove(id);
+      } else {
+        selectedIds.add(id);
+      }
+    });
+  }
+
+  void _selectAll() {
+    final tab = _currentTab;
+    final source = _applyFiltersAndSort(_currentSource, tab);
+    setState(() {
+      tab.selectedIds
+        ..clear()
+        ..addAll(source.map((r) => r.id));
+    });
+  }
+
+  Future<void> _markSelectedAsRead() async {
+    final ids = List<int>.from(_currentTab.selectedIds);
+    if (ids.isEmpty) return;
+    try {
+      for (final id in ids) {
+        final reminder = widget.reminderRepository.getById(id);
+        if (reminder != null && !reminder.isOpened) {
+          reminder.isOpened = true;
+          reminder.openedAt = DateTime.now();
+          widget.reminderRepository.save(reminder);
+          widget.categoryStatRepository.recordOpened(reminder);
+        }
+      }
+      _clearSelection();
+      _loadRemindersAndSync();
+      if (mounted) _showResult(true, Translations.markAsRead(_locale));
+    } catch (e) {
+      if (mounted) _showResult(false, 'Error: $e');
+    }
+  }
+
+  Future<void> _markAllAsRead() async {
+    try {
+      for (final reminder in _currentSource) {
+        if (!reminder.isOpened) {
+          reminder.isOpened = true;
+          reminder.openedAt = DateTime.now();
+          widget.reminderRepository.save(reminder);
+          widget.categoryStatRepository.recordOpened(reminder);
+        }
+      }
+      _clearSelection();
+      _loadRemindersAndSync();
+      if (mounted) _showResult(true, Translations.markAllAsRead(_locale));
+    } catch (e) {
+      if (mounted) _showResult(false, 'Error: $e');
+    }
+  }
+
+  Future<void> _deleteSelected() async {
+    final ids = List<int>.from(_currentTab.selectedIds);
+    if (ids.isEmpty) return;
+    try {
+      for (final id in ids) {
+        await widget.notificationService.cancelReminder(id);
+        widget.reminderRepository.delete(id);
+      }
+      _clearSelection();
+      _loadRemindersAndSync();
+      if (mounted) _showResult(true, Translations.deleteSelected(_locale));
+    } catch (e) {
+      if (mounted) _showResult(false, 'Error: $e');
     }
   }
 
   void _showFilterBottomSheet() {
+    final tab = _currentTab;
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.whiteBackground,
@@ -409,10 +659,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
                             color: AppColors.whiteTextPrimary,
                           ),
                     ),
-                    if (_hasActiveFilters)
+                    if (tab.hasActiveFilters)
                       TextButton(
                         onPressed: () {
-                          _clearFilters();
+                          setState(() => tab.clearFilters());
                           Navigator.pop(context);
                         },
                         child: Text(
@@ -437,18 +687,18 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   children: [
                     _buildFilterChip(
                       label: Translations.all(_locale),
-                      isSelected: _selectedCategory == null,
+                      isSelected: tab.selectedCategory == null,
                       onSelected: () {
-                        setModalState(() => _selectedCategory = null);
+                        setModalState(() => tab.selectedCategory = null);
                         setState(() {});
                       },
                     ),
                     ..._availableCategories.map(
                       (cat) => _buildFilterChip(
                         label: cat,
-                        isSelected: _selectedCategory == cat,
+                        isSelected: tab.selectedCategory == cat,
                         onSelected: () {
-                          setModalState(() => _selectedCategory = cat);
+                          setModalState(() => tab.selectedCategory = cat);
                           setState(() {});
                         },
                       ),
@@ -470,9 +720,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   children: [
                     _buildFilterChip(
                       label: Translations.all(_locale),
-                      isSelected: _selectedComplexity == null,
+                      isSelected: tab.selectedComplexity == null,
                       onSelected: () {
-                        setModalState(() => _selectedComplexity = null);
+                        setModalState(() => tab.selectedComplexity = null);
                         setState(() {});
                       },
                     ),
@@ -483,9 +733,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
                           null,
                           null,
                         ),
-                        isSelected: _selectedComplexity == comp,
+                        isSelected: tab.selectedComplexity == comp,
                         onSelected: () {
-                          setModalState(() => _selectedComplexity = comp);
+                          setModalState(() => tab.selectedComplexity = comp);
                           setState(() {});
                         },
                       ),
@@ -507,33 +757,33 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   children: [
                     _buildFilterChip(
                       label: Translations.all(_locale),
-                      isSelected: _selectedImportance == null,
+                      isSelected: tab.selectedImportance == null,
                       onSelected: () {
-                        setModalState(() => _selectedImportance = null);
+                        setModalState(() => tab.selectedImportance = null);
                         setState(() {});
                       },
                     ),
                     _buildFilterChip(
                       label: Translations.importanceDay(_locale),
-                      isSelected: _selectedImportance == 'Day',
+                      isSelected: tab.selectedImportance == 'Day',
                       onSelected: () {
-                        setModalState(() => _selectedImportance = 'Day');
+                        setModalState(() => tab.selectedImportance = 'Day');
                         setState(() {});
                       },
                     ),
                     _buildFilterChip(
                       label: Translations.importanceWeek(_locale),
-                      isSelected: _selectedImportance == 'Week',
+                      isSelected: tab.selectedImportance == 'Week',
                       onSelected: () {
-                        setModalState(() => _selectedImportance = 'Week');
+                        setModalState(() => tab.selectedImportance = 'Week');
                         setState(() {});
                       },
                     ),
                     _buildFilterChip(
                       label: Translations.importanceMonth(_locale),
-                      isSelected: _selectedImportance == 'Month',
+                      isSelected: tab.selectedImportance == 'Month',
                       onSelected: () {
-                        setModalState(() => _selectedImportance = 'Month');
+                        setModalState(() => tab.selectedImportance = 'Month');
                         setState(() {});
                       },
                     ),
@@ -547,8 +797,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.whiteAccent,
                       foregroundColor: AppColors.whiteBackground,
-                      padding:
-                          const EdgeInsets.symmetric(vertical: 14),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.zero,
                       ),
@@ -602,6 +851,17 @@ class _RemindersScreenState extends State<RemindersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_isReady) {
+      return const Scaffold(
+        backgroundColor: AppColors.whiteBackground,
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.whiteAccent),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.whiteBackground,
       appBar: AppBar(
@@ -610,26 +870,40 @@ class _RemindersScreenState extends State<RemindersScreen> {
         scrolledUnderElevation: 0,
         title: _isSearchVisible
             ? _buildAnimatedSearchField()
-            : Row(
-                children: [
-                  Image.asset(
-                    'assets/images/app_icon.png',
-                    width: 32,
-                    height: 32,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    Translations.appName(_locale),
+            : _isSelectionMode
+                ? Text(
+                    Translations.selectedCount(
+                      _locale,
+                      _currentTab.selectedIds.length,
+                    ),
                     style: Theme.of(context).appBarTheme.titleTextStyle,
+                  )
+                : Row(
+                    children: [
+                      Image.asset(
+                        'assets/images/app_icon.png',
+                        width: 32,
+                        height: 32,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        Translations.appName(_locale),
+                        style: Theme.of(context).appBarTheme.titleTextStyle,
+                      ),
+                    ],
                   ),
-                ],
-              ),
         actions: [
-          if (!_isSearchVisible) ...[
+          if (_isSelectionMode) ...[
+            IconButton(
+              icon: const Icon(Icons.close, color: AppColors.whiteTextSecondary),
+              onPressed: _toggleSelectionMode,
+              tooltip: Translations.cancel(_locale),
+            ),
+          ] else ...[
             IconButton(
               icon: Icon(
                 Icons.search_rounded,
-                color: _hasActiveFilters
+                color: _currentTab.hasActiveFilters
                     ? AppColors.whiteAccent
                     : AppColors.whiteTextSecondary,
               ),
@@ -640,11 +914,19 @@ class _RemindersScreenState extends State<RemindersScreen> {
             IconButton(
               icon: Icon(
                 Icons.tune_rounded,
-                color: _hasActiveFilters
+                color: _currentTab.hasActiveFilters
                     ? AppColors.whiteAccent
                     : AppColors.whiteTextSecondary,
               ),
               onPressed: _showFilterBottomSheet,
+            ),
+            IconButton(
+              icon: const Icon(
+                Icons.checklist_rounded,
+                color: AppColors.whiteTextSecondary,
+              ),
+              onPressed: _toggleSelectionMode,
+              tooltip: Translations.selectAll(_locale),
             ),
             IconButton(
               icon: const Icon(
@@ -655,19 +937,59 @@ class _RemindersScreenState extends State<RemindersScreen> {
             ),
           ],
         ],
-      ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.whiteAccent),
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: AppColors.whiteAccent,
+          labelColor: AppColors.whiteTextPrimary,
+          unselectedLabelColor: AppColors.whiteTextSecondary,
+          tabs: [
+            Tab(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      Translations.unopened(_locale),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  _buildCountBadge(_unopenedReminders.length),
+                ],
               ),
-            )
-          : Column(
+            ),
+            Tab(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      Translations.openedTab(_locale),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  _buildCountBadge(_openedReminders.length),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
               children: [
-                _buildFilterChips(),
-                Expanded(child: _buildReminderList()),
+                _buildTabContent(isOpened: false),
+                _buildTabContent(isOpened: true),
               ],
             ),
+          ),
+          if (_isSelectionMode) _buildBatchActionBar(),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openSaveSheet(),
         backgroundColor: AppColors.whiteAccent,
@@ -677,67 +999,225 @@ class _RemindersScreenState extends State<RemindersScreen> {
     );
   }
 
+  Widget _buildCountBadge(int count) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.whiteTextSecondary.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.zero,
+      ),
+      child: Text(
+        '$count',
+        style: TextStyle(
+          color: AppColors.whiteTextSecondary,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBatchActionBar() {
+    final tab = _currentTab;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.whiteSurface,
+        border: Border(
+          top: BorderSide(color: AppColors.whiteBorder),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.whiteShadow,
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                Translations.selectedCount(_locale, tab.selectedIds.length),
+                style: TextStyle(
+                  color: AppColors.whiteTextPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.select_all, color: AppColors.whiteAccent),
+              onPressed: _selectAll,
+              tooltip: Translations.selectAll(_locale),
+            ),
+            IconButton(
+              icon: const Icon(Icons.check_circle, color: AppColors.accent),
+              onPressed: tab.hasSelection ? _markSelectedAsRead : null,
+              tooltip: Translations.markAsRead(_locale),
+            ),
+            IconButton(
+              icon: const Icon(Icons.done_all, color: AppColors.accent),
+              onPressed: _markAllAsRead,
+              tooltip: Translations.markAllAsRead(_locale),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete, color: AppColors.error),
+              onPressed: tab.hasSelection ? _deleteSelected : null,
+              tooltip: Translations.deleteSelected(_locale),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildAnimatedSearchField() {
+    final tab = _currentTab;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
       width: _isSearchVisible ? null : 0,
-      child: _isSearchVisible
-          ? Container(
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.whiteSurface,
-                borderRadius: BorderRadius.zero,
-              ),
-              child: TextField(
-                controller: _searchController,
-                autofocus: true,
-                onChanged: (value) {
-                  setState(() => _searchQuery = value);
-                },
-                style: TextStyle(color: AppColors.whiteTextPrimary),
-                decoration: InputDecoration(
-                  hintText: Translations.searchPosts(_locale),
-                  hintStyle: TextStyle(color: AppColors.whiteTextSecondary),
-                  prefixIcon: const Icon(
-                    Icons.search,
-                    color: AppColors.whiteTextSecondary,
+      child: Container(
+        height: 44,
+        decoration: BoxDecoration(
+          color: AppColors.whiteSurface,
+          borderRadius: BorderRadius.zero,
+        ),
+        child: TextField(
+          controller: tab.searchController,
+          autofocus: true,
+          onChanged: (value) {
+            setState(() => tab.searchQuery = value);
+          },
+          style: TextStyle(color: AppColors.whiteTextPrimary),
+          decoration: InputDecoration(
+            hintText: Translations.searchPosts(_locale),
+            hintStyle: TextStyle(color: AppColors.whiteTextSecondary),
+            prefixIcon: const Icon(
+              Icons.search,
+              color: AppColors.whiteTextSecondary,
+            ),
+            suffixIcon: tab.searchQuery.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(
+                      Icons.clear,
+                      color: AppColors.whiteTextSecondary,
+                    ),
+                    onPressed: () {
+                      tab.clearFilters();
+                      setState(() {});
+                    },
+                  )
+                : IconButton(
+                    icon: const Icon(
+                      Icons.close,
+                      color: AppColors.whiteTextSecondary,
+                    ),
+                    onPressed: () {
+                      tab.clearFilters();
+                      setState(() => _isSearchVisible = false);
+                    },
                   ),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(
-                            Icons.clear,
-                            color: AppColors.whiteTextSecondary,
-                          ),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() => _searchQuery = '');
-                          },
-                        )
-                      : IconButton(
-                          icon: const Icon(
-                            Icons.close,
-                            color: AppColors.whiteTextSecondary,
-                          ),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {
-                              _searchQuery = '';
-                              _isSearchVisible = false;
-                            });
-                          },
-                        ),
-                  border: InputBorder.none,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-              ),
-            )
-          : const SizedBox.shrink(),
+            border: InputBorder.none,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildFilterChips() {
+  Widget _buildTabContent({required bool isOpened}) {
+    final tab = isOpened ? _openedTab : _unopenedTab;
+    final source = isOpened ? _openedReminders : _unopenedReminders;
+    final error = isOpened ? _openedError : _unopenedError;
+    final reminders = _applyFiltersAndSort(source, tab);
+
+    return RefreshIndicator(
+      onRefresh: () => _refreshTab(isOpened),
+      color: AppColors.whiteAccent,
+      child: error != null
+          ? _buildTabErrorState(error, isOpened)
+          : CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(child: _buildTabFilterChips(tab, isOpened)),
+                SliverToBoxAdapter(child: _buildSortControl(tab, isOpened)),
+                if (reminders.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: _buildEmptyState(isOpened, tab),
+                  )
+                else
+                  _buildReminderList(reminders, isOpened, tab),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildTabErrorState(String error, bool isOpened) {
+    return CustomScrollView(
+      slivers: [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.error_outline_rounded,
+                    size: 48,
+                    color: AppColors.error,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    Translations.loadError(_locale),
+                    style: TextStyle(
+                      color: AppColors.whiteTextPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    error,
+                    style: TextStyle(
+                      color: AppColors.whiteTextSecondary,
+                      fontSize: 13,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton.icon(
+                    onPressed: () => _refreshTab(isOpened),
+                    icon: const Icon(Icons.refresh),
+                    label: Text(Translations.retry(_locale)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.whiteAccent,
+                      foregroundColor: AppColors.whiteBackground,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.zero,
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTabFilterChips(_TabFilterState tab, bool isOpened) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
@@ -755,7 +1235,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
           children: [
-            if (_hasActiveFilters)
+            if (tab.hasActiveFilters)
               Padding(
                 padding: const EdgeInsets.only(right: 10),
                 child: Container(
@@ -767,7 +1247,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
                     color: Colors.transparent,
                     child: InkWell(
                       borderRadius: BorderRadius.zero,
-                      onTap: _clearFilters,
+                      onTap: () {
+                        setState(() => tab.clearFilters());
+                      },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
@@ -798,33 +1280,89 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 ),
               ),
             _buildQuickFilterChip(
-              label:
-                  _selectedCategory ?? Translations.category(_locale),
-              isActive: _selectedCategory != null,
-              onTap: () => _showQuickFilterDialog('category'),
+              label: tab.selectedCategory ?? Translations.category(_locale),
+              isActive: tab.selectedCategory != null,
+              onTap: () => _showQuickFilterDialog('category', tab),
             ),
             const SizedBox(width: 10),
             _buildQuickFilterChip(
-              label: _selectedComplexity ?? Translations.complexity(_locale),
-              isActive: _selectedComplexity != null,
-              onTap: () => _showQuickFilterDialog('complexity'),
+              label: tab.selectedComplexity ?? Translations.complexity(_locale),
+              isActive: tab.selectedComplexity != null,
+              onTap: () => _showQuickFilterDialog('complexity', tab),
             ),
             const SizedBox(width: 10),
             _buildQuickFilterChip(
-              label: _selectedImportance ?? Translations.importance(_locale),
-              isActive: _selectedImportance != null,
-              onTap: () => _showQuickFilterDialog('importance'),
+              label: tab.selectedImportance ?? Translations.importance(_locale),
+              isActive: tab.selectedImportance != null,
+              onTap: () => _showQuickFilterDialog('importance', tab),
             ),
             if (_availableDomains.isNotEmpty) ...[
               const SizedBox(width: 10),
               _buildQuickFilterChip(
-                label: _selectedDomain ?? Translations.domain(_locale),
-                isActive: _selectedDomain != null,
-                onTap: () => _showQuickFilterDialog('domain'),
+                label: tab.selectedDomain ?? Translations.domain(_locale),
+                isActive: tab.selectedDomain != null,
+                onTap: () => _showQuickFilterDialog('domain', tab),
               ),
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSortControl(_TabFilterState tab, bool isOpened) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Icon(
+            Icons.sort,
+            size: 18,
+            color: AppColors.whiteTextSecondary,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            Translations.sortBy(_locale),
+            style: TextStyle(
+              color: AppColors.whiteTextSecondary,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(width: 8),
+          DropdownButton<SortOption>(
+            value: tab.sort,
+            underline: const SizedBox.shrink(),
+            dropdownColor: AppColors.whiteSurface,
+            iconEnabledColor: AppColors.whiteTextSecondary,
+            style: TextStyle(
+              color: AppColors.whiteTextPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+            items: [
+              DropdownMenuItem(
+                value: SortOption.dateNewest,
+                child: Text(Translations.sortDateNewest(_locale)),
+              ),
+              DropdownMenuItem(
+                value: SortOption.dateOldest,
+                child: Text(Translations.sortDateOldest(_locale)),
+              ),
+              DropdownMenuItem(
+                value: SortOption.category,
+                child: Text(Translations.sortCategory(_locale)),
+              ),
+              DropdownMenuItem(
+                value: SortOption.importance,
+                child: Text(Translations.sortImportance(_locale)),
+              ),
+            ],
+            onChanged: (value) {
+              if (value != null) setState(() => tab.sort = value);
+            },
+          ),
+        ],
       ),
     );
   }
@@ -861,8 +1399,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                     color: isActive
                         ? AppColors.accent
                         : AppColors.whiteTextSecondary,
-                    fontWeight:
-                        isActive ? FontWeight.w600 : FontWeight.w500,
+                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
                     fontSize: 13,
                   ),
                 ),
@@ -882,7 +1419,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
     );
   }
 
-  void _showQuickFilterDialog(String type) {
+  void _showQuickFilterDialog(String type, _TabFilterState tab) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.whiteBackground,
@@ -918,15 +1455,15 @@ class _RemindersScreenState extends State<RemindersScreen> {
                         title: Text(Translations.all(_locale)),
                         leading: Radio<String?>(
                           value: null,
-                          groupValue: _selectedCategory,
+                          groupValue: tab.selectedCategory,
                           activeColor: AppColors.whiteAccent,
                           onChanged: (v) {
-                            setState(() => _selectedCategory = v);
+                            setState(() => tab.selectedCategory = v);
                             Navigator.pop(context);
                           },
                         ),
                         onTap: () {
-                          setState(() => _selectedCategory = null);
+                          setState(() => tab.selectedCategory = null);
                           Navigator.pop(context);
                         },
                       ),
@@ -938,15 +1475,15 @@ class _RemindersScreenState extends State<RemindersScreen> {
                               title: Text(cat),
                               leading: Radio<String?>(
                                 value: cat,
-                                groupValue: _selectedCategory,
+                                groupValue: tab.selectedCategory,
                                 activeColor: AppColors.whiteAccent,
                                 onChanged: (v) {
-                                  setState(() => _selectedCategory = v);
+                                  setState(() => tab.selectedCategory = v);
                                   Navigator.pop(context);
                                 },
                               ),
                               onTap: () {
-                                setState(() => _selectedCategory = cat);
+                                setState(() => tab.selectedCategory = cat);
                                 Navigator.pop(context);
                               },
                             ),
@@ -963,15 +1500,15 @@ class _RemindersScreenState extends State<RemindersScreen> {
                         title: Text(Translations.all(_locale)),
                         leading: Radio<String?>(
                           value: null,
-                          groupValue: _selectedComplexity,
+                          groupValue: tab.selectedComplexity,
                           activeColor: AppColors.whiteAccent,
                           onChanged: (v) {
-                            setState(() => _selectedComplexity = v);
+                            setState(() => tab.selectedComplexity = v);
                             Navigator.pop(context);
                           },
                         ),
                         onTap: () {
-                          setState(() => _selectedComplexity = null);
+                          setState(() => tab.selectedComplexity = null);
                           Navigator.pop(context);
                         },
                       ),
@@ -989,15 +1526,15 @@ class _RemindersScreenState extends State<RemindersScreen> {
                               ),
                               leading: Radio<String?>(
                                 value: comp,
-                                groupValue: _selectedComplexity,
+                                groupValue: tab.selectedComplexity,
                                 activeColor: AppColors.whiteAccent,
                                 onChanged: (v) {
-                                  setState(() => _selectedComplexity = v);
+                                  setState(() => tab.selectedComplexity = v);
                                   Navigator.pop(context);
                                 },
                               ),
                               onTap: () {
-                                setState(() => _selectedComplexity = comp);
+                                setState(() => tab.selectedComplexity = comp);
                                 Navigator.pop(context);
                               },
                             ),
@@ -1014,15 +1551,15 @@ class _RemindersScreenState extends State<RemindersScreen> {
                         title: Text(Translations.all(_locale)),
                         leading: Radio<String?>(
                           value: null,
-                          groupValue: _selectedDomain,
+                          groupValue: tab.selectedDomain,
                           activeColor: AppColors.whiteAccent,
                           onChanged: (v) {
-                            setState(() => _selectedDomain = v);
+                            setState(() => tab.selectedDomain = v);
                             Navigator.pop(context);
                           },
                         ),
                         onTap: () {
-                          setState(() => _selectedDomain = null);
+                          setState(() => tab.selectedDomain = null);
                           Navigator.pop(context);
                         },
                       ),
@@ -1031,15 +1568,15 @@ class _RemindersScreenState extends State<RemindersScreen> {
                           title: Text(domain),
                           leading: Radio<String?>(
                             value: domain,
-                            groupValue: _selectedDomain,
+                            groupValue: tab.selectedDomain,
                             activeColor: AppColors.whiteAccent,
                             onChanged: (v) {
-                              setState(() => _selectedDomain = v);
+                              setState(() => tab.selectedDomain = v);
                               Navigator.pop(context);
                             },
                           ),
                           onTap: () {
-                            setState(() => _selectedDomain = domain);
+                            setState(() => tab.selectedDomain = domain);
                             Navigator.pop(context);
                           },
                         ),
@@ -1054,15 +1591,15 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       title: Text(Translations.all(_locale)),
                       leading: Radio<String?>(
                         value: null,
-                        groupValue: _selectedImportance,
+                        groupValue: tab.selectedImportance,
                         activeColor: AppColors.whiteAccent,
                         onChanged: (v) {
-                          setState(() => _selectedImportance = v);
+                          setState(() => tab.selectedImportance = v);
                           Navigator.pop(context);
                         },
                       ),
                       onTap: () {
-                        setState(() => _selectedImportance = null);
+                        setState(() => tab.selectedImportance = null);
                         Navigator.pop(context);
                       },
                     ),
@@ -1070,15 +1607,15 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       title: Text(Translations.importanceDay(_locale)),
                       leading: Radio<String?>(
                         value: 'Day',
-                        groupValue: _selectedImportance,
+                        groupValue: tab.selectedImportance,
                         activeColor: AppColors.whiteAccent,
                         onChanged: (v) {
-                          setState(() => _selectedImportance = v);
+                          setState(() => tab.selectedImportance = v);
                           Navigator.pop(context);
                         },
                       ),
                       onTap: () {
-                        setState(() => _selectedImportance = 'Day');
+                        setState(() => tab.selectedImportance = 'Day');
                         Navigator.pop(context);
                       },
                     ),
@@ -1086,15 +1623,15 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       title: Text(Translations.importanceWeek(_locale)),
                       leading: Radio<String?>(
                         value: 'Week',
-                        groupValue: _selectedImportance,
+                        groupValue: tab.selectedImportance,
                         activeColor: AppColors.whiteAccent,
                         onChanged: (v) {
-                          setState(() => _selectedImportance = v);
+                          setState(() => tab.selectedImportance = v);
                           Navigator.pop(context);
                         },
                       ),
                       onTap: () {
-                        setState(() => _selectedImportance = 'Week');
+                        setState(() => tab.selectedImportance = 'Week');
                         Navigator.pop(context);
                       },
                     ),
@@ -1102,15 +1639,15 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       title: Text(Translations.importanceMonth(_locale)),
                       leading: Radio<String?>(
                         value: 'Month',
-                        groupValue: _selectedImportance,
+                        groupValue: tab.selectedImportance,
                         activeColor: AppColors.whiteAccent,
                         onChanged: (v) {
-                          setState(() => _selectedImportance = v);
+                          setState(() => tab.selectedImportance = v);
                           Navigator.pop(context);
                         },
                       ),
                       onTap: () {
-                        setState(() => _selectedImportance = 'Month');
+                        setState(() => tab.selectedImportance = 'Month');
                         Navigator.pop(context);
                       },
                     ),
@@ -1123,48 +1660,60 @@ class _RemindersScreenState extends State<RemindersScreen> {
     );
   }
 
-  Widget _buildReminderList() {
-    final reminders = _filteredReminders;
-
-    if (reminders.isEmpty) {
-      if (_hasActiveFilters) {
-        return EmptyState(
-          icon: Icons.search_off_rounded,
-          title: Translations.noResultsFound(_locale),
-          subtitle: Translations.noResultsSubtitle(_locale),
-        );
-      }
+  Widget _buildEmptyState(bool isOpened, _TabFilterState tab) {
+    if (tab.hasActiveFilters) {
       return EmptyState(
-        icon: Icons.bookmark_add_outlined,
-        title: Translations.noSavedPosts(_locale),
-        subtitle: Translations.noSavedPostsSubtitle(_locale),
-        onAction: () => _openSaveSheet(),
-        actionLabel: Translations.savePost(_locale),
+        icon: Icons.search_off_rounded,
+        title: Translations.noResultsFound(_locale),
+        subtitle: Translations.noResultsSubtitle(_locale),
+        onAction: () => setState(() => tab.clearFilters()),
+        actionLabel: Translations.clearSearch(_locale),
       );
     }
+    if (isOpened) {
+      return EmptyState(
+        icon: Icons.visibility_outlined,
+        title: Translations.noOpenedPosts(_locale),
+        subtitle: Translations.noOpenedSubtitle(_locale),
+      );
+    }
+    return EmptyState(
+      icon: Icons.bookmark_add_outlined,
+      title: Translations.noUnopenedPosts(_locale),
+      subtitle: Translations.noUnopenedSubtitle(_locale),
+      onAction: () => _openSaveSheet(),
+      actionLabel: Translations.savePost(_locale),
+    );
+  }
 
-    return RefreshIndicator(
-      onRefresh: () async => _loadReminders(),
-      color: AppColors.whiteAccent,
-      child: ListView.builder(
-        padding: const EdgeInsets.only(top: 12, bottom: 80),
-        itemCount: reminders.length,
-        itemBuilder: (context, index) {
+  Widget _buildReminderList(
+    List<Reminder> reminders,
+    bool isOpened,
+    _TabFilterState tab,
+  ) {
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
           final reminder = reminders[index];
+          final isSelected = tab.selectedIds.contains(reminder.id);
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            child: GestureDetector(
-              onLongPress: () => _showContextMenu(reminder),
-              child: Hero(
-                tag: 'reminder-${reminder.id}',
-                child: ModernReminderCard(
-                  reminder: reminder,
-                  onTap: () => context.push('/post/${reminder.id}'),
-                ),
-              ),
+            child: ModernReminderCard(
+              reminder: reminder,
+              inSelectionMode: _isSelectionMode,
+              isSelected: isSelected,
+              onSelectionToggle: () =>
+                  _toggleReminderSelection(reminder.id, isOpened),
+              onTap: _isSelectionMode
+                  ? null
+                  : () => context.push('/post/${reminder.id}'),
+              onLongPress: _isSelectionMode
+                  ? null
+                  : () => _enterSelection(reminder, isOpened),
             ),
           );
         },
+        childCount: reminders.length,
       ),
     );
   }
