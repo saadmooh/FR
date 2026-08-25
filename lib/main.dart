@@ -15,6 +15,7 @@ import 'core/app_theme.dart';
 import 'core/app_router.dart';
 import 'core/constants.dart';
 import 'core/locale_manager.dart';
+import 'core/ui_messenger.dart';
 import 'repositories/reminder_repository.dart';
 import 'repositories/free_time_repository.dart';
 import 'repositories/category_statistic_repository.dart';
@@ -42,8 +43,8 @@ final ValueNotifier<String?> pendingSharedUrl = ValueNotifier<String?>(null);
 final ValueNotifier<String?> aiRescheduleError = ValueNotifier<String?>(null);
 final ValueNotifier<int> storeReopenSignal = ValueNotifier<int>(0);
 
-// Global scaffold messenger key for IntegritySnackBar
-final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+// Global scaffold messenger key for IntegritySnackBar and RC UI logs
+// (defined in core/ui_messenger.dart)
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -133,6 +134,13 @@ Future<void> _initApp() async {
     } catch (e) {
       debugPrint('Failed to restore Supabase session: $e');
     }
+  }
+
+  // Re-link RevenueCat identity when a saved session exists on cold start,
+  // so returning subscribers are recognized without a new sign-in.
+  final rcFirebaseUser = authService.currentUser;
+  if (rcFirebaseUser != null) {
+    await revenueCatService.linkToUser(rcFirebaseUser.uid);
   }
 
   // Initialize timezone
@@ -307,6 +315,11 @@ class _FlexReminderAppState extends State<FlexReminderApp> {
 
     // Listen to store reopen signals to rebuild with new router
     storeReopenSignal.addListener(_onStoreReopened);
+
+    // Show startup RC/UI logs that arrived before MaterialApp mounted
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      flushPendingUiLogs();
+    });
   }
 
   @override
@@ -335,6 +348,7 @@ class _FlexReminderAppState extends State<FlexReminderApp> {
       debugShowCheckedModeBanner: false,
       theme: buildWhiteTheme(),
       routerConfig: appRouter.router,
+      scaffoldMessengerKey: scaffoldMessengerKey,
       locale: LocaleManager.instance.currentAppLocale,
       supportedLocales: LocaleManager.supportedLocales,
     );

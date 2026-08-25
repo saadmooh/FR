@@ -4,6 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 import '../core/app_config.dart';
 import 'package:gotrue/gotrue.dart' show OAuthProvider;
+import 'revenuecat_service.dart';
 
 class AuthService {
   static final AuthService _instance = AuthService._internal();
@@ -39,6 +40,12 @@ class AuthService {
           await _auth.signInWithCredential(credential);
       final user = userCredential.user;
 
+      // Link RevenueCat identity to the real user right after auth succeeds,
+      // so purchases are never tied to a lost anonymous ID.
+      if (user != null) {
+        await RevenueCatService().linkToUser(user.uid);
+      }
+
       // Also sign into Supabase using Firebase ID token
       if (user != null && AppConfig.isSupabaseConfigured) {
         try {
@@ -64,6 +71,7 @@ class AuthService {
 
   Future<void> signOut() async {
     try {
+      await RevenueCatService().logout();
       await _googleSignIn.signOut();
       await _auth.signOut();
       if (AppConfig.isSupabaseConfigured) {

@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart';
-import '../services/revenuecat_service.dart';
 import '../core/app_theme.dart';
 import '../core/translations.dart';
 import '../core/locale_manager.dart';
-import 'paywall_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -23,12 +22,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final user = await AuthService().signInWithGoogle();
     setState(() => _isLoading = false);
     if (user != null && mounted) {
-      if (!RevenueCatService().isPremium) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const PaywallScreen()),
-        );
-      }
+      // Router redirect decides: premium -> '/', otherwise -> '/paywall'.
+      context.go('/');
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

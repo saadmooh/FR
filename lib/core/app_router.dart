@@ -7,6 +7,7 @@ import '../screens/statistics_screen.dart';
 import '../screens/free_times_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/login_screen.dart';
+import '../screens/paywall_screen.dart';
 import '../repositories/reminder_repository.dart';
 import '../repositories/free_time_repository.dart';
 import '../repositories/category_statistic_repository.dart';
@@ -47,13 +48,26 @@ class AppRouter {
   }) {
     router = GoRouter(
       initialLocation: '/',
+      refreshListenable: revenueCatService,
       redirect: (context, state) {
         final isLoggedIn = authService.isSignedIn;
+        final isPremium = revenueCatService.isPremium;
         final isOnLogin = state.matchedLocation == '/login';
-        if (!isLoggedIn && !isOnLogin) {
-          return '/login';
+        final isOnPaywall = state.matchedLocation == '/paywall';
+
+        // Layer 1: signed out -> only /login is reachable.
+        if (!isLoggedIn) {
+          return isOnLogin ? null : '/login';
         }
-        if (isLoggedIn && isOnLogin) {
+
+        // Layer 2: signed in without an active entitlement ->
+        // only /paywall is reachable.
+        if (!isPremium) {
+          return isOnPaywall ? null : '/paywall';
+        }
+
+        // Layer 3: paying user -> keep them out of login/paywall.
+        if (isOnLogin || isOnPaywall) {
           return '/';
         }
         return null;
@@ -63,6 +77,12 @@ class AppRouter {
           path: '/login',
           pageBuilder: (context, state) => const NoTransitionPage(
             child: LoginScreen(),
+          ),
+        ),
+        GoRoute(
+          path: '/paywall',
+          pageBuilder: (context, state) => const NoTransitionPage(
+            child: PaywallScreen(),
           ),
         ),
         ShellRoute(

@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import '../core/app_theme.dart';
+import '../core/constants.dart';
 import '../core/translations.dart';
 import '../core/locale_manager.dart';
+import '../services/revenuecat_service.dart';
 
 class PaywallScreen extends StatefulWidget {
   const PaywallScreen({super.key});
@@ -53,55 +57,75 @@ class _PaywallScreenState extends State<PaywallScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final customerInfo = (await Purchases.purchasePackage(_selectedPackage!)).customerInfo;
-      final isPremium =
-          customerInfo.entitlements.active['premium']?.isActive ?? false;
+      final customerInfo =
+          await RevenueCatService().purchasePackage(_selectedPackage!);
+      if (!mounted) return;
 
-      if (isPremium && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(Translations.premiumActivated(_locale)),
-            backgroundColor: AppColors.success,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-          ),
-        );
-        Navigator.pop(context, true);
+      final isPremium = customerInfo?.entitlements.active
+              .containsKey(AppConstants.premiumEntitlementId) ??
+          false;
+
+      if (isPremium) {
+        _showSuccessAndClose();
+      } else {
+        // Purchase went through but no active entitlement in the response —
+        // try restoring before reporting failure (no silent ignore).
+        await RevenueCatService().restoreAfterLogin();
+        if (!mounted) return;
+        if (RevenueCatService().isPremium) {
+          _showSuccessAndClose();
+        } else {
+          _showError(Translations.purchaseFailed(_locale));
+        }
+      }
+    } on PlatformException catch (e) {
+      final code = PurchasesErrorHelper.getErrorCode(e);
+      debugPrint('Purchase error ($code): $e');
+      if (mounted && code != PurchasesErrorCode.purchaseCancelledError) {
+        _showError(Translations.purchaseFailed(_locale));
       }
     } catch (e) {
       debugPrint('Purchase error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(Translations.purchaseFailed(_locale)),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-          ),
-        );
+        _showError(Translations.purchaseFailed(_locale));
       }
     }
 
-    setState(() => _isLoading = false);
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  void _showSuccessAndClose() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(Translations.premiumActivated(_locale)),
+        backgroundColor: AppColors.success,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      ),
+    );
+    context.go('/');
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      ),
+    );
   }
 
   Future<void> _restore() async {
     setState(() => _isLoading = true);
     try {
       final customerInfo = await Purchases.restorePurchases();
-      final isPremium =
-          customerInfo.entitlements.active['premium']?.isActive ?? false;
+      final isPremium = customerInfo.entitlements.active
+          .containsKey(AppConstants.premiumEntitlementId);
 
       if (isPremium && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(Translations.premiumActivated(_locale)),
-            backgroundColor: AppColors.success,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-          ),
-        );
-        Navigator.pop(context, true);
+        _showSuccessAndClose();
       }
     } catch (e) {
       debugPrint('Restore error: $e');
@@ -129,7 +153,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.close, color: AppColors.whiteTextPrimary),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => context.go('/'),
         ),
         title: Text(
           Translations.upgradeToPremium(_locale),
