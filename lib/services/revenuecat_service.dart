@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 
 import '../core/constants.dart';
 import '../core/ui_messenger.dart';
+import 'session_token_service.dart';
 
 class RevenueCatService extends ChangeNotifier {
   static final RevenueCatService _instance = RevenueCatService._internal();
@@ -17,6 +20,17 @@ class RevenueCatService extends ChangeNotifier {
 
   bool get isPremium => _isPremium;
   Offerings? get offerings => _offerings;
+
+  void _refreshSessionToken() {
+    if (!_isPremium) return;
+    unawaited(() async {
+      try {
+        await SessionTokenService.instance.refresh();
+      } catch (e) {
+        debugPrint('Session token refresh failed: $e');
+      }
+    }());
+  }
 
   Future<void> initialize() async {
     await Purchases.setLogLevel(LogLevel.debug);
@@ -81,6 +95,7 @@ class RevenueCatService extends ChangeNotifier {
       );
       showUiLog('RC Purchase OK | User: ${await Purchases.appUserID}');
       _updatePremiumStatus();
+      _refreshSessionToken();
       return _customerInfo;
     } catch (e) {
       debugPrint('Purchase error: $e');
@@ -114,6 +129,8 @@ class RevenueCatService extends ChangeNotifier {
       // (same Google Play account) and attach them to the real user.
       if (!_isPremium) {
         await restoreAfterLogin();
+      } else {
+        _refreshSessionToken();
       }
     } catch (e) {
       debugPrint('RevenueCat logIn failed: $e');
@@ -130,6 +147,7 @@ class RevenueCatService extends ChangeNotifier {
       );
       _customerInfo = restored;
       _updatePremiumStatus();
+      _refreshSessionToken();
     } catch (e) {
       debugPrint('Restore failed: $e');
     }
@@ -139,6 +157,7 @@ class RevenueCatService extends ChangeNotifier {
     try {
       _customerInfo = await Purchases.restorePurchases();
       _updatePremiumStatus();
+      _refreshSessionToken();
       return true;
     } catch (e) {
       debugPrint('Restore failed: $e');
@@ -155,6 +174,7 @@ class RevenueCatService extends ChangeNotifier {
       await Purchases.logOut();
       _customerInfo = null;
       _isPremium = false;
+      unawaited(SessionTokenService.instance.clear());
       debugPrint('RevenueCat logged out');
     } catch (e) {
       debugPrint('Logout failed: $e');

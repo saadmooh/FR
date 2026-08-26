@@ -11,9 +11,11 @@ import '../core/app_config.dart';
 import '../models/ai_proxy_response.dart';
 import '../models/integrity_diagnostic.dart';
 import 'integrity_service.dart';
+import 'session_token_service.dart';
 
 class AiProxyService {
   final IntegrityService _integrity;
+  final SessionTokenService _sessions = SessionTokenService.instance;
   final bool strictIntegrityCheck;
   final bool _isSupabaseAvailable;
   IntegrityDiagnostic? _lastIntegrityDiagnostic;
@@ -127,6 +129,24 @@ class AiProxyService {
         headers['X-Integrity-Token'] = integrityToken;
         headers['X-Request-Nonce'] = nonce;
       }
+      // Pro session token (issued by the session-token function after the
+      // RevenueCat webhook confirmed an active entitlement). Skipped for
+      // debug builds where strict checks are off — the server-side debug
+      // bypass covers it. A SUBSCRIPTION_NOT_ACTIVE failure here means the
+      // user has no active Pro row yet, which ai-proxy would reject anyway.
+      if (strictIntegrityCheck) {
+        try {
+          final sessionToken = await _sessions.getValidToken();
+          if (sessionToken != null) {
+            headers['X-Session-Token'] = sessionToken;
+          }
+        } on SessionTokenException catch (e) {
+          debugPrint('Session token unavailable: $e');
+          throw AiProxyException(e.status, e.code, e.message);
+        } catch (e) {
+          debugPrint('Session token refresh failed unexpectedly: $e');
+        }
+      }
       // Send debug build header to allow server-side bypass when strict check is off
       if (!strictIntegrityCheck) {
         headers['X-Debug-Build'] = 'true';
@@ -156,7 +176,20 @@ class AiProxyService {
           'استجابة غير صالحة من الخادم',
         );
       } on FunctionException catch (e) {
-        throw _mapHttpException(e);
+        final mapped = _mapHttpException(e);
+        // Expired/invalid session token: renew silently once and retry with a
+        // fresh attempt (fresh integrity token + nonce, since the previous
+        // nonce was consumed server-side).
+        if (attempt == 0 && mapped.code == 'SUBSCRIPTION_REQUIRED') {
+          try {
+            await _sessions.getValidToken(forceRefresh: true);
+            continue;
+          } catch (refreshError) {
+            debugPrint('Session token forced refresh failed: $refreshError');
+            throw mapped;
+          }
+        }
+        throw mapped;
       } on SocketException {
         if (attempt == 0) continue;
         throw const AiProxyException(
@@ -260,6 +293,12 @@ class AiProxyService {
           code,
           'فشل التحقق من التطبيق ($code): $message',
           diagnostic: diagnostic,
+        );
+      case 'SUBSCRIPTION_REQUIRED':
+        return const AiProxyException(
+          403,
+          'SUBSCRIPTION_REQUIRED',
+          'هذه الميزة متاحة لمشتركي Pro النشطين فقط',
         );
       case 'RATE_LIMIT_MINUTE':
         return const AiProxyException(

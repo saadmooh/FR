@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:google_sign_in/google_sign_in.dart';
@@ -40,32 +42,39 @@ class AuthService {
           await _auth.signInWithCredential(credential);
       final user = userCredential.user;
 
-      // Link RevenueCat identity to the real user right after auth succeeds,
-      // so purchases are never tied to a lost anonymous ID.
+      // RevenueCat linking + Supabase session sync run in the background so
+      // navigation is never blocked by slow network calls. The router picks
+      // up the premium status via revenueCatService's notifyListeners.
       if (user != null) {
-        await RevenueCatService().linkToUser(user.uid);
-      }
-
-      // Also sign into Supabase using Firebase ID token
-      if (user != null && AppConfig.isSupabaseConfigured) {
-        try {
-          final idToken = await user.getIdToken();
-          if (idToken != null) {
-            await supabase.Supabase.instance.client.auth.signInWithIdToken(
-              provider: const OAuthProvider('custom:firebase'),
-              idToken: idToken,
-            );
-            debugPrint('Supabase sign-in successful');
-          }
-        } catch (e) {
-          debugPrint('Supabase sign-in failed: $e');
-        }
+        unawaited(_postSignInSync(user));
       }
 
       return user;
     } catch (e) {
       debugPrint('Google sign-in failed: $e');
       return null;
+    }
+  }
+
+  Future<void> _postSignInSync(firebase_auth.User user) async {
+    try {
+      await RevenueCatService().linkToUser(user.uid);
+    } catch (e) {
+      debugPrint('RevenueCat link failed: $e');
+    }
+
+    if (!AppConfig.isSupabaseConfigured) return;
+    try {
+      final idToken = await user.getIdToken();
+      if (idToken != null) {
+        await supabase.Supabase.instance.client.auth.signInWithIdToken(
+          provider: const OAuthProvider('custom:firebase'),
+          idToken: idToken,
+        );
+        debugPrint('Supabase sign-in successful');
+      }
+    } catch (e) {
+      debugPrint('Supabase sign-in failed: $e');
     }
   }
 

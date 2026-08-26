@@ -128,7 +128,6 @@ class AppRouter {
         GoRoute(
           path: '/settings',
           builder: (context, state) => SettingsScreen(
-            aiService: aiService,
             settingsRepository: settingsRepository,
             authService: authService,
             revenueCatService: revenueCatService,

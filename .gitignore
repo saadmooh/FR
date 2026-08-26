@@ -55,3 +55,6 @@ supabase/.temp/
 flex-reminders-app-*.json
 *.jks
 !android/app/upload-keystore.jks
+
+# Local-only docs containing secret values
+docs/REVENUECAT_WEBHOOK_SETUP.md
