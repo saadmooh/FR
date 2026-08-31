@@ -1,4 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../core/api_credential_store.dart';
 import 'reminder_repository.dart';
 import 'free_time_repository.dart';
 
@@ -36,6 +38,9 @@ class AppSettingsRepository {
 
   Future<void> setApiKey(String key) async {
     await _prefs.setString(_apiKeyKey, key);
+    // Mirror into secure storage so background isolates can read it without
+    // passing the key through WorkManager inputData.
+    await ApiCredentialStore.saveApiKey(key);
   }
 
   String getProvider() {

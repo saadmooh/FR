@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
 import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -14,6 +13,8 @@ import '../repositories/app_settings_repository.dart';
 import '../repositories/reminder_repository.dart';
 import 'youtube_service.dart';
 import 'ai_service.dart';
+import 'local_timezone.dart';
+import 'notification_scheduler.dart';
 
 const String _monitoringTaskName = 'reminder_monitoring_task';
 
@@ -86,8 +87,8 @@ class NotificationService {
     // Request permissions
     await _requestPermissions();
 
-    // Initialize timezone
-    tz_data.initializeTimeZones();
+    // Initialize timezone (resolves the device's IANA zone, not UTC)
+    await initLocalTimeZone();
 
     _initialized = true;
   }
@@ -165,6 +166,14 @@ class NotificationService {
 
   void setAiService(AIService service) {
     _aiService = service;
+  }
+
+  void setReminderRepository(ReminderRepository repo) {
+    _reminderRepository = repo;
+  }
+
+  void setCategoryStatRepository(CategoryStatisticRepository repo) {
+    _categoryStatRepository = repo;
   }
 
   void setFreeTimeRepository(FreeTimeRepository repo) {
@@ -265,7 +274,8 @@ class NotificationService {
       await cancelReminder(reminder.id);
 
       // Use zonedSchedule to schedule for a specific time
-      await _plugin.zonedSchedule(
+      await zonedScheduleWithExactFallback(
+        plugin: _plugin,
         id: reminder.id,
         title: '📖 Time to read: ${reminder.title}',
         body:
@@ -291,7 +301,6 @@ class NotificationService {
             categoryIdentifier: 'REMINDER',
           ),
         ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         payload: reminder.id.toString(),
       );
 
@@ -530,18 +539,9 @@ class NotificationService {
   }
 
   String? _storeDirectoryPath;
-  String? _apiKey;
-  String _provider = 'google';
-  String _model = '';
 
   void setStoreDirectoryPath(String path) {
     _storeDirectoryPath = path;
-  }
-
-  void setAiConfig(String apiKey, String provider, String model) {
-    _apiKey = apiKey;
-    _provider = provider;
-    _model = model;
   }
 
   Future<void> _scheduleMonitoringWorkManager(Reminder reminder) async {
@@ -550,22 +550,20 @@ class NotificationService {
       await Workmanager().cancelByTag('reminder_${reminder.id}');
       final inputData = <String, String>{
         'reminderId': reminder.id.toString(),
-        'provider': _provider,
       };
       if (_storeDirectoryPath != null) {
         inputData['storeDirectory'] = _storeDirectoryPath!;
       }
-      if (_apiKey != null && _apiKey!.isNotEmpty) {
-        inputData['apiKey'] = _apiKey!;
-      }
-      if (_model.isNotEmpty) {
-        inputData['model'] = _model;
-      }
       final now = DateTime.now();
-      final monitoringDelay = reminder.scheduledAt.difference(now) + const Duration(minutes: 1);
+      var monitoringDelay = reminder.scheduledAt.difference(now) + const Duration(minutes: 1);
       if (monitoringDelay.isNegative) {
         debugPrint('Scheduled time already passed, skipping monitoring');
         return;
+      }
+      const minDelay = Duration(minutes: 15);
+      if (monitoringDelay < minDelay) {
+        debugPrint('initialDelay ${monitoringDelay.inMinutes}min < 15min, clamping to 15min');
+        monitoringDelay = minDelay;
       }
       await Workmanager().registerOneOffTask(
         'reminder_monitoring_${reminder.id}',
@@ -573,6 +571,7 @@ class NotificationService {
         initialDelay: monitoringDelay,
         inputData: inputData,
         tag: 'reminder_${reminder.id}',
+        existingWorkPolicy: ExistingWorkPolicy.replace,
       );
     } catch (e) {
       debugPrint('Failed to schedule monitoring WorkManager: $e');

@@ -241,6 +241,9 @@ class Translations {
   static String reminderUpdated(String locale) =>
       AppTranslations.getString('reminderUpdated', locale: locale);
 
+  static String scheduledTimeMustBeFuture(String locale) =>
+      AppTranslations.getString('scheduledTimeMustBeFuture', locale: locale);
+
   static String savePost(String locale) =>
       AppTranslations.getString('savePost', locale: locale);
 

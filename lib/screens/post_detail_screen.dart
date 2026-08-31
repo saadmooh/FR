@@ -162,6 +162,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
     try {
       final freeTimes = widget.freeTimeRepository.getAllAsJson();
+      final now = DateTime.now();
       final result = await widget.aiService.reschedulePost(
         previousAttemptsJson: '[]',
         category: _reminder!.categoryEn ?? 'Other',
@@ -170,6 +171,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         userFreeTimesJson: freeTimes.isNotEmpty
             ? '{"free_times": $freeTimes}'
             : null,
+        currentTime: now,
       );
       if (result['newTime'] != null && mounted) {
         _reminder!.scheduledAt = result['newTime'];

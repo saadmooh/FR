@@ -126,6 +126,7 @@ class AppTranslations {
     'aiRescheduleHint':
         'AI will find the optimal time based on your free times and the selected importance.',
     'reminderUpdated': 'Reminder updated successfully',
+    'scheduledTimeMustBeFuture': 'Scheduled time must be in the future',
 
     // Save Post Sheet
     'savePost': 'Save a Post',
@@ -386,6 +387,7 @@ class AppTranslations {
     'aiRescheduleHint':
         'سيجد الذكاء الاصطناعي الوقت الأمثل بناءً على أوقات فراغك والأهمية المحددة.',
     'reminderUpdated': 'تم تحديث التذكير بنجاح',
+    'scheduledTimeMustBeFuture': 'يجب أن يكون وقت التذكير في المستقبل',
 
     // Save Post Sheet
     'savePost': 'حفظ منشور',
@@ -647,6 +649,7 @@ class AppTranslations {
     'aiRescheduleHint':
         'L\'IA trouvera le moment optimal basé sur vos temps libres et l\'importance sélectionnée.',
     'reminderUpdated': 'Rappel mis à jour avec succès',
+    'scheduledTimeMustBeFuture': 'L\'heure programmée doit être dans le futur',
 
     // Save Post Sheet
     'savePost': 'Enregistrer une publication',

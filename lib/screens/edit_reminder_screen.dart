@@ -213,8 +213,20 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
   }
 
   Future<void> _saveChanges() async {
+    final newScheduledAt = _combinedDateTime;
+    final now = DateTime.now();
+
+    // Validate that scheduled time is in the future
+    if (!newScheduledAt.isAfter(now)) {
+      _showSnackBar(
+        Translations.scheduledTimeMustBeFuture(_locale),
+        isError: true,
+      );
+      return;
+    }
+
     final updatedReminder = widget.reminder;
-    updatedReminder.scheduledAt = _combinedDateTime;
+    updatedReminder.scheduledAt = newScheduledAt;
     updatedReminder.importance = _selectedImportance;
 
     widget.reminderRepository.save(updatedReminder);
@@ -226,7 +238,6 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
 
     if (mounted) {
       _showSnackBar(Translations.reminderUpdated(_locale));
-      Navigator.of(context).pop();
     }
   }
 

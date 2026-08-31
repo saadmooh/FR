@@ -89,6 +89,17 @@ class ReminderRepository {
     return results.where((r) => r.scheduledAt.isAfter(now)).toList();
   }
 
+  /// Returns all unread reminders (not opened), regardless of scheduled time.
+  /// Used for overdue detection.
+  List<Reminder> getAllUnread() {
+    final query = _box.query(Reminder_.isOpened.equals(false)).build();
+    final results = query.find();
+    query.close();
+    // Sort by scheduledAt ascending
+    results.sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+    return results;
+  }
+
   List<Reminder> getReminderHistory(int id) {
     final reminder = _box.get(id);
     if (reminder == null) return [];

@@ -1,113 +1,191 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:ui' show IsolateNameServer;
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:objectbox_flutter_libs/objectbox_flutter_libs.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:workmanager/workmanager.dart';
+import '../core/app_config.dart';
 import '../repositories/reminder_repository.dart';
 import '../repositories/free_time_repository.dart';
 import '../repositories/app_settings_repository.dart';
 import '../objectbox.g.dart';
-import 'ai_service.dart';
-import 'ai_proxy_service.dart';
+import '../services/ai_service.dart';
+import '../services/ai_proxy_service.dart';
+import '../services/ai_reschedule_parser.dart';
+import '../services/local_timezone.dart';
+import '../services/notification_scheduler.dart';
+import '../services/reschedule_lock_service.dart';
+import '../services/reschedule_policy.dart';
 
 const String _monitoringTaskName = 'reminder_monitoring_task';
 const String _notificationChannelId = 'flex_reminders_channel';
 const String _notificationChannelName = 'Smart Pocket';
 const String _notificationChannelDescription = 'Smart post reading reminders';
+const String _uiLogQueueKey = 'bg_ui_log_queue';
 
-Map<String, dynamic> _parseAiRescheduleResponse(String content) {
-  debugPrint('Parsing AI response: $content');
-  
-  if (content.isEmpty) {
-    throw Exception('AI returned empty response');
-  }
-  
-  String jsonStr = content;
-  if (content.contains('```')) {
-    final codeBlockMatch = RegExp(r'```(?:json)?\s*([\s\S]*?)```').firstMatch(content);
-    if (codeBlockMatch != null) {
-      jsonStr = codeBlockMatch.group(1) ?? content;
+bool _bgServicesInitialized = false;
+
+/// Sends a message to the main isolate for SnackBar display via IsolateNameServer.
+/// Falls back to SharedPreferences for cold start / resume scenarios.
+Future<void> _queueUiLog(String message) async {
+  final tagged = '[BG] $message';
+
+  // Primary: send directly to main isolate via SendPort (instant)
+  try {
+    final sendPort = IsolateNameServer.lookupPortByName('bg_log_port');
+    if (sendPort != null) {
+      sendPort.send(tagged);
+      debugPrint('[BG-PORT] Sent to main isolate: $message');
+    } else {
+      debugPrint('[BG-PORT] SendPort not found, falling back to SharedPreferences');
     }
+  } catch (e) {
+    debugPrint('[BG-PORT] Failed to send via port: $e');
   }
-  
-  final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(jsonStr);
-  if (jsonMatch != null) {
-    final data = json.decode(jsonMatch.group(0)!);
-    final newTime = DateTime.tryParse(data['new_time'] ?? '');
-    if (newTime == null) {
-      debugPrint('Failed to parse new_time: ${data['new_time']}');
-      throw Exception('Invalid new_time format: ${data['new_time']}');
+
+  // Fallback: also write to SharedPreferences (for cold start / resume)
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final existing = prefs.getStringList(_uiLogQueueKey) ?? [];
+    existing.add(tagged);
+    if (existing.length > 50) {
+      existing.removeRange(0, existing.length - 50);
     }
-    debugPrint('Successfully parsed newTime: $newTime, reason: ${data['reason']}');
-    return {
-      'newTime': newTime,
-      'reason': data['reason'] ?? '',
-    };
+    await prefs.setStringList(_uiLogQueueKey, existing);
+  } catch (e) {
+    debugPrint('[QUEUE-UI] SharedPreferences write failed: $e');
   }
-  throw Exception('No JSON found in response');
 }
 
-int _getMaxReschedules(String importance) {
-  switch (importance) {
-    case 'Day':
-      return 1;
-    case 'Week':
-      return 2;
-    case 'Month':
-      return 3;
-    default:
-      return 2;
+/// Helper to both debugPrint and queue for UI
+Future<void> _log(String message) async {
+  debugPrint(message);
+  await _queueUiLog(message);
+}
+
+/// Remote logging to Supabase debug_logs table for WorkManager diagnostics.
+/// This works independently of app state, SharedPreferences, or UI reopening.
+Future<void> _remoteLog(String event, {Map<String, dynamic>? details}) async {
+  try {
+    // Initialize Supabase if not already done in this isolate
+    final client = Supabase.instance.client;
+    final session = client.auth.currentSession;
+    if (session == null) {
+      await Supabase.initialize(
+        url: AppConfig.supabaseUrl,
+        publishableKey: AppConfig.supabaseAnonKey,
+      );
+    }
+    await Supabase.instance.client.from('debug_logs').insert([
+      {
+        'event': event,
+        'details': details ?? {},
+      },
+    ]);
+  } catch (e) {
+    // Swallow errors - this is diagnostic only, don't break the task
+    debugPrint('[RemoteLog] Failed: $e');
   }
+}
+
+Future<void> _initBackgroundServices() async {
+  // Required for SharedPreferences, Platform channels, and other Flutter bindings
+  // in this background isolate (WorkManager runs in a separate isolate).
+  // NOTE: WidgetsFlutterBinding.ensureInitialized() is already called in callbackDispatcher
+  // as the very first line, before any platform channel usage.
+
+  // Firebase is required for the Supabase session-restore fallback.
+  if (!_bgServicesInitialized) {
+    try {
+      await Firebase.initializeApp();
+      // Ensure auth state is loaded in this isolate before reading currentUser
+      await firebase_auth.FirebaseAuth.instance.authStateChanges().first;
+    } catch (_) {
+      // Already initialized or unavailable.
+    }
+  }
+
+  if (!AppConfig.isSupabaseConfigured) {
+    await _log('⚠️ [Supabase] Not configured (missing --dart-define)');
+    return;
+  }
+
+  if (!_bgServicesInitialized) {
+    try {
+      await Supabase.initialize(
+        url: AppConfig.supabaseUrl,
+        publishableKey: AppConfig.supabaseAnonKey,
+      );
+      await _log('✅ [Supabase] Initialized in background isolate');
+    } catch (e) {
+      await _log('⚠️ [Supabase] Init failed (may already be initialized): $e');
+    }
+  }
+
+  // Supabase Flutter restores the session from local storage on init. If that
+  // failed (box unavailable / expired), rebuild it from the Firebase user,
+  // mirroring main.dart's cold-start restore (main.dart:124-137).
+  try {
+    final client = Supabase.instance.client;
+    final existingSession = client.auth.currentSession;
+    final sessionExpired = existingSession != null &&
+        DateTime.fromMillisecondsSinceEpoch(existingSession.expiresAt! * 1000).isBefore(DateTime.now());
+
+    await _log('🔐 [Supabase] Session check: hasSession=${existingSession != null}, expired=$sessionExpired, userId=${existingSession?.user.id}');
+
+    if (existingSession == null || sessionExpired) {
+      await _log('🔄 [Supabase] Session missing/expired — attempting Firebase fallback...');
+      final firebaseUser = firebase_auth.FirebaseAuth.instance.currentUser;
+      await _log('👤 [Firebase] currentUser in isolate: ${firebaseUser != null ? "UID: ${firebaseUser.uid}" : "NULL"}');
+      
+      if (firebaseUser != null) {
+        final idToken = await firebaseUser.getIdToken();
+        if (idToken != null) {
+          await _log('🔑 [Firebase] Got ID token (length: ${idToken.length}), signing into Supabase...');
+          await client.auth.signInWithIdToken(
+            provider: OAuthProvider('custom:firebase'),
+            idToken: idToken,
+          );
+          await _log('✅ [Supabase] Session restored from Firebase successfully');
+          await _log('👤 [Supabase] New session user: ${client.auth.currentSession?.user.id}');
+        } else {
+          await _log('❌ [Firebase] Failed to get ID token');
+        }
+      } else {
+        await _log('❌ [Firebase] No Firebase user in this isolate — cannot restore Supabase session');
+      }
+    } else {
+      await _log('✅ [Supabase] Session already valid, no restore needed');
+    }
+  } catch (e, stackTrace) {
+    await _log('❌ [Supabase] Session restore failed: $e');
+    debugPrint('📋 Stack: $stackTrace');
+  }
+
+  _bgServicesInitialized = true;
 }
 
 Future<Store> _openStoreInBackground(String? directoryPath) async {
-  const maxRetries = 5;
-  const retryDelay = Duration(seconds: 30);
+  await loadObjectBoxLibraryAndroidCompat();
 
-  for (int attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      if (directoryPath != null && directoryPath.isNotEmpty) {
-        final dir = Directory(directoryPath);
-        if (await dir.exists()) {
-          // Clean up stale lock file if app was force-killed
-          final lockFile = File('$directoryPath/lock.mdb');
-          if (await lockFile.exists()) {
-            debugPrint('Found stale lock file, removing...');
-            await lockFile.delete();
-          }
-          debugPrint('Opening store at: $directoryPath (attempt ${attempt + 1})');
-          return openStore(directory: directoryPath);
-        }
-      }
-      debugPrint('Opening store with default directory (attempt ${attempt + 1})');
-      return openStore();
-    } catch (e) {
-      if (e.toString().contains('another store is still open') && attempt < maxRetries - 1) {
-        debugPrint('Store locked, waiting for release... (attempt ${attempt + 1}/$maxRetries)');
-        await Future.delayed(retryDelay);
-      } else {
-        debugPrint('Failed to open store: $e');
-        rethrow;
-      }
-    }
+  final dirPath = (directoryPath != null && directoryPath.isNotEmpty)
+      ? directoryPath
+      : (await defaultStoreDirectory()).path;
+
+  if (Store.isOpen(dirPath)) {
+    return Store.attach(getObjectBoxModel(), dirPath);
+  } else {
+    return openStore(directory: dirPath);
   }
-  throw Exception('Failed to open store after $maxRetries attempts');
 }
 
-Future<AIService> _createAIService({
-  required String apiKey,
-  required String provider,
-  required String model,
-}) async {
+Future<AIService> _createAIService() async {
   final prefs = await SharedPreferences.getInstance();
-  await prefs.setString('ai_api_key', apiKey);
-  await prefs.setString('ai_provider', provider);
-  if (model.isNotEmpty) {
-    await prefs.setString('ai_model', model);
-  }
   final settingsRepo = AppSettingsRepository(prefs);
   final aiProxy = AiProxyService.fromConfig();
   return AIService(settingsRepo, aiProxy: aiProxy);
@@ -145,94 +223,93 @@ Future<void> _initNotificationsInBackground() async {
 }
 
 @pragma('vm:entry-point')
+void callbackDispatcher() {
+  // CRITICAL: Must be the FIRST line - initializes binary messenger for this isolate
+  // Before ANY platform channel usage (SharedPreferences, Supabase, etc.)
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  _workmanagerCallback();
+}
+
+@pragma('vm:entry-point')
 Future<void> _workmanagerCallback() async {
-  debugPrint('WorkManager callback started');
+  await _log('WorkManager callback started');
   
   Workmanager().executeTask((taskName, inputData) async {
-    debugPrint('WorkManager task: $taskName, inputData: $inputData');
+    // Remote log: Task execution started (independent of local storage/UI)
+    await _remoteLog('workmanager_task_started', details: {'task': taskName, 'inputData': inputData});
+    
+    await _log('WorkManager task: $taskName, inputData: $inputData');
     
     if (taskName != _monitoringTaskName) {
-      debugPrint('Unknown task name: $taskName');
+      await _log('Unknown task name: $taskName');
       return true;
     }
 
     final reminderIdStr = inputData?['reminderId'] as String?;
     if (reminderIdStr == null) {
-      debugPrint('No reminderId in inputData');
+      await _log('No reminderId in inputData');
       return true;
     }
     
     final reminderId = int.tryParse(reminderIdStr);
     if (reminderId == null) {
-      debugPrint('Invalid reminderId: $reminderIdStr');
+      await _log('Invalid reminderId: $reminderIdStr');
       return true;
     }
 
     final storeDirectoryPath = inputData?['storeDirectory'] as String?;
-    final apiKey = inputData?['apiKey'] as String?;
-    final provider = inputData?['provider'] as String? ?? 'google';
-    final model = inputData?['model'] as String? ?? '';
-
-    debugPrint('API Key present: ${apiKey != null && apiKey.isNotEmpty}');
-    debugPrint('Provider: $provider');
-    debugPrint('Model: $model');
 
     Store? store;
+    RescheduleLockService? lockService;
     try {
-      debugPrint('Initializing timezone...');
-      tz_data.initializeTimeZones();
-      tz.setLocalLocation(tz.local);
+      await _log('Initializing background services...');
+      await _initBackgroundServices();
 
-      if (apiKey == null || apiKey.isEmpty) {
-        debugPrint('No API key available in WorkManager task');
-        return true;
-      }
+      await _log('Initializing timezone...');
+      await initLocalTimeZone();
 
-      debugPrint('Creating AI service...');
-      final aiService = await _createAIService(
-        apiKey: apiKey,
-        provider: provider,
-        model: model,
-      );
+      await _log('Creating AI service...');
+      final aiService = await _createAIService();
 
-      debugPrint('Initializing notifications...');
+      await _log('Initializing notifications...');
       await _initNotificationsInBackground();
 
-      debugPrint('Opening store...');
+      await _log('Opening store...');
       store = await _openStoreInBackground(storeDirectoryPath);
       
       final reminderRepo = ReminderRepository(store);
       final freeTimeRepo = FreeTimeRepository(store);
 
-      debugPrint('Fetching reminder $reminderId...');
+      await _log('Fetching reminder $reminderId...');
       final reminder = reminderRepo.getById(reminderId);
       if (reminder == null) {
-        debugPrint('Reminder $reminderId not found');
+        await _log('Reminder $reminderId not found');
         store.close();
         return true;
       }
       
       if (reminder.isOpened) {
-        debugPrint('Reminder $reminderId already opened');
+        await _log('✅ Reminder "${reminder.title}" was already opened (you completed it)');
         store.close();
         return true;
       }
 
-      final maxReschedules = _getMaxReschedules(reminder.importance);
+      final maxReschedules = maxReschedulesFor(reminder.importance);
       if (reminder.rescheduleAttempts >= maxReschedules) {
-        debugPrint('Reminder $reminderId reached max reschedules ($maxReschedules)');
+        await _log('Reminder $reminderId reached max reschedules ($maxReschedules)');
         store.close();
         return true;
       }
 
       final now = DateTime.now();
       if (reminder.scheduledAt.isBefore(now.subtract(const Duration(days: 30)))) {
-        debugPrint('Reminder $reminderId is too old (>30 days)');
+        await _log('Reminder $reminderId is too old (>30 days)');
         store.close();
         return true;
       }
 
-      debugPrint('Getting reminder history...');
+      await _log('Getting reminder history...');
       final previousAttempts = reminderRepo
           .getReminderHistory(reminderId)
           .map(
@@ -244,14 +321,32 @@ Future<void> _workmanagerCallback() async {
           )
           .toList();
 
-      debugPrint('Getting free times...');
-      final freeTimes = freeTimeRepo.getAllAsJson();
-      debugPrint('Free times count: ${freeTimes.length}');
+      await _log('📋 [Reschedule] Reminder $reminderId history: ${previousAttempts.length} attempts');
+      for (int i = 0; i < previousAttempts.length; i++) {
+        await _log('   └─ Attempt ${i + 1}: scheduled=${previousAttempts[i]['scheduled_at']}, opened=${previousAttempts[i]['opened']}');
+      }
 
-      debugPrint('Calling AI for reschedule...');
-      debugPrint('Calling with - category: ${reminder.categoryEn}, complexity: ${reminder.complexityEn}, importance: ${reminder.importance}');
-      
-      String rawResponse;
+      await _log('Getting free times...');
+      final freeTimes = freeTimeRepo.getAllAsJson();
+      await _log('⏰ [Reschedule] Free times count: ${freeTimes.length}');
+
+      await _log('🤖 [Reschedule] Calling AI for reschedule...');
+      await _log('📝 [Reschedule] Params: category="${reminder.categoryEn}", complexity="${reminder.complexityEn}", importance="${reminder.importance}", currentAttempts=${reminder.rescheduleAttempts}');
+
+      // Race guard: atomic lock via ObjectBox transaction shared with
+      // OverdueReminderService, so the foreground and background paths can
+      // never reschedule the same reminder concurrently (TOCTOU-safe).
+      lockService = RescheduleLockService(store);
+      if (!lockService.acquireLock(reminderId)) {
+        await _log('⚠️ [RaceGuard] Another reschedule in progress for reminder $reminderId, skipping');
+        store.close();
+        return true;
+      }
+      await _log('🔒 [RaceGuard] Acquired reschedule lock for reminder $reminderId');
+
+      late Map<String, dynamic> aiResult;
+      String? rawResponse;
+
       try {
         rawResponse = await aiService.reschedulePostRaw(
           previousAttemptsJson: jsonEncode(previousAttempts),
@@ -261,39 +356,52 @@ Future<void> _workmanagerCallback() async {
           userFreeTimesJson: freeTimes.isNotEmpty 
               ? '{"free_times": $freeTimes}'
               : null,
+          currentTime: DateTime.now(),
         );
-      } catch (e) {
-        debugPrint('AI call failed: $e');
-        store.close();
-        return true;
-      }
-      
-      debugPrint('Raw AI response: $rawResponse');
-      
-      Map<String, dynamic> aiResult;
-      try {
-        aiResult = _parseAiRescheduleResponse(rawResponse);
-      } catch (e) {
-        debugPrint('Failed to parse AI response: $e, using fallback');
-        // Use fallback - keep same time, just increment attempts
-        final newTime = reminder.scheduledAt.add(const Duration(hours: 1));
+        await _log('📥 [Reschedule] Raw AI response: $rawResponse');
+      } catch (e, stackTrace) {
+        await _log('❌ [Reschedule] AI call failed: $e — falling back to +1 hour');
+        debugPrint('📋 Stack: $stackTrace');
         aiResult = {
-          'newTime': newTime,
-          'reason': 'AI response parse failed, rescheduled by 1 hour',
+          'newTime': reminder.scheduledAt.add(const Duration(hours: 1)),
+          'reason': 'AI call failed: $e, rescheduled by 1 hour',
         };
       }
-      
-      debugPrint('Parsed AI result: $aiResult');
+
+      if (rawResponse != null) {
+        try {
+          aiResult = AiRescheduleParser.parse(rawResponse);
+        } catch (e) {
+          await _log('Failed to parse AI response: $e, using fallback');
+          // Use fallback - keep same time, just increment attempts
+          final newTime = reminder.scheduledAt.add(const Duration(hours: 1));
+          aiResult = {
+            'newTime': newTime,
+            'reason': 'AI response parse failed, rescheduled by 1 hour',
+          };
+        }
+        await _log('Parsed AI result: $aiResult');
+      } else {
+        await _log('Using fallback result after AI call failure');
+      }
       
       final newTime = aiResult['newTime'] as DateTime?;
-      if (newTime == null || !newTime.isAfter(now)) {
-        debugPrint('AI returned invalid new time: $newTime');
+      if (newTime == null) {
+        await _log('AI returned null new time');
         store.close();
-        return true;
+        throw Exception('AI returned null new time');
       }
 
-      debugPrint('Updating reminder with new time: $newTime');
-      reminder.scheduledAt = newTime;
+      // Enforce the rescheduling deadline and a strict future-time constraint,
+      // matching the foreground OverdueReminderService policy.
+      final deadline = reschedulingDeadline(now, reminder.importance);
+      final finalTime = clampRescheduleTime(newTime, now, deadline);
+      if (finalTime != newTime) {
+        await _log("Clamped reschedule time from $newTime to $finalTime (deadline: $deadline)");
+      }
+
+      await _log('Updating reminder with new time: $finalTime');
+      reminder.scheduledAt = finalTime;
       reminder.rescheduleAttempts++;
       final reason = aiResult['reason'] as String? ?? '';
       final reasonParts = reason.split(' | ');
@@ -304,11 +412,50 @@ Future<void> _workmanagerCallback() async {
       reminder.isOpened = false;
       reminder.openedAt = null;
       reminderRepo.save(reminder);
-      debugPrint('Reminder saved successfully');
+      await _log('Reminder saved successfully');
 
-      debugPrint('Scheduling new notification...');
+      await _log('Rescheduling WorkManager task...');
+      await Workmanager().cancelByTag('reminder_$reminderId');
+      final nextInputData = <String, String>{
+        'reminderId': reminderId.toString(),
+      };
+      if (storeDirectoryPath != null) {
+        nextInputData['storeDirectory'] = storeDirectoryPath;
+      }
+      var nextDelay = reminder.scheduledAt.difference(DateTime.now()) +
+          const Duration(minutes: 1);
+      if (nextDelay.isNegative) {
+        await _log('New scheduled time already passed, skipping next monitoring');
+        lockService.releaseLock(reminderId);
+        await _log('🔓 [RaceGuard] Released reschedule lock for reminder $reminderId');
+        store.close();
+        return true;
+      }
+      const minDelay = Duration(minutes: 15);
+      if (nextDelay < minDelay) {
+        await _log('initialDelay ${nextDelay.inMinutes}min < 15min, clamping to 15min');
+        nextDelay = minDelay;
+      }
+      await Workmanager().registerOneOffTask(
+        'reminder_monitoring_$reminderId',
+        _monitoringTaskName,
+        initialDelay: nextDelay,
+        inputData: nextInputData,
+        tag: 'reminder_$reminderId',
+        existingWorkPolicy: ExistingWorkPolicy.replace,
+      );
+      await _log('WorkManager task rescheduled');
+
+      // Release lock BEFORE scheduling notification so it survives connection drops
+      await _log('Releasing race guard lock...');
+      lockService.releaseLock(reminderId);
+      await _log('🔓 [RaceGuard] Released reschedule lock for reminder $reminderId');
+
+      // Schedule notification (least critical — can be retried on next app launch)
+      await _log('Scheduling new notification...');
       final plugin = FlutterLocalNotificationsPlugin();
-      await plugin.zonedSchedule(
+      await zonedScheduleWithExactFallback(
+        plugin: plugin,
         id: reminderId,
         title: ' Time to read: ${reminder.title}',
         body: '${reminder.categoryEn ?? "General"} · ${reminder.complexityAr ?? "متوسط"}',
@@ -333,39 +480,14 @@ Future<void> _workmanagerCallback() async {
             categoryIdentifier: 'REMINDER',
           ),
         ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         payload: reminderId.toString(),
       );
-      debugPrint('Notification scheduled successfully');
+      await _log('Notification scheduled successfully');
 
-      debugPrint('Rescheduling WorkManager task...');
-      await Workmanager().cancelByTag('reminder_$reminderId');
-      final nextInputData = <String, String>{
-        'reminderId': reminderId.toString(),
-        'provider': provider,
-      };
-      if (storeDirectoryPath != null) {
-        nextInputData['storeDirectory'] = storeDirectoryPath;
-      }
-      if (apiKey.isNotEmpty) {
-        nextInputData['apiKey'] = apiKey;
-      }
-      if (model.isNotEmpty) {
-        nextInputData['model'] = model;
-      }
-      await Workmanager().registerOneOffTask(
-        'reminder_monitoring_$reminderId',
-        _monitoringTaskName,
-        initialDelay: const Duration(minutes: 1),
-        inputData: nextInputData,
-        tag: 'reminder_$reminderId',
-      );
-      debugPrint('WorkManager task rescheduled');
-
-      final formattedTime = '${newTime.hour.toString().padLeft(2, '0')}:${newTime.minute.toString().padLeft(2, '0')}';
+      final formattedTime = '${finalTime.hour.toString().padLeft(2, '0')}:${finalTime.minute.toString().padLeft(2, '0')}';
       final successBody = '${reminder.title}\nNew time: $formattedTime\n${reminder.aiExplanation}';
       await plugin.show(
-        id: reminderId + 1000000,
+        id: reminderId,
         title: 'Reminder Rescheduled',
         body: successBody,
         notificationDetails: NotificationDetails(
@@ -382,28 +504,38 @@ Future<void> _workmanagerCallback() async {
           ),
         ),
       );
+      await _log('Reschedule notification shown');
 
-      debugPrint('Closing store...');
+      await _log('Closing store...');
       store.close();
-      debugPrint('WorkManager task completed successfully');
+      await _log('WorkManager task completed successfully');
+      await _remoteLog('workmanager_task_success', details: {'reminderId': reminderId});
       return true;
     } catch (e, stackTrace) {
-      debugPrint('WorkManager monitoring callback failed: $e');
+      await _log('WorkManager monitoring callback failed: $e');
       debugPrint('Stack trace: $stackTrace');
+      await _remoteLog('workmanager_task_error', details: {'reminderId': reminderId, 'error': e.toString()});
       try {
         store?.close();
-        debugPrint('Store closed after error');
+        await _log('Store closed after error');
       } catch (_) {}
+      // Release race guard lock on error (via ObjectBox if store is open)
+      if (store != null && lockService != null) {
+        try {
+          lockService.releaseLock(reminderId);
+          await _log('🔓 [RaceGuard] Released reschedule lock for reminder $reminderId (error path)');
+        } catch (_) {}
+      }
       // If app is in foreground, store is locked by main isolate.
-      // Silently exit - monitoring is not needed since user is active.
+      // Return false so WorkManager knows the task failed and may retry.
       if (e.toString().contains('another store is still open')) {
-        debugPrint('App is in foreground, skipping monitoring (user is active)');
-        return true;
+        await _log('App is in foreground, store locked — task failed, will retry');
+        return false;
       }
       try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('last_ai_reschedule_error', e.toString());
-        debugPrint('Error saved to preferences');
+        final prefs2 = await SharedPreferences.getInstance();
+        await prefs2.setString('last_ai_reschedule_error', e.toString());
+        await _log('Error saved to preferences');
       } catch (_) {}
       try {
         final errorPlugin = FlutterLocalNotificationsPlugin();
@@ -426,8 +558,10 @@ Future<void> _workmanagerCallback() async {
           await androidPlugin.createNotificationChannel(channel);
         }
         final errorText = e.toString().length > 100 ? '${e.toString().substring(0, 100)}...' : e.toString();
+        // Same id as the reminder; the scheduled notification (if any) replaces
+        // this temporary error notification at delivery time.
         await errorPlugin.show(
-          id: reminderId + 2000000,
+          id: reminderId,
           title: 'Monitoring Failed',
           body: 'Reminder: $reminderId\nError: $errorText',
           notificationDetails: NotificationDetails(
@@ -448,10 +582,4 @@ Future<void> _workmanagerCallback() async {
       return true;
     }
   });
-}
-
-@pragma('vm:entry-point')
-void callbackDispatcher() {
-  debugPrint('WorkManager callback dispatcher called');
-  _workmanagerCallback();
 }

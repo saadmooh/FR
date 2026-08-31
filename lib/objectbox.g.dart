@@ -18,6 +18,7 @@ import 'models/category_statistic.dart';
 import 'models/free_time_slot.dart';
 import 'models/playlist.dart';
 import 'models/reminder.dart';
+import 'models/reschedule_lock.dart';
 
 export 'package:objectbox/objectbox.dart'; // so that callers only have to import this file
 
@@ -416,6 +417,35 @@ final _entities = <obx_int.ModelEntity>[
     relations: <obx_int.ModelRelation>[],
     backlinks: <obx_int.ModelBacklink>[],
   ),
+  obx_int.ModelEntity(
+    id: const obx_int.IdUid(5, 2809771375646864317),
+    name: 'RescheduleLock',
+    lastPropertyId: const obx_int.IdUid(3, 4704172715931477639),
+    flags: 0,
+    properties: <obx_int.ModelProperty>[
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(1, 5009657091250898221),
+        name: 'id',
+        type: 6,
+        flags: 1,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(2, 3001108594927466502),
+        name: 'reminderId',
+        type: 6,
+        flags: 40,
+        indexId: const obx_int.IdUid(1, 6071136479172223861),
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(3, 4704172715931477639),
+        name: 'timestamp',
+        type: 6,
+        flags: 0,
+      ),
+    ],
+    relations: <obx_int.ModelRelation>[],
+    backlinks: <obx_int.ModelBacklink>[],
+  ),
 ];
 
 /// Shortcut for [obx.Store.new] that passes [getObjectBoxModel] and for Flutter
@@ -461,8 +491,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
     // Typically, this is done with `dart run build_runner build`.
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
-    lastEntityId: const obx_int.IdUid(4, 5088578924645899775),
-    lastIndexId: const obx_int.IdUid(0, 0),
+    lastEntityId: const obx_int.IdUid(5, 2809771375646864317),
+    lastIndexId: const obx_int.IdUid(1, 6071136479172223861),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
     retiredEntityUids: const [],
@@ -994,6 +1024,52 @@ obx_int.ModelDefinition getObjectBoxModel() {
         return object;
       },
     ),
+    RescheduleLock: obx_int.EntityDefinition<RescheduleLock>(
+      model: _entities[4],
+      toOneRelations: (RescheduleLock object) => [],
+      toManyRelations: (RescheduleLock object) => {},
+      getId: (RescheduleLock object) => object.id,
+      setId: (RescheduleLock object, int id) {
+        object.id = id;
+      },
+      objectToFB: (RescheduleLock object, fb.Builder fbb) {
+        fbb.startTable(4);
+        fbb.addInt64(0, object.id);
+        fbb.addInt64(1, object.reminderId);
+        fbb.addInt64(2, object.timestamp);
+        fbb.finish(fbb.endTable());
+        return object.id;
+      },
+      objectFromFB: (obx.Store store, ByteData fbData) {
+        final buffer = fb.BufferContext(fbData);
+        final rootOffset = buffer.derefObject(0);
+        final idParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          4,
+          0,
+        );
+        final reminderIdParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          6,
+          0,
+        );
+        final timestampParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          8,
+          0,
+        );
+        final object = RescheduleLock(
+          id: idParam,
+          reminderId: reminderIdParam,
+          timestamp: timestampParam,
+        );
+
+        return object;
+      },
+    ),
   };
 
   return obx_int.ModelDefinition(model, bindings);
@@ -1303,5 +1379,23 @@ class Playlist_ {
   /// See [Playlist.isCompleted].
   static final isCompleted = obx.QueryBooleanProperty<Playlist>(
     _entities[3].properties[11],
+  );
+}
+
+/// [RescheduleLock] entity fields to define ObjectBox queries.
+class RescheduleLock_ {
+  /// See [RescheduleLock.id].
+  static final id = obx.QueryIntegerProperty<RescheduleLock>(
+    _entities[4].properties[0],
+  );
+
+  /// See [RescheduleLock.reminderId].
+  static final reminderId = obx.QueryIntegerProperty<RescheduleLock>(
+    _entities[4].properties[1],
+  );
+
+  /// See [RescheduleLock.timestamp].
+  static final timestamp = obx.QueryIntegerProperty<RescheduleLock>(
+    _entities[4].properties[2],
   );
 }

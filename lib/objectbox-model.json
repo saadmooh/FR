@@ -333,10 +333,36 @@
         }
       ],
       "relations": []
+    },
+    {
+      "id": "5:2809771375646864317",
+      "lastPropertyId": "3:4704172715931477639",
+      "name": "RescheduleLock",
+      "properties": [
+        {
+          "id": "1:5009657091250898221",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:3001108594927466502",
+          "name": "reminderId",
+          "indexId": "1:6071136479172223861",
+          "type": 6,
+          "flags": 40
+        },
+        {
+          "id": "3:4704172715931477639",
+          "name": "timestamp",
+          "type": 6
+        }
+      ],
+      "relations": []
     }
   ],
-  "lastEntityId": "4:5088578924645899775",
-  "lastIndexId": "0:0",
+  "lastEntityId": "5:2809771375646864317",
+  "lastIndexId": "1:6071136479172223861",
   "lastRelationId": "0:0",
   "lastSequenceId": "0:0",
   "modelVersion": 5,

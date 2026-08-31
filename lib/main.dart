@@ -1,9 +1,10 @@
 import 'dart:io' show Platform;
+import 'dart:isolate';
+import 'dart:ui' show IsolateNameServer;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:workmanager/workmanager.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -22,26 +23,43 @@ import 'repositories/category_statistic_repository.dart';
 import 'repositories/app_settings_repository.dart';
 import 'services/ai_service.dart';
 import 'services/ai_proxy_service.dart';
+import 'services/local_timezone.dart';
 import 'services/notification_service.dart';
+import 'services/overdue_reminder_service.dart';
+import 'services/reschedule_lock_service.dart';
 import 'services/workmanager_service.dart';
 import 'services/auth_service.dart';
 import 'services/revenuecat_service.dart';
 
 late Store store;
-bool _storeInitialized = false;
 late ReminderRepository reminderRepository;
 late FreeTimeRepository freeTimeRepository;
 late CategoryStatisticRepository categoryStatRepository;
 late AppSettingsRepository settingsRepository;
 late AIService aiService;
 late NotificationService notificationService;
+late OverdueReminderService overdueReminderService;
 late AppRouter appRouter;
 late AuthService authService;
 late RevenueCatService revenueCatService;
 
 final ValueNotifier<String?> pendingSharedUrl = ValueNotifier<String?>(null);
 final ValueNotifier<String?> aiRescheduleError = ValueNotifier<String?>(null);
-final ValueNotifier<int> storeReopenSignal = ValueNotifier<int>(0);
+
+const String _bgUiLogQueueKey = 'bg_ui_log_queue';
+const String bgLogPortName = 'bg_log_port';
+
+/// Reads queued background logs from SharedPreferences (cold start / resume fallback)
+Future<void> _showQueuedBgLogs(SharedPreferences prefs) async {
+  final logs = prefs.getStringList(_bgUiLogQueueKey);
+  if (logs == null || logs.isEmpty) return;
+
+  await prefs.remove(_bgUiLogQueueKey);
+
+  for (final log in logs) {
+    showUiLog(log, duration: const Duration(seconds: 5));
+  }
+}
 
 // Global scaffold messenger key for IntegritySnackBar and RC UI logs
 // (defined in core/ui_messenger.dart)
@@ -143,32 +161,11 @@ Future<void> _initApp() async {
     await revenueCatService.linkToUser(rcFirebaseUser.uid);
   }
 
-  // Initialize timezone
-  tz_data.initializeTimeZones();
-  // Use local timezone instead of UTC
-  tz.setLocalLocation(tz.local);
+  // Initialize timezone (resolves the device's IANA zone, not UTC)
+  await initLocalTimeZone();
 
-  // Initialize ObjectBox with retry on conflict
-  Store? tempStore;
-  const maxRetries = 3;
-  const retryDelay = Duration(seconds: 2);
-  
-  for (int attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      tempStore = await openStore();
-      store = tempStore;
-      _storeInitialized = true;
-      break;
-    } catch (e) {
-      if (e.toString().contains('another store is still open') && attempt < maxRetries - 1) {
-        debugPrint('Store conflict detected (attempt ${attempt + 1}/$maxRetries), waiting for lock release...');
-        await Future.delayed(retryDelay);
-      } else {
-        debugPrint('Store initialization failed: $e');
-        rethrow;
-      }
-    }
-  }
+  // Initialize ObjectBox
+  store = await openStore();
 
   // Initialize SharedPreferences
   final prefs = await SharedPreferences.getInstance();
@@ -200,6 +197,9 @@ Future<void> _initApp() async {
     await prefs.remove('last_ai_reschedule_error');
   }
 
+  // Show queued background logs as SnackBars
+  await _showQueuedBgLogs(prefs);
+
   // Initialize services
   aiService = AIService(settingsRepository);
   final aiProxy = AiProxyService.fromConfig();
@@ -209,7 +209,10 @@ Future<void> _initApp() async {
   // Initialize WorkManager for background monitoring (Android/iOS only)
   if (Platform.isAndroid || Platform.isIOS) {
     try {
-      await Workmanager().initialize(callbackDispatcher);
+      await Workmanager().initialize(
+        callbackDispatcher,
+        isInDebugMode: kDebugMode,
+      );
     } catch (e) {
       debugPrint('WorkManager initialization failed: $e');
     }
@@ -219,19 +222,39 @@ Future<void> _initApp() async {
   final storeDir = await defaultStoreDirectory();
   notificationService.setStoreDirectoryPath(storeDir.path);
 
-  // Pass AI config to notification service for WorkManager background tasks
-  notificationService.setAiConfig(
-    settingsRepository.getApiKey() ?? '',
-    settingsRepository.getProvider(),
-    settingsRepository.getModel(),
-  );
-
   await notificationService.initialize(
     reminderRepository: reminderRepository,
     categoryStatRepository: categoryStatRepository,
     freeTimeRepository: freeTimeRepository,
     settingsRepository: settingsRepository,
   );
+
+  // Initialize overdue reminder service
+  overdueReminderService = OverdueReminderService(
+    reminderRepository: reminderRepository,
+    freeTimeRepository: freeTimeRepository,
+    aiService: aiService,
+    notificationService: notificationService,
+    lockService: RescheduleLockService(store),
+  );
+
+  // Run initial overdue check on app start
+  try {
+    final rescheduledCount = await overdueReminderService
+        .reviewOverdueReminders();
+    if (rescheduledCount > 0) {
+      debugPrint(
+        '[main] Rescheduled $rescheduledCount overdue reminders on app start',
+      );
+    }
+  } catch (e, stackTrace) {
+    debugPrint('[main] Failed to review overdue reminders on start: $e');
+    debugPrint('Stack trace: $stackTrace');
+    showUiLog(
+      'Overdue check failed on start: $e',
+      duration: const Duration(seconds: 6),
+    );
+  }
 
   // Request background permissions for reliable monitoring
   await notificationService.requestBackgroundPermissions();
@@ -271,23 +294,35 @@ Future<void> _initApp() async {
   // Set router in notification service
   notificationService.setRouter(appRouter.router);
 
-  runApp(FlexReminderApp(initialSharedUrl: initialSharedUrl, aiRescheduleError: aiRescheduleError));
+  runApp(
+    FlexReminderApp(
+      initialSharedUrl: initialSharedUrl,
+      aiRescheduleError: aiRescheduleError,
+    ),
+  );
 }
 
 class FlexReminderApp extends StatefulWidget {
   final String? initialSharedUrl;
   final ValueNotifier<String?> aiRescheduleError;
 
-  const FlexReminderApp({super.key, this.initialSharedUrl, required this.aiRescheduleError});
+  const FlexReminderApp({
+    super.key,
+    this.initialSharedUrl,
+    required this.aiRescheduleError,
+  });
 
   @override
   State<FlexReminderApp> createState() => _FlexReminderAppState();
 }
 
-class _FlexReminderAppState extends State<FlexReminderApp> {
+class _FlexReminderAppState extends State<FlexReminderApp>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+
+    WidgetsBinding.instance.addObserver(this);
 
     // Set initial shared URL
     if (widget.initialSharedUrl != null) {
@@ -298,6 +333,16 @@ class _FlexReminderAppState extends State<FlexReminderApp> {
 
     // Listen to locale changes for rebuild
     LocaleManager.instance.localeNotifier.addListener(_onLocaleChanged);
+
+    // Set up cross-isolate communication for background task SnackBars
+    final receivePort = ReceivePort();
+    IsolateNameServer.removePortNameMapping(bgLogPortName);
+    IsolateNameServer.registerPortWithName(receivePort.sendPort, bgLogPortName);
+    receivePort.listen((message) {
+      if (message is String) {
+        showUiLog(message, duration: const Duration(seconds: 5));
+      }
+    });
 
     // Listen to incoming shared intents while app is open
     ReceiveSharingIntent.instance.getMediaStream().listen((sharedMedia) {
@@ -310,12 +355,6 @@ class _FlexReminderAppState extends State<FlexReminderApp> {
       }
     });
 
-    // Handle app lifecycle for store cleanup
-    WidgetsBinding.instance.addObserver(_AppLifecycleObserver());
-
-    // Listen to store reopen signals to rebuild with new router
-    storeReopenSignal.addListener(_onStoreReopened);
-
     // Show startup RC/UI logs that arrived before MaterialApp mounted
     WidgetsBinding.instance.addPostFrameCallback((_) {
       flushPendingUiLogs();
@@ -323,15 +362,50 @@ class _FlexReminderAppState extends State<FlexReminderApp> {
   }
 
   @override
+  @override
   void dispose() {
+    IsolateNameServer.removePortNameMapping(bgLogPortName);
+    WidgetsBinding.instance.removeObserver(this);
     LocaleManager.instance.localeNotifier.removeListener(_onLocaleChanged);
-    storeReopenSignal.removeListener(_onStoreReopened);
     super.dispose();
   }
 
-  void _onStoreReopened() {
-    if (mounted) {
-      setState(() {});
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        // Store stays open for the entire process lifetime
+        break;
+      case AppLifecycleState.resumed:
+        await _runOverdueCheck();
+        final prefs = await SharedPreferences.getInstance();
+        await _showQueuedBgLogs(prefs);
+        flushPendingUiLogs();
+        break;
+      default:
+        break;
+    }
+  }
+
+  Future<void> _runOverdueCheck() async {
+    try {
+      final rescheduledCount = await overdueReminderService
+          .reviewOverdueReminders();
+      if (rescheduledCount > 0) {
+        debugPrint(
+          '[AppLifecycle] Rescheduled $rescheduledCount overdue reminders on app resume',
+        );
+      }
+    } catch (e, stackTrace) {
+      debugPrint(
+        '[AppLifecycle] Failed to review overdue reminders on resume: $e',
+      );
+      debugPrint('Stack trace: $stackTrace');
+      showUiLog(
+        'Overdue check failed on resume: $e',
+        duration: const Duration(seconds: 6),
+      );
     }
   }
 
@@ -352,69 +426,5 @@ class _FlexReminderAppState extends State<FlexReminderApp> {
       locale: LocaleManager.instance.currentAppLocale,
       supportedLocales: LocaleManager.supportedLocales,
     );
-  }
-}
-
-class _AppLifecycleObserver extends WidgetsBindingObserver {
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused && _storeInitialized) {
-      try {
-        store.close();
-        _storeInitialized = false;
-        debugPrint('Store closed on app background');
-      } catch (_) {}
-    } else if (state == AppLifecycleState.resumed && !_storeInitialized) {
-      _reopenStore().catchError((e) {
-        debugPrint('Failed to reopen store: $e');
-      });
-    } else if (state == AppLifecycleState.detached && _storeInitialized) {
-      try {
-        store.close();
-        _storeInitialized = false;
-      } catch (_) {}
-    }
-  }
-
-  Future<void> _reopenStore() async {
-    const maxRetries = 3;
-    const retryDelay = Duration(seconds: 1);
-    
-    for (int attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        store = await openStore();
-        _storeInitialized = true;
-        
-        reminderRepository = ReminderRepository(store);
-        freeTimeRepository = FreeTimeRepository(store);
-        categoryStatRepository = CategoryStatisticRepository(store);
-        settingsRepository.setRepositories(reminderRepository, freeTimeRepository);
-        
-        appRouter = AppRouter(
-          reminderRepository: reminderRepository,
-          freeTimeRepository: freeTimeRepository,
-          categoryStatRepository: categoryStatRepository,
-          notificationService: notificationService,
-          aiService: aiService,
-          settingsRepository: settingsRepository,
-          pendingSharedUrl: pendingSharedUrl,
-          aiRescheduleError: aiRescheduleError,
-          authService: authService,
-          revenueCatService: revenueCatService,
-        );
-        notificationService.setRouter(appRouter.router);
-        
-        storeReopenSignal.value++;
-        debugPrint('Store reopened on app resume');
-        return;
-      } catch (e) {
-        if (attempt < maxRetries - 1) {
-          debugPrint('Store reopen attempt ${attempt + 1} failed, retrying...');
-          await Future.delayed(retryDelay);
-        } else {
-          rethrow;
-        }
-      }
-    }
   }
 }

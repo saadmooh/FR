@@ -121,10 +121,29 @@ class _RemindersScreenState extends State<RemindersScreen>
     _tabController.addListener(_onTabChanged);
     widget.pendingSharedUrl.addListener(_onPendingSharedUrlChanged);
     LocaleManager.instance.localeNotifier.addListener(_onLocaleChanged);
+    widget.aiRescheduleError.addListener(_onAiRescheduleErrorChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showAiRescheduleErrorIfNeeded();
     });
     _initialize();
+  }
+
+  void _onAiRescheduleErrorChanged() {
+    if (mounted) {
+      _showAiRescheduleErrorIfNeeded();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.aiRescheduleError.removeListener(_onAiRescheduleErrorChanged);
+    _tabController.removeListener(_onTabChanged);
+    widget.pendingSharedUrl.removeListener(_onPendingSharedUrlChanged);
+    LocaleManager.instance.localeNotifier.removeListener(_onLocaleChanged);
+    _tabController.dispose();
+    _unopenedTab.dispose();
+    _openedTab.dispose();
+    super.dispose();
   }
 
   Future<void> _initialize() async {
@@ -142,17 +161,6 @@ class _RemindersScreenState extends State<RemindersScreen>
     }
     _loadInitialData();
     if (mounted) setState(() => _isReady = true);
-  }
-
-  @override
-  void dispose() {
-    widget.pendingSharedUrl.removeListener(_onPendingSharedUrlChanged);
-    LocaleManager.instance.localeNotifier.removeListener(_onLocaleChanged);
-    _tabController.removeListener(_onTabChanged);
-    _tabController.dispose();
-    _unopenedTab.dispose();
-    _openedTab.dispose();
-    super.dispose();
   }
 
   Future<void> _saveTabIndex(int index) async {
@@ -452,6 +460,7 @@ class _RemindersScreenState extends State<RemindersScreen>
   Future<void> _rescheduleReminder(Reminder reminder) async {
     try {
       final freeTimes = widget.freeTimeRepository.getAllAsJson();
+      final now = DateTime.now();
       final result = await widget.aiService.reschedulePost(
         previousAttemptsJson: '[]',
         category: reminder.categoryEn ?? 'Other',
@@ -460,11 +469,20 @@ class _RemindersScreenState extends State<RemindersScreen>
         userFreeTimesJson: freeTimes.isNotEmpty
             ? '{"free_times": $freeTimes}'
             : null,
+        currentTime: now,
       );
-      _showResult(true, 'Rescheduled: ${result['newTime']}');
 
       if (result['newTime'] != null) {
-        reminder.scheduledAt = result['newTime'];
+        final newTime = result['newTime'] as DateTime;
+        final now = DateTime.now();
+
+        // Validate that the new scheduled time is in the future
+        if (!newTime.isAfter(now)) {
+          _showResult(false, Translations.scheduledTimeMustBeFuture(_locale));
+          return;
+        }
+
+        reminder.scheduledAt = newTime;
         widget.reminderRepository.save(reminder);
 
         await widget.notificationService.cancelReminder(reminder.id);

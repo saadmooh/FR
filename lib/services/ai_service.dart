@@ -357,7 +357,24 @@ Return this exact JSON:
     required String complexity,
     required String importance,
     String? userFreeTimesJson,
+    required DateTime currentTime,
   }) async {
+    // Calculate deadline based on importance
+    DateTime maxTime;
+    switch (importance) {
+      case 'Day':
+        maxTime = currentTime.add(const Duration(days: 1));
+        break;
+      case 'Week':
+        maxTime = currentTime.add(const Duration(days: 7));
+        break;
+      case 'Month':
+        maxTime = currentTime.add(const Duration(days: 30));
+        break;
+      default:
+        maxTime = currentTime.add(const Duration(days: 7));
+    }
+
     final systemPrompt =
         '''You are a rescheduling assistant. Return only valid single-line JSON. The reason field must have no newlines.''';
 
@@ -366,15 +383,18 @@ Return this exact JSON:
 
 Category: $category
 Complexity: $complexity
-Importance window: $importance
+Importance window: $importance (Day = within 1 day, Week = within 7 days, Month = within 30 days)
+Current time: ${currentTime.toIso8601String()}
+Deadline: ${maxTime.toIso8601String()}
 Previous scheduled attempts (all missed): $previousAttemptsJson
 User free times: ${userFreeTimesJson ?? '[]'}
 
-Rules:
-- Choose a time that avoids patterns from failed attempts (different hour, different day)
-- Respect the importance window deadline
-- Prefer times within user free slots
-- For complex content, prefer morning focus hours
+Rules (apply in this priority order):
+1. Time MUST be after ${currentTime.toIso8601String()}
+2. Time MUST be before ${maxTime.toIso8601String()}
+3. Choose a time that avoids patterns from failed attempts (different hour, different day)
+4. Prefer times within user free slots
+5. For complex content, prefer morning focus hours
 
 Return only:
 {"new_time": "YYYY-MM-DD HH:MM:SS", "reason": "Reason in English | السبب بالعربية"}''';
@@ -433,7 +453,24 @@ Return only:
     required String complexity,
     required String importance,
     String? userFreeTimesJson,
+    required DateTime currentTime,
   }) async {
+    // Calculate deadline based on importance
+    DateTime maxTime;
+    switch (importance) {
+      case 'Day':
+        maxTime = currentTime.add(const Duration(days: 1));
+        break;
+      case 'Week':
+        maxTime = currentTime.add(const Duration(days: 7));
+        break;
+      case 'Month':
+        maxTime = currentTime.add(const Duration(days: 30));
+        break;
+      default:
+        maxTime = currentTime.add(const Duration(days: 7));
+    }
+
     final systemPrompt =
         '''You are a rescheduling assistant. Return only valid single-line JSON. The reason field must have no newlines.''';
 
@@ -442,15 +479,18 @@ Return only:
 
 Category: $category
 Complexity: $complexity
-Importance window: $importance
+Importance window: $importance (Day = within 1 day, Week = within 7 days, Month = within 30 days)
+Current time: ${currentTime.toIso8601String()}
+Deadline: ${maxTime.toIso8601String()}
 Previous scheduled attempts (all missed): $previousAttemptsJson
 User free times: ${userFreeTimesJson ?? '[]'}
 
-Rules:
-- Choose a time that avoids patterns from failed attempts (different hour, different day)
-- Respect the importance window deadline
-- Prefer times within user free slots
-- For complex content, prefer morning focus hours
+Rules (apply in this priority order):
+1. Time MUST be after ${currentTime.toIso8601String()}
+2. Time MUST be before ${maxTime.toIso8601String()}
+3. Choose a time that avoids patterns from failed attempts (different hour, different day)
+4. Prefer times within user free slots
+5. For complex content, prefer morning focus hours
 
 Return only:
 {"new_time": "YYYY-MM-DD HH:MM:SS", "reason": "Reason in English | السبب بالعربية"}''';
