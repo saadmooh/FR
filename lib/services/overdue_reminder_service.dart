@@ -8,6 +8,7 @@ import '../services/ai_service.dart';
 import '../services/notification_service.dart';
 import '../services/reschedule_lock_service.dart';
 import '../services/reschedule_policy.dart';
+import '../services/workmanager_service.dart';
 import '../core/ui_messenger.dart';
 
 /// Service responsible for detecting and rescheduling overdue reminders.
@@ -142,19 +143,6 @@ class OverdueReminderService {
     Reminder reminder,
     DateTime currentTime,
   ) async {
-    // Check if reminder should be rescheduled based on importance and attempts
-    final maxReschedules = maxReschedulesFor(reminder.importance);
-    if (reminder.rescheduleAttempts >= maxReschedules) {
-      debugPrint(
-        '[OverdueReminderService] Reminder ${reminder.id} reached max reschedules ($maxReschedules), skipping',
-      );
-      showUiLog(
-        '"${reminder.title}" reached max reschedules ($maxReschedules)',
-        duration: const Duration(seconds: 6),
-      );
-      return false;
-    }
-
     // Check if reminder is too old (>30 days)
     if (reminder.scheduledAt.isBefore(
       currentTime.subtract(const Duration(days: 30)),
@@ -222,17 +210,15 @@ class OverdueReminderService {
         );
       } catch (e, stackTrace) {
         debugPrint(
-          '[OverdueReminderService] AI call failed for reminder ${reminder.id}: $e — falling back to +1 hour',
+          '[OverdueReminderService] AI call failed for reminder ${reminder.id}: $e — keeping time, retrying in 30 minutes',
         );
         debugPrint('Stack trace: $stackTrace');
         showUiLog(
-          'AI reschedule failed for "${reminder.title}", using fallback: $e',
+          'AI reschedule failed for "${reminder.title}", will retry in 30 min',
           duration: const Duration(seconds: 6),
         );
-        result = {
-          'newTime': reminder.scheduledAt.add(const Duration(hours: 1)),
-          'reason': 'AI call failed: $e, rescheduled by 1 hour',
-        };
+        await _scheduleAiRetry(reminder.id);
+        return false;
       }
 
       // CRITICAL: Re-fetch reminder from DB after AI call to check isOpened
@@ -254,13 +240,10 @@ class OverdueReminderService {
           '[OverdueReminderService] AI returned null time for reminder ${reminder.id}',
         );
         showUiLog(
-          'AI returned invalid time for "${reminder.title}"',
+          'AI returned invalid time for "${reminder.title}", will retry in 30 min',
           duration: const Duration(seconds: 6),
         );
-        _lockService.releaseLock(reminder.id);
-        debugPrint(
-          '[OverdueReminderService] 🔓 [RaceGuard] Released reschedule lock for reminder ${reminder.id}',
-        );
+        await _scheduleAiRetry(reminder.id);
         return false;
       }
 
@@ -333,5 +316,20 @@ class OverdueReminderService {
     final now = currentTime ?? DateTime.now();
     return !reminder.isOpened &&
         reminder.scheduledAt.isBefore(now.subtract(const Duration(minutes: 2)));
+  }
+
+  /// Re-queues the AI rescheduling task so it is retried in 30 minutes.
+  /// The reminder's scheduled time is left unchanged.
+  Future<void> _scheduleAiRetry(int reminderId) async {
+    try {
+      await scheduleAiRescheduleRetry(reminderId);
+      debugPrint(
+        '[OverdueReminderService] Scheduled AI reschedule retry for reminder $reminderId in 30 minutes',
+      );
+    } catch (e) {
+      debugPrint(
+        '[OverdueReminderService] Failed to schedule AI retry for reminder $reminderId: $e',
+      );
+    }
   }
 }

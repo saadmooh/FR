@@ -1,20 +1,5 @@
-// Shared rescheduling policy used by both the foreground
-// (OverdueReminderService) and background (WorkManager) reschedule paths,
-// so the two routes cannot drift apart.
-
-/// Maximum number of auto-reschedule attempts per reminder by importance.
-int maxReschedulesFor(String importance) {
-  switch (importance) {
-    case 'Day':
-      return 1;
-    case 'Week':
-      return 2;
-    case 'Month':
-      return 3;
-    default:
-      return 2;
-  }
-}
+// Rescheduling time policy. Supabase enforces rescheduling *attempt* limits,
+// so this file only handles time deadlines and future-time clamping.
 
 /// Absolute deadline for a rescheduled reminder by importance.
 DateTime reschedulingDeadline(DateTime currentTime, String importance) {

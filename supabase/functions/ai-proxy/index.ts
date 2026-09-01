@@ -41,6 +41,8 @@ import { verifySessionToken } from '../_shared/session_jwt.ts';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_ANON_KEY =
   Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_PUBLISHABLE_KEY') ?? '';
+// Service-role key (privileged): used ONLY for writing the request audit log.
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') ?? '';
 const SESSION_TOKEN_SECRET = Deno.env.get('SESSION_TOKEN_SECRET') ?? '';
@@ -214,6 +216,45 @@ function logError(stage: string, error: unknown, context?: Record<string, unknow
   console.error(JSON.stringify(logEntry));
 }
 
+// Detects a short human-friendly title for the request based on the prompt.
+// Falls back to 'general' when nothing matches.
+function detectTitle(prompt: string): string {
+  const p = prompt.toLowerCase();
+  if (p.includes('reschedule this unread post')) return 'reschedule';
+  if (p.includes('extracts metadata from url')) return 'fetch_metadata';
+  if (p.includes('classify the following content')) return 'classify';
+  if (p.includes('estimate the optimal reading time')) return 'best_time';
+  if (p.includes('post interaction statistics')) return 'analyze_stats';
+  if (p.includes('analyze reading behavior')) return 'analyze_category';
+  if (p.includes('say haha')) return 'test';
+  return 'general';
+}
+
+// Inserts a single simple log row: request title + content.
+// Uses the service-role key so the write is never blocked by RLS.
+// Failures are non-fatal (logged to console) so a logging problem never
+// breaks the actual AI request.
+async function storeRequestLog(
+  userId: string,
+  title: string,
+  content: string,
+): Promise<void> {
+  if (!SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn('ai-request-log: SUPABASE_SERVICE_ROLE_KEY not set, skipping log');
+    return;
+  }
+  try {
+    const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    await admin.from('ai_request_logs').insert({
+      user_id: userId,
+      title,
+      content,
+    });
+  } catch (e) {
+    console.error('ai-request-log: failed to write log', e);
+  }
+}
+
 function cors(): Headers {
   return new Headers({
     'Access-Control-Allow-Origin': '*',
@@ -309,7 +350,6 @@ Deno.serve(async (req: Request) => {
     global: { headers: { Authorization: authHeader } },
   });
 
-  logRequest('auth_start', { requestId });
   const {
     data: { user },
     error: authError,
@@ -325,7 +365,6 @@ Deno.serve(async (req: Request) => {
     });
     return jsonError(401, 'UNAUTHENTICATED', 'You must be signed in first');
   }
-  logRequest('auth_success', { requestId, userId: user.id });
 
   await loadConfig(supabase);
   const cfg = configCache!;
@@ -333,7 +372,6 @@ Deno.serve(async (req: Request) => {
   // ---- 2. Parse body ---------------------------------------------------------
   // Moved ahead of Play Integrity: the nonce-binding check (step 4) needs
   // `prompt` and `timestamp` from the body, so we must parse it first.
-  logRequest('body_parse_start', { requestId, userId: user.id });
   let body: { prompt?: unknown; conversationHistory?: unknown; timestamp?: unknown };
   try {
     body = await req.json();
@@ -368,6 +406,9 @@ Deno.serve(async (req: Request) => {
     return jsonError(400, 'PROMPT_TOO_LONG', 'Prompt is too long (max 4000 chars)');
   }
 
+  // Simple audit log: one row per request with title + content.
+  await storeRequestLog(user.id, detectTitle(prompt), prompt);
+
   const clientTimestamp = typeof body.timestamp === 'number' ? body.timestamp : null;
   if (!clientTimestamp) {
     logRequest('request_end', {
@@ -390,12 +431,6 @@ Deno.serve(async (req: Request) => {
         )
         .slice(-cfg.maxHistoryTurns)
     : [];
-  logRequest('body_parse_ok', {
-    requestId,
-    userId: user.id,
-    promptLength: prompt.length,
-    historyTurns: history.length,
-  });
 
   // ---- 3. Play Integrity ------------------------------------------------------
   const integrityToken = req.headers.get('X-Integrity-Token');
@@ -407,16 +442,8 @@ Deno.serve(async (req: Request) => {
   const expectedNonceInput = `${prompt}|${user.id}|${clientTimestamp}`;
   const expectedNonceHash = await sha256Base64(expectedNonceInput);
 
-  logRequest('integrity_start', {
-    requestId,
-    userId: user.id,
-    isDebugBuild,
-    hasToken: !!integrityToken,
-    hasNonce: !!requestNonce,
-  });
-
   if (cfg.allowDebugBypass && isDebugBuild) {
-    logRequest('integrity_bypass', { requestId, userId: user.id, reason: 'debug_build' });
+    // debug bypass: skip integrity + nonce checks for local development
   } else {
     if (!integrityToken || !requestNonce) {
       logError('integrity_missing', new Error('Missing integrity token or nonce'), {
@@ -441,13 +468,6 @@ Deno.serve(async (req: Request) => {
       requestNonce,
       expectedNonceHash,
     );
-    logRequest('integrity_result', {
-      requestId,
-      userId: user.id,
-      passed,
-      stage: diagnostic.stage,
-      failedChecks: diagnostic.failedChecks,
-    });
 
     if (!passed) {
       logError('integrity_failed', new Error('Integrity check failed'), {
@@ -522,7 +542,6 @@ Deno.serve(async (req: Request) => {
       req.headers.get('X-Session-Token') ?? '',
       SESSION_TOKEN_SECRET,
     );
-    logRequest('session_token_result', { requestId, userId: user.id, ...sessionVerdict });
     if (!sessionVerdict.valid) {
       logError('subscription_required', new Error('invalid or missing session token'), {
         requestId,
@@ -545,7 +564,6 @@ Deno.serve(async (req: Request) => {
   }
 
   // ---- 7. Rate limiting -------------------------------------------------------
-  logRequest('rate_limit_start', { requestId, userId: user.id });
   const limit = await checkRateLimit(supabase, user.id);
   if (!limit.allowed) {
     logError('rate_limit_exceeded', new Error(`Rate limit exceeded: ${limit.period}`), {
@@ -571,13 +589,9 @@ Deno.serve(async (req: Request) => {
         : 'Monthly usage limit reached, try again next month',
     );
   }
-  logRequest('rate_limit_ok', { requestId, userId: user.id });
-
   // ---- 8. Call Gemini -----------------------------------------------------------
-  logRequest('gemini_start', { requestId, userId: user.id, model: cfg.geminiModel });
   try {
     const text = await callGemini(prompt, history, cfg.geminiModel);
-    logRequest('gemini_success', { requestId, userId: user.id, responseLength: text.length });
     logRequest('request_end', { requestId, status: 200, durationMs: Date.now() - startTime });
     return new Response(JSON.stringify({ text, model: cfg.geminiModel }), {
       status: 200,

@@ -114,6 +114,44 @@ void main() async {
   }
 }
 
+/// Opens the ObjectBox store from the main isolate.
+///
+/// A WorkManager background isolate may already hold the store open on the
+/// same path (e.g. after a background task cold-started the process). In that
+/// case we attach to the existing store instead of opening a second one, which
+/// would fail with "another store is still open". Falls back to retrying a few
+/// times to cover short-lived background tasks that close the store shortly
+/// after start.
+Future<Store> _openMainStore() async {
+  await loadObjectBoxLibraryAndroidCompat();
+  final directoryPath = (await defaultStoreDirectory()).path;
+
+  if (Store.isOpen(directoryPath)) {
+    debugPrint('[main] ObjectBox store already open, attaching to it');
+    return Store.attach(getObjectBoxModel(), directoryPath);
+  }
+
+  const maxAttempts = 5;
+  const delay = Duration(seconds: 2);
+  for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await openStore(directory: directoryPath);
+    } catch (e) {
+      if (e.toString().contains('another store is still open') &&
+          attempt < maxAttempts) {
+        debugPrint(
+          '[main] Store lock held by another isolate '
+          '(attempt $attempt/$maxAttempts), retrying...',
+        );
+        await Future.delayed(delay);
+      } else {
+        rethrow;
+      }
+    }
+  }
+  throw StateError('Failed to open ObjectBox store');
+}
+
 Future<void> _initApp() async {
   await Firebase.initializeApp();
 
@@ -165,7 +203,7 @@ Future<void> _initApp() async {
   await initLocalTimeZone();
 
   // Initialize ObjectBox
-  store = await openStore();
+  store = await _openMainStore();
 
   // Initialize SharedPreferences
   final prefs = await SharedPreferences.getInstance();
