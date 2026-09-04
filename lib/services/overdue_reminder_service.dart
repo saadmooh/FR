@@ -25,6 +25,7 @@ class OverdueReminderService {
 
   bool _isProcessing = false;
   DateTime? _lastProcessedTime;
+  final Set<int> _processingReminders = {};
 
   OverdueReminderService({
     required ReminderRepository reminderRepository,
@@ -158,16 +159,20 @@ class OverdueReminderService {
     }
 
     // Race guard: try to acquire atomic lock via ObjectBox transaction
+    final bool alreadyProcessing = _processingReminders.contains(reminder.id);
     if (!_lockService.acquireLock(reminder.id)) {
       debugPrint(
         '[OverdueReminderService] ⚠️ [RaceGuard] Another reschedule in progress for reminder ${reminder.id}, skipping',
       );
-      showUiLog(
-        'Reschedule in progress for "${reminder.title}", skipping',
-        duration: const Duration(seconds: 4),
-      );
+      if (!alreadyProcessing) {
+        showUiLog(
+          'Reschedule in progress for "${reminder.title}", skipping',
+          duration: const Duration(seconds: 4),
+        );
+      }
       return false;
     }
+    _processingReminders.add(reminder.id);
     debugPrint(
       '[OverdueReminderService] 🔒 [RaceGuard] Acquired reschedule lock for reminder ${reminder.id}',
     );
@@ -290,6 +295,7 @@ class OverdueReminderService {
       );
       rethrow;
     } finally {
+      _processingReminders.remove(reminder.id);
       _lockService.releaseLock(reminder.id);
       debugPrint(
         '[OverdueReminderService] 🔓 [RaceGuard] Released reschedule lock for reminder ${reminder.id}',

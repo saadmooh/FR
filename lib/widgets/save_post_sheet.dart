@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
-import 'package:flutter_play_integrity_wrapper/flutter_play_integrity_wrapper.dart';
+// import 'package:flutter_play_integrity_wrapper/flutter_play_integrity_wrapper.dart';
 import '../services/ai_service.dart';
 import '../services/metadata_service.dart';
 import '../services/notification_service.dart';
@@ -354,13 +354,6 @@ class _SavePostSheetState extends State<SavePostSheet> {
           backendRequestSent = false;
           backendResponseReceived = false;
           exceptionType = 'IntegrityException';
-        } else if (e is PlayIntegrityException) {
-          originalCode = e.code;
-          originalMessage = e.message;
-          source = 'CLIENT';
-          backendRequestSent = false;
-          backendResponseReceived = false;
-          exceptionType = 'PlayIntegrityException';
         } else {
           originalMessage = e.toString();
           exceptionType = e.runtimeType.toString();
@@ -437,8 +430,6 @@ class _SavePostSheetState extends State<SavePostSheet> {
           }
         } else if (e is IntegrityException) {
           errorMessage = '${Translations.errorSavingPost(_locale)}: [IntegrityService] ${e.message} (Code: ${e.code})';
-        } else if (e is PlayIntegrityException) {
-          errorMessage = '${Translations.errorSavingPost(_locale)}: [Google Play Integrity] ${e.message} (Code: ${e.code}${e.details != null ? ', Details: ${e.details}' : ''})';
         } else {
           errorMessage = '${Translations.errorSavingPost(_locale)}: $e';
         }

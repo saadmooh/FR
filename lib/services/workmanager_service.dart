@@ -327,6 +327,16 @@ Future<void> _workmanagerCallback() async {
       await _log('Initializing notifications...');
       await _initNotificationsInBackground();
 
+      // Early check: if main app already has store open, skip this task
+      // The main app's OverdueReminderService will handle overdue reminders on startup/resume.
+      final dirPath = (storeDirectoryPath != null && storeDirectoryPath.isNotEmpty)
+          ? storeDirectoryPath
+          : (await defaultStoreDirectory()).path;
+      if (Store.isOpen(dirPath)) {
+        await _log('Main app has store open, skipping background reschedule');
+        return true;
+      }
+
       await _log('Opening store...');
       store = await _openStoreInBackground(storeDirectoryPath);
 
@@ -628,11 +638,15 @@ Future<void> _workmanagerCallback() async {
         } catch (_) {}
       }
       // If app is in foreground, store is locked by main isolate.
-      // Return false so WorkManager knows the task failed and may retry.
+      // Ensure store is closed and return false so WorkManager knows the task failed and may retry.
       if (e.toString().contains('another store is still open')) {
         await _log(
           'App is in foreground, store locked — task failed, will retry',
         );
+        try {
+          store?.close();
+          await _log('Store closed after "another store is still open" error');
+        } catch (_) {}
         return false;
       }
       try {

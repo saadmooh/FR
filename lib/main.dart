@@ -131,17 +131,18 @@ Future<Store> _openMainStore() async {
     return Store.attach(getObjectBoxModel(), directoryPath);
   }
 
-  const maxAttempts = 5;
-  const delay = Duration(seconds: 2);
+  const maxAttempts = 10;
+  const baseDelay = Duration(milliseconds: 500);
   for (int attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       return await openStore(directory: directoryPath);
     } catch (e) {
       if (e.toString().contains('another store is still open') &&
           attempt < maxAttempts) {
+        final delay = baseDelay * attempt; // exponential backoff
         debugPrint(
           '[main] Store lock held by another isolate '
-          '(attempt $attempt/$maxAttempts), retrying...',
+          '(attempt $attempt/$maxAttempts), retrying in ${delay.inMilliseconds}ms...',
         );
         await Future.delayed(delay);
       } else {
@@ -149,7 +150,7 @@ Future<Store> _openMainStore() async {
       }
     }
   }
-  throw StateError('Failed to open ObjectBox store');
+  throw StateError('Failed to open ObjectBox store after $maxAttempts attempts');
 }
 
 Future<void> _initApp() async {

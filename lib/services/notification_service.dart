@@ -125,8 +125,11 @@ class NotificationService {
       }
 
       // Request to ignore battery optimizations for background work reliability
-      if (await Permission.ignoreBatteryOptimizations.isDenied) {
+      final batteryStatus = await Permission.ignoreBatteryOptimizations.status;
+      if (batteryStatus.isDenied) {
         await Permission.ignoreBatteryOptimizations.request();
+      } else if (batteryStatus.isPermanentlyDenied) {
+        await openAppSettings();
       }
     }
   }
@@ -560,11 +563,7 @@ class NotificationService {
         debugPrint('Scheduled time already passed, skipping monitoring');
         return;
       }
-      const minDelay = Duration(minutes: 15);
-      if (monitoringDelay < minDelay) {
-        debugPrint('initialDelay ${monitoringDelay.inMinutes}min < 15min, clamping to 15min');
-        monitoringDelay = minDelay;
-      }
+      
       await Workmanager().registerOneOffTask(
         'reminder_monitoring_${reminder.id}',
         _monitoringTaskName,
