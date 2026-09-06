@@ -1,5 +1,6 @@
 import '../models/reminder.dart';
 import '../objectbox.g.dart';
+import 'package:flutter/foundation.dart';
 
 class ReminderRepository {
   final Box<Reminder> _box;
@@ -48,6 +49,16 @@ class ReminderRepository {
 
   bool delete(int id) {
     return _box.remove(id);
+  }
+
+  /// Deletes a reminder and cancels its associated notification and WorkManager task.
+  /// Pass a callback to cancel the notification (e.g., `notificationService.cancelReminder`).
+  Future<void> deleteWithCleanup(int id, Future<void> Function(int) cancelNotification) async {
+    debugPrint('[ReminderRepository] deleteWithCleanup called for id=$id');
+    await cancelNotification(id);
+    debugPrint('[ReminderRepository] Notification cancelled, removing from box');
+    _box.remove(id);
+    debugPrint('[ReminderRepository] Removed from box');
   }
 
   int getTotalCount() {

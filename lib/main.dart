@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 import 'dart:isolate';
 import 'dart:ui' show IsolateNameServer;
+import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
@@ -380,6 +381,18 @@ class _FlexReminderAppState extends State<FlexReminderApp>
     receivePort.listen((message) {
       if (message is String) {
         showUiLog(message, duration: const Duration(seconds: 5));
+      } else if (message is Map && message['command'] == 'trigger_overdue_check') {
+        // Trigger overdue check in foreground
+        debugPrint('[main] Received trigger_overdue_check from background');
+        unawaited(overdueReminderService.reviewOverdueReminders().then((count) {
+          if (count > 0) {
+            debugPrint('[main] Foreground overdue check rescheduled $count reminders');
+            showUiLog('Rescheduled $count overdue reminders', duration: const Duration(seconds: 4));
+          } else {
+            debugPrint('[main] Foreground overdue check: no overdue reminders found');
+            showUiLog('Overdue check completed — no overdue reminders', duration: const Duration(seconds: 3));
+          }
+        }));
       }
     });
 

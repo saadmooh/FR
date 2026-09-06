@@ -327,13 +327,25 @@ Future<void> _workmanagerCallback() async {
       await _log('Initializing notifications...');
       await _initNotificationsInBackground();
 
-      // Early check: if main app already has store open, skip this task
-      // The main app's OverdueReminderService will handle overdue reminders on startup/resume.
+      // Early check: if main app already has store open, trigger foreground overdue check
       final dirPath = (storeDirectoryPath != null && storeDirectoryPath.isNotEmpty)
           ? storeDirectoryPath
           : (await defaultStoreDirectory()).path;
       if (Store.isOpen(dirPath)) {
-        await _log('Main app has store open, skipping background reschedule');
+        await _log('Main app has store open, triggering foreground overdue check');
+
+        // Send command to main isolate to run overdue check
+        try {
+          final sendPort = IsolateNameServer.lookupPortByName('bg_log_port');
+          if (sendPort != null) {
+            sendPort.send({'command': 'trigger_overdue_check'});
+            await _log('Sent trigger_overdue_check to main isolate');
+          } else {
+            await _log('SendPort not found, cannot trigger foreground check');
+          }
+        } catch (e) {
+          await _log('Failed to send trigger command: $e');
+        }
         return true;
       }
 

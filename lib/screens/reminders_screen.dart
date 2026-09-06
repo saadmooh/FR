@@ -281,15 +281,18 @@ class _RemindersScreenState extends State<RemindersScreen>
   }
 
   void _loadInitialData() {
+    debugPrint('[RemindersScreen] _loadInitialData called');
     try {
       _unopenedReminders = widget.reminderRepository.getUnread();
       _openedReminders = widget.reminderRepository.getRead();
       _unopenedError = null;
       _openedError = null;
       _loadFilterOptions();
+      debugPrint('[RemindersScreen] Loaded ${_unopenedReminders.length} unopened, ${_openedReminders.length} opened');
     } catch (e) {
       _unopenedError = e.toString();
       _openedError = e.toString();
+      debugPrint('[RemindersScreen] Error loading data: $e');
     }
   }
 
@@ -541,15 +544,31 @@ class _RemindersScreenState extends State<RemindersScreen>
     );
 
     if (confirm == true) {
-      await widget.notificationService.cancelReminder(reminder.id);
-      widget.reminderRepository.delete(reminder.id);
+      debugPrint('[RemindersScreen] Deleting reminder ${reminder.id}');
+      await widget.reminderRepository.deleteWithCleanup(reminder.id, widget.notificationService.cancelReminder);
+      debugPrint('[RemindersScreen] Delete completed, reloading data');
       _loadRemindersAndSync();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(Translations.deletePost(_locale)),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.whiteSurface,
+          ),
+        );
+      }
     }
   }
 
   void _loadRemindersAndSync() {
+    debugPrint('[RemindersScreen] _loadRemindersAndSync called, mounted=$mounted');
     _loadInitialData();
-    if (mounted) setState(() {});
+    if (mounted) {
+      debugPrint('[RemindersScreen] Calling setState');
+      setState(() {});
+    } else {
+      debugPrint('[RemindersScreen] Widget not mounted, skipping setState');
+    }
   }
 
   void _toggleSelectionMode() {

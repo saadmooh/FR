@@ -317,11 +317,10 @@ class OverdueReminderService {
   }
 
   /// Checks if a reminder is overdue.
-  /// Uses a 2-minute grace period to avoid racing with WorkManager.
   static bool isOverdue(Reminder reminder, [DateTime? currentTime]) {
     final now = currentTime ?? DateTime.now();
     return !reminder.isOpened &&
-        reminder.scheduledAt.isBefore(now.subtract(const Duration(minutes: 2)));
+        reminder.scheduledAt.isBefore(now);
   }
 
   /// Re-queues the AI rescheduling task so it is retried in 30 minutes.

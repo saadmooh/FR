@@ -227,9 +227,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
 
     if (confirm == true) {
-      await widget.notificationService.cancelReminder(_reminder!.id);
-      widget.reminderRepository.delete(_reminder!.id);
+      debugPrint('[PostDetailScreen] Deleting reminder ${_reminder!.id}');
+      await widget.reminderRepository.deleteWithCleanup(_reminder!.id, widget.notificationService.cancelReminder);
+      debugPrint('[PostDetailScreen] Delete completed');
       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(Translations.deletePost(_locale)),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.whiteSurface,
+          ),
+        );
         context.pop();
       }
     }
