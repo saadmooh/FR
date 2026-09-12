@@ -168,18 +168,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
               child: Column(
                 children: [
                   const SizedBox(height: 16),
-                  Container(
+                  Image.asset(
+                    'assets/images/app_icon.png',
                     width: 80,
                     height: 80,
-                    decoration: BoxDecoration(
-                      color: AppColors.accent.withAlpha(25),
-                      borderRadius: BorderRadius.zero,
-                    ),
-                    child: const Icon(
-                      Icons.workspace_premium,
-                      size: 40,
-                      color: AppColors.accent,
-                    ),
+                    fit: BoxFit.contain,
                   ),
                   const SizedBox(height: 24),
                   Text(
@@ -298,7 +291,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
                   Row(
                     children: [
                       Text(
-                        package.storeProduct.title,
+                        isMonthly
+                            ? Translations.monthlyPlanTitle(_locale)
+                            : Translations.annualPlanTitle(_locale),
                         style: TextStyle(
                           color: AppColors.whiteTextPrimary,
                           fontSize: 16,
@@ -327,11 +322,13 @@ class _PaywallScreenState extends State<PaywallScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    package.storeProduct.description,
+                    isMonthly
+                        ? Translations.monthlyPlanDescription(_locale)
+                        : Translations.annualPlanDescription(_locale),
                     style: TextStyle(
-                      color: AppColors.whiteTextSecondary,
-                      fontSize: 12,
-                    ),
+                    color: AppColors.whiteTextSecondary,
+                    fontSize: 12,
+                  ),
                   ),
                 ],
               ),

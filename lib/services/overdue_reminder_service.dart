@@ -8,6 +8,7 @@ import '../services/ai_service.dart';
 import '../services/notification_service.dart';
 import '../services/reschedule_lock_service.dart';
 import '../services/reschedule_policy.dart';
+import '../services/proxy_config_service.dart';
 import '../services/workmanager_service.dart';
 import '../core/ui_messenger.dart';
 
@@ -158,6 +159,21 @@ class OverdueReminderService {
       return false;
     }
 
+    // Check monthly reschedule limit (fetched from Supabase proxy_config)
+    final maxReschedulesPerMonth = await ProxyConfigService.instance
+        .getMonthlyRescheduleLimit(reminder.importance);
+    if (!reminder.canRescheduleThisMonth(maxReschedulesPerMonth)) {
+      debugPrint(
+        '[OverdueReminderService] Reminder ${reminder.id} exceeded monthly '
+        'reschedule limit ($maxReschedulesPerMonth), skipping',
+      );
+      showUiLog(
+        '"${reminder.title}" hit monthly reschedule limit ($maxReschedulesPerMonth), not rescheduled',
+        duration: const Duration(seconds: 6),
+      );
+      return false;
+    }
+
     // Race guard: try to acquire atomic lock via ObjectBox transaction
     final bool alreadyProcessing = _processingReminders.contains(reminder.id);
     if (!_lockService.acquireLock(reminder.id)) {
@@ -259,6 +275,7 @@ class OverdueReminderService {
       // Update reminder fields (using freshReminder to preserve any concurrent changes)
       freshReminder.scheduledAt = finalTime;
       freshReminder.rescheduleAttempts++;
+      freshReminder.incrementMonthlyReschedule();
       final reason = result['reason'] as String? ?? '';
       final reasonParts = reason.split(' | ');
       freshReminder.aiExplanation = reasonParts.isNotEmpty

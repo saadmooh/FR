@@ -34,7 +34,7 @@
     },
     {
       "id": "2:2467552958308754850",
-      "lastPropertyId": "34:4297586429664833521",
+      "lastPropertyId": "36:4446299275023697886",
       "name": "Reminder",
       "properties": [
         {
@@ -191,6 +191,16 @@
         {
           "id": "33:7429483713193910613",
           "name": "rescheduleAttempts",
+          "type": 6
+        },
+        {
+          "id": "35:3307274506787349898",
+          "name": "rescheduleAttemptsThisMonth",
+          "type": 6
+        },
+        {
+          "id": "36:4446299275023697886",
+          "name": "lastRescheduleMonth",
           "type": 6
         }
       ],

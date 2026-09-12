@@ -905,6 +905,7 @@ class _RemindersScreenState extends State<RemindersScreen>
         backgroundColor: AppColors.whiteBackground,
         elevation: 0,
         scrolledUnderElevation: 0,
+        centerTitle: true,
         title: _isSearchVisible
             ? _buildAnimatedSearchField()
             : _isSelectionMode
@@ -915,19 +916,10 @@ class _RemindersScreenState extends State<RemindersScreen>
                     ),
                     style: Theme.of(context).appBarTheme.titleTextStyle,
                   )
-                : Row(
-                    children: [
-                      Image.asset(
-                        'assets/images/app_icon.png',
-                        width: 32,
-                        height: 32,
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        Translations.appName(_locale),
-                        style: Theme.of(context).appBarTheme.titleTextStyle,
-                      ),
-                    ],
+                : Text(
+                    AppConstants.appName,
+                    style: Theme.of(context).appBarTheme.titleTextStyle,
+                    overflow: TextOverflow.ellipsis,
                   ),
         actions: [
           if (_isSelectionMode) ...[

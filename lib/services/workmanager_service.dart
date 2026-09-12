@@ -32,7 +32,7 @@ Future<void> scheduleAiRescheduleRetry(int reminderId) async {
 }
 
 const String _notificationChannelId = 'flex_reminders_channel';
-const String _notificationChannelName = 'Smart Pocket';
+const String _notificationChannelName = 'Bookmark Reminder';
 const String _notificationChannelDescription = 'Smart post reading reminders';
 const String _uiLogQueueKey = 'bg_ui_log_queue';
 
@@ -571,7 +571,7 @@ Future<void> _workmanagerCallback() async {
         id: reminderId,
         title: ' Time to read: ${reminder.title}',
         body:
-            '${reminder.categoryEn ?? "General"} · ${reminder.complexityAr ?? "متوسط"}',
+            '${reminder.categoryEn ?? "General"} · ${reminder.complexityEn ?? "Medium"}',
         scheduledDate: tz.TZDateTime.from(reminder.scheduledAt, tz.local),
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
@@ -600,7 +600,7 @@ Future<void> _workmanagerCallback() async {
       final formattedTime =
           '${finalTime.hour.toString().padLeft(2, '0')}:${finalTime.minute.toString().padLeft(2, '0')}';
       final successBody =
-          '${reminder.title}\nNew time: $formattedTime\n${reminder.aiExplanation}';
+          '${reminder.title}\nNew time: $formattedTime\n${reminder.aiExplanation ?? ''}';
       await plugin.show(
         id: reminderId,
         title: 'Reminder Rescheduled',

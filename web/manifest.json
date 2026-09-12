@@ -1,6 +1,6 @@
 {
-    "name": "myapp",
-    "short_name": "myapp",
+    "name": "Bookmark Reminder",
+    "short_name": "Bookmark Reminder",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

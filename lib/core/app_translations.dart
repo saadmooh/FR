@@ -9,7 +9,7 @@ class AppTranslations {
 
   static const Map<String, String> _englishStrings = {
     // App
-    'appName': 'Smart Pocket',
+    'appName': 'Bookmark Reminder',
 
     // Navigation
     'navPosts': 'Posts',
@@ -217,7 +217,7 @@ class AppTranslations {
     'cardDaysAgo': '{days} days ago',
 
     // Auth / Login
-    'signInTitle': 'Welcome to Smart Pocket',
+    'signInTitle': 'Welcome to Bookmark Reminder',
     'signInSubtitle': 'Sign in to sync your reminders across devices',
     'signInWithGoogle': 'Continue with Google',
     'signInTerms': 'By continuing, you agree to our Terms of Service and Privacy Policy',
@@ -244,6 +244,10 @@ class AppTranslations {
     'premiumFeatureExcelExport': 'Export to Excel & JSON',
     'premiumFeatureAdvancedStats': 'Advanced statistics',
     'premiumFeatureNoAds': 'No ads',
+    'monthlyPlanTitle': 'Monthly Premium',
+    'monthlyPlanDescription': 'Unlock all features, billed monthly',
+    'annualPlanTitle': 'Annual Premium (Save 50%)',
+    'annualPlanDescription': 'Unlock all features, billed yearly',
 
     // Settings - Backup/Restore
     'exportFormat': 'Export Format',
@@ -478,7 +482,7 @@ class AppTranslations {
     'cardDaysAgo': 'منذ {days} يوم',
 
     // Auth / Login
-    'signInTitle': 'مرحبًا بك في Smart Pocket',
+    'signInTitle': 'مرحبًا بك في Bookmark Reminder',
     'signInSubtitle': 'سجّل الدخول لمزامنة تذكيراتك عبر الأجهزة',
     'signInWithGoogle': 'المتابعة مع Google',
     'signInTerms': 'بالمتابعة، أنت توافق على شروط الخدمة و سياسة الخصوصية',
@@ -505,6 +509,10 @@ class AppTranslations {
     'premiumFeatureExcelExport': 'تصدير إلى Excel و JSON',
     'premiumFeatureAdvancedStats': 'إحصائيات متقدمة',
     'premiumFeatureNoAds': 'بدون إعلانات',
+    'monthlyPlanTitle': 'بريميوم شهري',
+    'monthlyPlanDescription': 'افتح جميع الميزات، مع فاتورة شهرية',
+    'annualPlanTitle': 'بريميوم سنوي (وفر 50%)',
+    'annualPlanDescription': 'افتح جميع الميزات، مع فاتورة سنوية',
 
     // Settings - Backup/Restore
     'exportFormat': 'تنسيق التصدير',
@@ -531,7 +539,7 @@ class AppTranslations {
 
   static const Map<String, String> _frenchStrings = {
     // App
-    'appName': 'Smart Pocket',
+    'appName': 'Bookmark Reminder',
 
     // Navigation
     'navPosts': 'Publications',
@@ -741,7 +749,7 @@ class AppTranslations {
     'cardDaysAgo': 'Il y a {days} jours',
 
     // Auth / Login
-    'signInTitle': 'Bienvenue sur Smart Pocket',
+    'signInTitle': 'Bienvenue sur Bookmark Reminder',
     'signInSubtitle': 'Connectez-vous pour synchroniser vos rappels sur tous vos appareils',
     'signInWithGoogle': 'Continuer avec Google',
     'signInTerms': "En continuant, vous acceptez nos Conditions d'utilisation et notre Politique de confidentialité",
@@ -768,6 +776,10 @@ class AppTranslations {
     'premiumFeatureExcelExport': 'Exporter vers Excel & JSON',
     'premiumFeatureAdvancedStats': 'Statistiques avancées',
     'premiumFeatureNoAds': 'Sans publicités',
+    'monthlyPlanTitle': 'Premium mensuel',
+    'monthlyPlanDescription': 'Débloquez toutes les fonctionnalités, facturé mensuellement',
+    'annualPlanTitle': 'Premium annuel (Économisez 50%)',
+    'annualPlanDescription': 'Débloquez toutes les fonctionnalités, facturé annuellement',
 
     // Settings - Backup/Restore
     'exportFormat': 'Format d\'exportation',

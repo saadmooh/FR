@@ -567,6 +567,18 @@ class Translations {
   static String premiumFeatureNoAds(String locale) =>
       AppTranslations.getString('premiumFeatureNoAds', locale: locale);
 
+  static String monthlyPlanTitle(String locale) =>
+      AppTranslations.getString('monthlyPlanTitle', locale: locale);
+
+  static String monthlyPlanDescription(String locale) =>
+      AppTranslations.getString('monthlyPlanDescription', locale: locale);
+
+  static String annualPlanTitle(String locale) =>
+      AppTranslations.getString('annualPlanTitle', locale: locale);
+
+  static String annualPlanDescription(String locale) =>
+      AppTranslations.getString('annualPlanDescription', locale: locale);
+
   static String exportFormat(String locale) =>
       AppTranslations.getString('exportFormat', locale: locale);
 

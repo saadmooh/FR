@@ -228,6 +228,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  void _showLanguageDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.whiteSurface,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        title: Text(
+          Translations.selectLanguage(_locale),
+          style: TextStyle(color: AppColors.whiteTextPrimary),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: LocaleManager.supportedLocales.map((locale) {
+            final localeCode = locale.languageCode;
+            final isSelected = LocaleManager.instance.getLocale() == localeCode;
+            return ListTile(
+              title: Text(
+                LocaleManager.getLanguageName(localeCode),
+                style: TextStyle(
+                  color: AppColors.whiteTextPrimary,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+              trailing: isSelected
+                  ? Icon(Icons.check, color: AppColors.whiteAccent)
+                  : null,
+              onTap: () async {
+                await LocaleManager.instance.setLocale(localeCode);
+                if (mounted && ctx.mounted) {
+                  Navigator.pop(ctx);
+                  setState(() {});
+                }
+              },
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final locale = _locale;
@@ -290,6 +330,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: _showSignOutDialog,
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 32),
+
+          _buildSectionHeader(Translations.language(locale), Icons.language_outlined),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.whiteSurface,
+              borderRadius: BorderRadius.zero,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.whiteShadow,
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ListTile(
+              leading: const Icon(
+                Icons.language,
+                color: AppColors.whiteAccent,
+              ),
+              title: Text(
+                LocaleManager.getLanguageName(_locale),
+                style: TextStyle(color: AppColors.whiteTextPrimary),
+              ),
+              trailing: const Icon(
+                Icons.chevron_right,
+                color: AppColors.whiteTextSecondary,
+              ),
+              onTap: _showLanguageDialog,
             ),
           ),
           const SizedBox(height: 32),

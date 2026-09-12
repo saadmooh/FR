@@ -49,6 +49,10 @@ class Reminder {
 
   int rescheduleAttempts = 0;
 
+  // Monthly reschedule limit tracking
+  int rescheduleAttemptsThisMonth = 0;
+  int lastRescheduleMonth = 0; // Stores year * 100 + month (e.g., 202609 for Sep 2026)
+
   Reminder({
     this.id = 0,
     required this.url,
@@ -74,5 +78,27 @@ class Reminder {
     this.aiExplanationAr,
     this.aiExplanationFr,
     this.rescheduleAttempts = 0,
+    this.rescheduleAttemptsThisMonth = 0,
+    this.lastRescheduleMonth = 0,
   });
+
+  int get _currentMonthKey => DateTime.now().year * 100 + DateTime.now().month;
+
+  bool canRescheduleThisMonth(int maxPerMonth) {
+    final nowKey = _currentMonthKey;
+    if (lastRescheduleMonth != nowKey) {
+      return true; // New month, reset counter
+    }
+    return rescheduleAttemptsThisMonth < maxPerMonth;
+  }
+
+  void incrementMonthlyReschedule() {
+    final nowKey = _currentMonthKey;
+    if (lastRescheduleMonth != nowKey) {
+      rescheduleAttemptsThisMonth = 1;
+      lastRescheduleMonth = nowKey;
+    } else {
+      rescheduleAttemptsThisMonth++;
+    }
+  }
 }

@@ -4,6 +4,7 @@ final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
 const bool uiLogsEnabled = true;
+const bool snackBarsEnabled = false;
 
 final List<String> _pending = [];
 
@@ -12,7 +13,7 @@ void showUiLog(
   Duration duration = const Duration(seconds: 4),
 }) {
   debugPrint('[UI-LOG] $message');
-  if (!uiLogsEnabled) return;
+  if (!uiLogsEnabled || !snackBarsEnabled) return;
   final messenger = scaffoldMessengerKey.currentState;
   if (messenger == null) {
     _pending.add(message);
@@ -30,6 +31,10 @@ void showUiLog(
 /// Shows messages that arrived before MaterialApp was mounted (e.g. during
 /// startup initialization). Call once after the first frame.
 void flushPendingUiLogs() {
+  if (!snackBarsEnabled) {
+    _pending.clear();
+    return;
+  }
   final messenger = scaffoldMessengerKey.currentState;
   if (messenger == null || _pending.isEmpty) return;
   final queued = List<String>.from(_pending);

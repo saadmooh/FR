@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'ui_messenger.dart';
 
 class IntegritySnackBar {
   static GlobalKey<ScaffoldMessengerState>? _messengerKey;
@@ -24,6 +25,7 @@ class IntegritySnackBar {
     String? tokenLength,
     int durationSeconds = 15,
   }) {
+    if (!snackBarsEnabled) return;
     final messenger = _messenger;
     if (messenger == null) {
       debugPrint('IntegritySnackBar: No messenger key set');

@@ -18,7 +18,7 @@ import 'notification_scheduler.dart';
 
 const String _monitoringTaskName = 'reminder_monitoring_task';
 
-/// Advanced Notification Service for Smart Pocket
+/// Advanced Notification Service for Bookmark Reminder
 /// Handles notification scheduling, tap actions, and notification management
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -38,7 +38,7 @@ class NotificationService {
   bool _initialized = false;
 
   static const String _channelId = 'flex_reminders_channel';
-  static const String _channelName = 'Smart Pocket';
+  static const String _channelName = 'Bookmark Reminder';
   static const String _channelDescription = 'Smart post reading reminders';
 
   /// Initialize the notification service
@@ -282,7 +282,7 @@ class NotificationService {
         id: reminder.id,
         title: '📖 Time to read: ${reminder.title}',
         body:
-            '${reminder.categoryEn ?? "General"} · ${reminder.complexityAr ?? "متوسط"}',
+            '${reminder.categoryEn ?? "General"} · ${reminder.complexityEn ?? "Medium"}',
         scheduledDate: tz.TZDateTime.from(reminder.scheduledAt, tz.local),
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(

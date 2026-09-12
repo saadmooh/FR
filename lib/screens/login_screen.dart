@@ -49,14 +49,11 @@ class _LoginScreenState extends State<LoginScreen> {
               Container(
                 width: 80,
                 height: 80,
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withAlpha(25),
-                  borderRadius: BorderRadius.zero,
-                ),
-                child: const Icon(
-                  Icons.bookmark_outline,
-                  size: 40,
-                  color: AppColors.accent,
+                child: Image.asset(
+                  'assets/images/app_icon.png',
+                  width: 80,
+                  height: 80,
+                  fit: BoxFit.contain,
                 ),
               ),
               const SizedBox(height: 24),

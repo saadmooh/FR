@@ -1,0 +1,55 @@
+# Google Play Console - Subscription Store Listing
+
+## Subscription: base_plan_1 (flexReminder)
+
+### Main Store Listing (applies to both base plans)
+
+| Language | Title | Short Description | Full Description |
+|----------|-------|-------------------|------------------|
+| English (US) | **Bookmark Reminder Premium** | **Monthly Premium** - Unlock all features, billed monthly | **Monthly Premium** - Get unlimited bookmark reminders, AI-powered scheduling, cloud sync across devices, advanced statistics, and export to Excel/JSON. Billed monthly, cancel anytime. |
+| English (US) | **Bookmark Reminder Premium** | **Annual Premium (Save 50%)** - Unlock all features, billed yearly | **Annual Premium (Save 50%)** - Get unlimited bookmark reminders, AI-powered scheduling, cloud sync across devices, advanced statistics, and export to Excel/JSON. Billed yearly - best value. Cancel anytime. |
+
+---
+
+## Base Plans (inherit subscription title/description)
+
+| Base Plan ID | Type | Billing Period | Price (USD) | Google Play Product ID |
+|--------------|------|----------------|-------------|------------------------|
+| month-1-1 | Auto-renewing | Monthly | $4.99 | base_plan_1:month-1-1 |
+| year-1-1 | Auto-renewing | Annual | $29.99 | base_plan_1:year-1-1 |
+
+---
+
+## RevenueCat Mapping
+
+| RevenueCat Package | Display Name | Package Type | Linked Product |
+|--------------------|--------------|--------------|----------------|
+| $rc_monthly | Monthly Premium | MONTHLY | base_plan_1:month-1-1 |
+| $rc_annual | Annual Premium (Save 50%) | ANNUAL | base_plan_1:year-1-1 |
+
+---
+
+## Entitlement
+
+- **Identifier**: `pro`
+- **Description**: Premium access to all features
+- **Apps**: flexReminder (Play Store)
+
+---
+
+## Current Offering
+
+- **Offering ID**: `ofrng558fa984cf`
+- **Lookup Key**: `pro`
+- **Is Current**: ✅ true
+
+---
+
+## Notes
+
+1. Both base plans share the same store listing title/description from the subscription level
+2. The RevenueCat `display_name` overrides are set via API but the app uses `storeProduct.title` from Google Play
+3. To show different titles per plan in the paywall, either:
+   - Update the subscription store listing with generic title, OR
+   - Create separate subscriptions for monthly/annual
+4. The "POPULAR" badge in the app appears on the monthly plan automatically

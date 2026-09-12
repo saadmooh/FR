@@ -60,7 +60,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
     id: const obx_int.IdUid(2, 2467552958308754850),
     name: 'Reminder',
-    lastPropertyId: const obx_int.IdUid(34, 4297586429664833521),
+    lastPropertyId: const obx_int.IdUid(36, 4446299275023697886),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
@@ -246,6 +246,18 @@ final _entities = <obx_int.ModelEntity>[
       obx_int.ModelProperty(
         id: const obx_int.IdUid(33, 7429483713193910613),
         name: 'rescheduleAttempts',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(35, 3307274506787349898),
+        name: 'rescheduleAttemptsThisMonth',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(36, 4446299275023697886),
+        name: 'lastRescheduleMonth',
         type: 6,
         flags: 0,
       ),
@@ -625,7 +637,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final playlistThumbnailOffset = object.playlistThumbnail == null
             ? null
             : fbb.writeString(object.playlistThumbnail!);
-        fbb.startTable(35);
+        fbb.startTable(37);
         fbb.addInt64(0, object.id);
         fbb.addOffset(1, urlOffset);
         fbb.addOffset(2, titleOffset);
@@ -657,6 +669,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
         fbb.addOffset(30, playlistTitleOffset);
         fbb.addOffset(31, playlistThumbnailOffset);
         fbb.addInt64(32, object.rescheduleAttempts);
+        fbb.addInt64(34, object.rescheduleAttemptsThisMonth);
+        fbb.addInt64(35, object.lastRescheduleMonth);
         fbb.finish(fbb.endTable());
         return object.id;
       },
@@ -752,6 +766,14 @@ obx_int.ModelDefinition getObjectBoxModel() {
           68,
           0,
         );
+        final rescheduleAttemptsThisMonthParam = const fb.Int64Reader()
+            .vTableGet(buffer, rootOffset, 72, 0);
+        final lastRescheduleMonthParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          74,
+          0,
+        );
         final object =
             Reminder(
                 id: idParam,
@@ -778,6 +800,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
                 aiExplanationAr: aiExplanationArParam,
                 aiExplanationFr: aiExplanationFrParam,
                 rescheduleAttempts: rescheduleAttemptsParam,
+                rescheduleAttemptsThisMonth: rescheduleAttemptsThisMonthParam,
+                lastRescheduleMonth: lastRescheduleMonthParam,
               )
               ..isPlaylist = const fb.BoolReader().vTableGet(
                 buffer,
@@ -1253,6 +1277,16 @@ class Reminder_ {
   /// See [Reminder.rescheduleAttempts].
   static final rescheduleAttempts = obx.QueryIntegerProperty<Reminder>(
     _entities[1].properties[30],
+  );
+
+  /// See [Reminder.rescheduleAttemptsThisMonth].
+  static final rescheduleAttemptsThisMonth = obx.QueryIntegerProperty<Reminder>(
+    _entities[1].properties[31],
+  );
+
+  /// See [Reminder.lastRescheduleMonth].
+  static final lastRescheduleMonth = obx.QueryIntegerProperty<Reminder>(
+    _entities[1].properties[32],
   );
 }
 

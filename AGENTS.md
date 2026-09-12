@@ -3,7 +3,7 @@
 This file provides guidelines for agentic coding agents operating in this Flutter repository.
 
 ## Project Overview
-- **Project Name**: Flex Reminder
+- **Project Name**: Bookmark Reminder
 - **Type**: Flutter mobile application (Android-focused)
 - **SDK**: Dart 3.9.0, Flutter
 - **Architecture**: Clean Architecture with Repository pattern

@@ -19,7 +19,6 @@
 //   6. Subscription: a short-lived session JWT issued by the session-token
 //      function must be present and valid (signature + exp + entitlement).
 //      Issued only after RevenueCat reported an active Pro entitlement.
-//   7. Rate limiting: per-user minute/hour/month windows.
 //
 // Server-side secrets (set with `supabase secrets set`, NEVER in code):
 //   GEMINI_API_KEY              — Google AI (Gemini) API key
@@ -59,12 +58,10 @@ const EXPECTED_CERT_HASHES = (Deno.env.get('EXPECTED_CERT_SHA256') ?? '')
 
 // Config cache (TTL: 60 seconds)
 let configCache: {
-  rateLimitPerMinute: number;
-  rateLimitPerHour: number;
-  rateLimitPerMonth: number;
   geminiModel: string;
   maxHistoryTurns: number;
   allowDebugBypass: boolean;
+  unopenedPostsLimit: number;
 } | null = null;
 let configCacheExpiry = 0;
 
@@ -74,106 +71,42 @@ async function loadConfig(supabase: ReturnType<typeof createClient>): Promise<vo
     return;
   }
 
-  const { data, error } = await supabase.rpc('get_ai_proxy_config');
+  const { data, error } = await supabase.rpc('get_proxy_config');
   if (error) {
     console.error('Failed to load config, using defaults:', error);
     configCache = {
-      rateLimitPerMinute: 10,
-      rateLimitPerHour: 1,
-      rateLimitPerMonth: 500,
       geminiModel: 'gemini-3.1-flash-lite',
       maxHistoryTurns: 20,
       allowDebugBypass: false,
+      unopenedPostsLimit: 50,
     };
   } else {
     const cfg = data ?? {};
     configCache = {
-      rateLimitPerMinute: Number(cfg.rate_limit_per_minute ?? 10),
-      rateLimitPerHour: Number(cfg.rate_limit_per_hour ?? 1),
-      rateLimitPerMonth: Number(cfg.rate_limit_per_month ?? 500),
       geminiModel: cfg.gemini_model ?? 'gemini-3.1-flash-lite',
       maxHistoryTurns: Number(cfg.max_history_turns ?? 20),
       allowDebugBypass: cfg.allow_debug_bypass === true || cfg.allow_debug_bypass === 'true',
+      unopenedPostsLimit: Number(cfg.unopened_posts_limit ?? 50),
     };
   }
   configCacheExpiry = now + 60 * 1000;
 }
 
 // ---------------------------------------------------------------------------
-// Rate limiting (database-backed, works across function instances)
+// Helpers
 // ---------------------------------------------------------------------------
 
-async function checkRateLimit(
-  supabase: ReturnType<typeof createClient>,
-  userId: string,
-): Promise<{ allowed: boolean; period?: 'minute' | 'hour' | 'month' }> {
-  await loadConfig(supabase);
-  const cfg = configCache!;
-
-  const minuteAgo = new Date(Date.now() - 60 * 1000).toISOString();
-  const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
-  const monthStartIso = monthStart.toISOString();
-
-  const { data, error } = await supabase.rpc('check_rate_limit', {
-    p_user_id: userId,
-    p_minute_limit: cfg.rateLimitPerMinute,
-    p_hour_limit: cfg.rateLimitPerHour,
-    p_month_limit: cfg.rateLimitPerMonth,
-    p_minute_window_start: minuteAgo,
-    p_hour_window_start: hourAgo,
-    p_month_window_start: monthStartIso,
-  });
-
-  if (error) {
-    console.error('Rate limit RPC error:', error);
-    return { allowed: true };
-  }
-
-  if (!data?.allowed) {
-    return { allowed: false, period: data?.period };
-  }
-
-  return { allowed: true };
-}
-
-// ---------------------------------------------------------------------------
-// Nonce replay protection
-// ---------------------------------------------------------------------------
-
-/**
- * Atomically claims a nonce for a user. Returns false if the nonce has
- * already been used (primary-key conflict on `used_nonces.nonce`), which
- * means this exact request was already processed — reject it as a replay.
- */
 async function claimNonce(
   supabase: ReturnType<typeof createClient>,
   nonce: string,
   userId: string,
 ): Promise<boolean> {
-  const { error } = await supabase
-    .from('used_nonces')
-    .insert({ nonce, user_id: userId });
-  if (error) {
-    // Only a true unique violation (Postgres 23505) means this exact nonce was
-    // already claimed → a genuine replay. Any other error (table missing, RLS,
-    // transient) must NOT be reported as a replay, otherwise healthy requests
-    // are wrongly rejected. Fail open for non-replay DB errors.
-    const isUniqueViolation = (error as { code?: string }).code === '23505';
-    if (isUniqueViolation) {
-      return false;
-    }
-    logError('claimNonce_db_error', error, { code: (error as { code?: string }).code });
-    return true;
-  }
+  const { error } = await supabase.from('used_nonces').insert({ nonce, user_id: userId });
+  if (!error) return true;
+  if ((error as { code?: string }).code === '23505') return false;
+  logError('claim_nonce_db_error', error, { nonce, userId });
   return true;
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function jsonError(
   status: number,
@@ -563,32 +496,6 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // ---- 7. Rate limiting -------------------------------------------------------
-  const limit = await checkRateLimit(supabase, user.id);
-  if (!limit.allowed) {
-    logError('rate_limit_exceeded', new Error(`Rate limit exceeded: ${limit.period}`), {
-      requestId,
-      userId: user.id,
-      period: limit.period,
-    });
-    logRequest('request_end', {
-      requestId,
-      status: 429,
-      durationMs: Date.now() - startTime,
-      error: `RATE_LIMIT_${limit.period?.toUpperCase()}`,
-    });
-    const isMinute = limit.period === 'minute';
-    const isHour = limit.period === 'hour';
-    return jsonError(
-      429,
-      isMinute ? 'RATE_LIMIT_MINUTE' : isHour ? 'RATE_LIMIT_HOUR' : 'RATE_LIMIT_MONTH',
-      isMinute
-        ? 'Rate limit exceeded, try again in a minute'
-        : isHour
-        ? 'Hourly limit reached, try again in an hour'
-        : 'Monthly usage limit reached, try again next month',
-    );
-  }
   // ---- 8. Call Gemini -----------------------------------------------------------
   try {
     const text = await callGemini(prompt, history, cfg.geminiModel);
