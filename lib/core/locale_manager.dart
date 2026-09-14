@@ -36,7 +36,9 @@ class LocaleManager {
       _settingsRepository = settingsRepository;
       final savedLocale = settingsRepository.getLocale();
       _currentLocale = savedLocale ?? 'en';
-      localeNotifier.value = _currentLocale;
+      if (localeNotifier.value != _currentLocale) {
+        localeNotifier.value = _currentLocale;
+      }
     } catch (e) {
       _currentLocale = 'en';
       localeNotifier.value = 'en';

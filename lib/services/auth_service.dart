@@ -8,10 +8,26 @@ import '../core/app_config.dart';
 import 'package:gotrue/gotrue.dart' show OAuthProvider;
 import 'revenuecat_service.dart';
 
-class AuthService {
+enum AuthStatus { loading, authenticated, unauthenticated }
+
+class AuthService extends ChangeNotifier {
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
-  AuthService._internal();
+
+  AuthService._internal() {
+    _authStateSubscription = _auth.authStateChanges().listen((user) {
+      _status = user != null
+          ? AuthStatus.authenticated
+          : AuthStatus.unauthenticated;
+      if (!_initialAuthStateComplete.isCompleted) {
+        _initialAuthStateComplete.complete(user);
+      }
+      if (user != null) {
+        unawaited(_restoreExternalSessions(user));
+      }
+      notifyListeners();
+    });
+  }
 
   final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
@@ -21,8 +37,15 @@ class AuthService {
 
   firebase_auth.User? get currentUser => _auth.currentUser;
   bool get isSignedIn => _auth.currentUser != null;
+  AuthStatus _status = AuthStatus.loading;
+  AuthStatus get status => _status;
 
-  Stream<firebase_auth.User?> get authStateChanges => _auth.authStateChanges();
+  StreamSubscription<firebase_auth.User?>? _authStateSubscription;
+  final Completer<firebase_auth.User?> _initialAuthStateComplete =
+      Completer<firebase_auth.User?>();
+
+  Future<firebase_auth.User?> get initialAuthState =>
+      _initialAuthStateComplete.future;
 
   Future<firebase_auth.User?> signInWithGoogle() async {
     try {
@@ -78,6 +101,10 @@ class AuthService {
     }
   }
 
+  Future<void> _restoreExternalSessions(firebase_auth.User user) async {
+    await _postSignInSync(user);
+  }
+
   Future<void> signOut() async {
     try {
       await RevenueCatService().logout();
@@ -102,5 +129,11 @@ class AuthService {
       debugPrint('Account deletion failed: $e');
       rethrow;
     }
+  }
+
+  @override
+  void dispose() {
+    _authStateSubscription?.cancel();
+    super.dispose();
   }
 }

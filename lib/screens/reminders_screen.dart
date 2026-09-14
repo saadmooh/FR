@@ -58,6 +58,7 @@ class RemindersScreen extends StatefulWidget {
   final AIService aiService;
   final ValueNotifier<String?> pendingSharedUrl;
   final ValueNotifier<String?> aiRescheduleError;
+  final ValueNotifier<int?> reminderOpenedId;
 
   const RemindersScreen({
     super.key,
@@ -68,6 +69,7 @@ class RemindersScreen extends StatefulWidget {
     required this.aiService,
     required this.pendingSharedUrl,
     required this.aiRescheduleError,
+    required this.reminderOpenedId,
   });
 
   @override
@@ -122,6 +124,7 @@ class _RemindersScreenState extends State<RemindersScreen>
     widget.pendingSharedUrl.addListener(_onPendingSharedUrlChanged);
     LocaleManager.instance.localeNotifier.addListener(_onLocaleChanged);
     widget.aiRescheduleError.addListener(_onAiRescheduleErrorChanged);
+    widget.reminderOpenedId.addListener(_onReminderOpenedChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showAiRescheduleErrorIfNeeded();
     });
@@ -134,9 +137,16 @@ class _RemindersScreenState extends State<RemindersScreen>
     }
   }
 
+  void _onReminderOpenedChanged() {
+    if (mounted) {
+      _loadRemindersAndSync();
+    }
+  }
+
   @override
   void dispose() {
     widget.aiRescheduleError.removeListener(_onAiRescheduleErrorChanged);
+    widget.reminderOpenedId.removeListener(_onReminderOpenedChanged);
     _tabController.removeListener(_onTabChanged);
     widget.pendingSharedUrl.removeListener(_onPendingSharedUrlChanged);
     LocaleManager.instance.localeNotifier.removeListener(_onLocaleChanged);
@@ -1266,7 +1276,7 @@ class _RemindersScreenState extends State<RemindersScreen>
           children: [
             if (tab.hasActiveFilters)
               Padding(
-                padding: const EdgeInsets.only(right: 10),
+                 padding: const EdgeInsetsDirectional.only(end: 10),
                 child: Container(
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFF0F0),

@@ -275,10 +275,10 @@ Return only with ALL THREE languages:
 Statistics: ${jsonEncode(stats)}
 
 Respond with a single string in this exact format (three languages separated by ' | '):
-[English description] | [Arabic description] | [Chinese description]
+[English description] | [Arabic description] | [French description]
 
 Example:
-"Posts are most opened on Monday mornings and Thursday evenings | المنشورات تُفتح أكثر صباح الاثنين ومساء الخميس | 帖子在周一早晨和周四晚上打开最多"
+"Posts are most opened on Monday mornings and Thursday evenings | المنشورات تُفتح أكثر صباح الاثنين ومساء الخميس | Les publications sont le plus souvent ouvertes le lundi matin et le jeudi soir"
 
 Write only the formatted string. No JSON, no extra text.''';
 
@@ -320,12 +320,12 @@ Provide:
 3. Key behavioral insights
 4. Actionable recommendations
 
-Return this exact JSON:
+Return this exact JSON. Use ' | ' to separate languages in text fields:
 {
-  "analysis": "Detailed analysis in English",
+  "analysis": "English analysis | تحليل عربي | Analyse en français",
   "preferred_times": ["09:00-10:00", "18:00-19:00"],
   "confidence_score": 0.75,
-  "insights": ["insight 1", "insight 2", "insight 3"]
+  "insights": ["English insight | رؤية عربية | Insight en français", "English insight 2 | رؤية عربية 2 | Insight en français 2"]
 }''';
 
     final result = await _callAI([

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../repositories/reminder_repository.dart';
 import '../repositories/category_statistic_repository.dart';
 import '../services/ai_service.dart';
@@ -30,12 +31,30 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   bool _isLoading = true;
   String? _analyzingCategoryId;
   final Map<int, Map<String, dynamic>> _categoryAnalysis = {};
+  int _lastAnalysisTotal = -1;
+  SharedPreferences? _prefs;
 
   String get _locale => LocaleManager.instance.getLocale();
+
+  String _localizedText(String pipeSeparated) {
+    final parts = pipeSeparated.split(' | ');
+    switch (_locale) {
+      case 'ar':
+        return parts.length > 1 ? parts[1] : pipeSeparated;
+      case 'fr':
+        return parts.length > 2 ? parts[2] : (parts.length > 1 ? parts[1] : pipeSeparated);
+      default:
+        return parts.isNotEmpty ? parts[0] : pipeSeparated;
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    SharedPreferences.getInstance().then((prefs) {
+      _prefs = prefs;
+      _lastAnalysisTotal = prefs.getInt('stats_last_analysis_total') ?? -1;
+    });
     _loadStats();
     LocaleManager.instance.localeNotifier.addListener(_onLocaleChanged);
   }
@@ -73,7 +92,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       _isLoading = false;
     });
 
-    _loadAIAnalysis(total, opened, missed);
+    if (total - _lastAnalysisTotal >= 10 || _lastAnalysisTotal < 0) {
+      _lastAnalysisTotal = total;
+      _prefs?.setInt('stats_last_analysis_total', total);
+      _loadAIAnalysis(total, opened, missed);
+    }
   }
 
   Future<void> _loadAIAnalysis(int total, int opened, int missed) async {
@@ -242,18 +265,13 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                               ],
                             ),
                             const SizedBox(height: 14),
-                            ..._aiAnalysis.split('|').map((part) {
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: Text(
-                                  part.trim(),
-                                  style: const TextStyle(
-                                    color: AppColors.whiteTextSecondary,
-                                    height: 1.5,
-                                  ),
-                                ),
-                              );
-                            }),
+                            Text(
+                              _localizedText(_aiAnalysis),
+                              style: const TextStyle(
+                                color: AppColors.whiteTextSecondary,
+                                height: 1.5,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -349,7 +367,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             children: [
               Expanded(
                 child: Text(
-                  '${stat.categoryEn} (${stat.complexityEn})',
+                  '${LocaleManager.instance.getCategory(stat.categoryEn, null, null)} (${LocaleManager.instance.getComplexity(stat.complexityEn, null, null)})',
                   style: const TextStyle(
                     color: AppColors.whiteTextPrimary,
                     fontWeight: FontWeight.w600,
@@ -434,10 +452,12 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 
   Widget _buildAnalysisResults(Map<String, dynamic> analysis) {
-    final analysisText = analysis['analysis'] as String? ?? '';
+    final analysisText = _localizedText(analysis['analysis'] as String? ?? '');
     final preferredTimes = analysis['preferred_times'] as List<dynamic>? ?? [];
     final confidenceScore = analysis['confidence_score'] as num? ?? 0.0;
-    final insights = analysis['insights'] as List<dynamic>? ?? [];
+    final insights = (analysis['insights'] as List<dynamic>? ?? [])
+        .map((i) => _localizedText(i.toString()))
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

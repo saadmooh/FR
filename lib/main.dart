@@ -4,6 +4,7 @@ import 'dart:ui' show IsolateNameServer;
 import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
@@ -46,6 +47,7 @@ late RevenueCatService revenueCatService;
 
 final ValueNotifier<String?> pendingSharedUrl = ValueNotifier<String?>(null);
 final ValueNotifier<String?> aiRescheduleError = ValueNotifier<String?>(null);
+final ValueNotifier<int?> reminderOpenedId = ValueNotifier<int?>(null);
 
 const String _bgUiLogQueueKey = 'bg_ui_log_queue';
 const String bgLogPortName = 'bg_log_port';
@@ -178,29 +180,6 @@ Future<void> _initApp() async {
   revenueCatService = RevenueCatService();
   await revenueCatService.initialize();
 
-  // Restore Supabase session from Firebase user if already signed in
-  if (AppConfig.isSupabaseConfigured && authService.currentUser != null) {
-    try {
-      final idToken = await authService.currentUser!.getIdToken();
-      if (idToken != null) {
-        await Supabase.instance.client.auth.signInWithIdToken(
-          provider: OAuthProvider('custom:firebase'),
-          idToken: idToken,
-        );
-        debugPrint('Supabase session restored from Firebase user');
-      }
-    } catch (e) {
-      debugPrint('Failed to restore Supabase session: $e');
-    }
-  }
-
-  // Re-link RevenueCat identity when a saved session exists on cold start,
-  // so returning subscribers are recognized without a new sign-in.
-  final rcFirebaseUser = authService.currentUser;
-  if (rcFirebaseUser != null) {
-    await revenueCatService.linkToUser(rcFirebaseUser.uid);
-  }
-
   // Initialize timezone (resolves the device's IANA zone, not UTC)
   await initLocalTimeZone();
 
@@ -327,6 +306,7 @@ Future<void> _initApp() async {
     settingsRepository: settingsRepository,
     pendingSharedUrl: pendingSharedUrl,
     aiRescheduleError: aiRescheduleError,
+    reminderOpenedId: reminderOpenedId,
     authService: authService,
     revenueCatService: revenueCatService,
   );
@@ -477,6 +457,11 @@ class _FlexReminderAppState extends State<FlexReminderApp>
       scaffoldMessengerKey: scaffoldMessengerKey,
       locale: LocaleManager.instance.currentAppLocale,
       supportedLocales: LocaleManager.supportedLocales,
+      localizationsDelegates: [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
     );
   }
 }

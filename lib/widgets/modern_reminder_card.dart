@@ -219,9 +219,10 @@ class _ModernReminderCardState extends State<ModernReminderCard>
                             ),
                           ),
                         ),
-                        Positioned(
+                         Positioned(
                           top: 12,
-                          right: 12,
+                          right: LocaleManager.instance.isRtl ? null : 12,
+                          left: LocaleManager.instance.isRtl ? 12 : null,
                           child: Container(
                             width: 24,
                             height: 24,
@@ -412,7 +413,8 @@ class _ModernReminderCardState extends State<ModernReminderCard>
           if (inSelectionMode)
             Positioned(
               top: 20,
-              left: 20,
+              left: LocaleManager.instance.isRtl ? null : 20,
+              right: LocaleManager.instance.isRtl ? 20 : null,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 width: 28,

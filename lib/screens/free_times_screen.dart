@@ -187,9 +187,9 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
                         ),
                       if (isExpanded && slots.isEmpty)
                         Padding(
-                          padding: const EdgeInsets.only(
-                            left: 68,
-                            right: 16,
+                          padding: const EdgeInsetsDirectional.only(
+                            start: 68,
+                            end: 16,
                             bottom: 16,
                           ),
                           child: Row(

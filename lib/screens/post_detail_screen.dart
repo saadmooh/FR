@@ -21,6 +21,7 @@ class PostDetailScreen extends StatefulWidget {
   final CategoryStatisticRepository categoryStatRepository;
   final NotificationService notificationService;
   final AIService aiService;
+  final ValueNotifier<int?> reminderOpenedId;
 
   const PostDetailScreen({
     super.key,
@@ -30,6 +31,7 @@ class PostDetailScreen extends StatefulWidget {
     required this.categoryStatRepository,
     required this.notificationService,
     required this.aiService,
+    required this.reminderOpenedId,
   });
 
   @override
@@ -109,6 +111,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final totalItems = _reminder!.playlistTotalItems ?? 0;
 
     String urlToOpen;
+    bool hasMorePlaylistItems = false;
 
     if (isPlaylist && playlistId != null && _youtubeService != null) {
       urlToOpen = _reminder!.currentVideoUrl ?? _reminder!.url;
@@ -129,6 +132,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             _reminder!.title = nextVideo.title;
             _reminder!.description = nextVideo.description;
             _reminder!.imageUrl = nextVideo.thumbnailUrl;
+            hasMorePlaylistItems = true;
 
             await widget.notificationService.cancelReminder(_reminder!.id);
             await widget.notificationService.scheduleReminder(_reminder!);
@@ -145,12 +149,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
 
-    _reminder!.isOpened = true;
-    _reminder!.openedAt = DateTime.now();
-    widget.reminderRepository.save(_reminder!);
+    if (!hasMorePlaylistItems) {
+      _reminder!.isOpened = true;
+      _reminder!.openedAt = DateTime.now();
+      widget.reminderRepository.save(_reminder!);
 
-    widget.categoryStatRepository.recordOpened(_reminder!);
-    await widget.notificationService.cancelReminder(_reminder!.id);
+      widget.categoryStatRepository.recordOpened(_reminder!);
+      await widget.notificationService.cancelReminder(_reminder!.id);
+
+      widget.reminderOpenedId.value = _reminder!.id;
+    }
 
     _loadReminder();
   }
@@ -183,6 +191,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         if (mounted) {
           _showResult(true, Translations.scheduledFor(_locale));
           _loadReminder();
+          widget.reminderOpenedId.value = _reminder!.id;
         }
       }
     } catch (e) {
@@ -230,6 +239,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       debugPrint('[PostDetailScreen] Deleting reminder ${_reminder!.id}');
       await widget.reminderRepository.deleteWithCleanup(_reminder!.id, widget.notificationService.cancelReminder);
       debugPrint('[PostDetailScreen] Delete completed');
+      widget.reminderOpenedId.value = _reminder!.id;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

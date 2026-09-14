@@ -37,9 +37,9 @@ class ReminderCard extends StatelessWidget {
               height: 120,
               decoration: BoxDecoration(
                 color: isRead ? AppColors.read : AppColors.accent,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  bottomLeft: Radius.circular(16),
+                borderRadius: const BorderRadiusDirectional.only(
+                  topStart: Radius.circular(16),
+                  bottomStart: Radius.circular(16),
                 ),
               ),
             ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../screens/splash_screen.dart';
 import '../screens/reminders_screen.dart';
 import '../screens/post_detail_screen.dart';
 import '../screens/edit_reminder_screen.dart';
@@ -29,6 +30,7 @@ class AppRouter {
   final AppSettingsRepository settingsRepository;
   final ValueNotifier<String?> pendingSharedUrl;
   final ValueNotifier<String?> aiRescheduleError;
+  final ValueNotifier<int?> reminderOpenedId;
   final AuthService authService;
   final RevenueCatService revenueCatService;
 
@@ -43,36 +45,46 @@ class AppRouter {
     required this.settingsRepository,
     required this.pendingSharedUrl,
     required this.aiRescheduleError,
+    required this.reminderOpenedId,
     required this.authService,
     required this.revenueCatService,
   }) {
     router = GoRouter(
       initialLocation: '/',
-      refreshListenable: revenueCatService,
+      refreshListenable: Listenable.merge([
+        authService,
+        revenueCatService,
+      ]),
       redirect: (context, state) {
-        final isLoggedIn = authService.isSignedIn;
+        final status = authService.status;
         final isPremium = revenueCatService.isPremium;
         final isOnLogin = state.matchedLocation == '/login';
         final isOnPaywall = state.matchedLocation == '/paywall';
 
-        // Layer 1: signed out -> only /login is reachable.
-        if (!isLoggedIn) {
+        if (status == AuthStatus.loading) {
+          return '/';
+        }
+
+        if (status == AuthStatus.unauthenticated) {
           return isOnLogin ? null : '/login';
         }
 
-        // Layer 2: signed in without an active entitlement ->
-        // only /paywall is reachable.
         if (!isPremium) {
           return isOnPaywall ? null : '/paywall';
         }
 
-        // Layer 3: paying user -> keep them out of login/paywall.
         if (isOnLogin || isOnPaywall) {
-          return '/';
+          return '/reminders';
         }
         return null;
       },
       routes: [
+        GoRoute(
+          path: '/',
+          pageBuilder: (context, state) => const NoTransitionPage(
+            child: SplashScreen(),
+          ),
+        ),
         GoRoute(
           path: '/login',
           pageBuilder: (context, state) => const NoTransitionPage(
@@ -94,7 +106,7 @@ class AppRouter {
           ),
           routes: [
             GoRoute(
-              path: '/',
+              path: '/reminders',
               pageBuilder: (context, state) => NoTransitionPage(
                 child: RemindersScreen(
                   reminderRepository: reminderRepository,
@@ -104,6 +116,7 @@ class AppRouter {
                   aiService: aiService,
                   pendingSharedUrl: pendingSharedUrl,
                   aiRescheduleError: aiRescheduleError,
+                  reminderOpenedId: reminderOpenedId,
                 ),
               ),
             ),
@@ -144,6 +157,7 @@ class AppRouter {
               categoryStatRepository: categoryStatRepository,
               notificationService: notificationService,
               aiService: aiService,
+              reminderOpenedId: reminderOpenedId,
             );
           },
         ),
@@ -218,7 +232,7 @@ class _MainShellState extends State<MainShell> {
     setState(() => _currentIndex = index);
     switch (index) {
       case 0:
-        context.go('/');
+        context.go('/reminders');
         break;
       case 1:
         context.go('/statistics');

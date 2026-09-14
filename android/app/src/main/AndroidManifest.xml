@@ -9,7 +9,6 @@
     <uses-permission android:name="com.android.vending.BILLING"/>
     <!-- Required for WorkManager / background processing on Android 14+ -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     
     <application
         android:label="Bookmark Reminder"

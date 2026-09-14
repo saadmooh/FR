@@ -103,7 +103,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       ),
     );
-    context.go('/');
+    context.go('/reminders');
   }
 
   void _showError(String message) {

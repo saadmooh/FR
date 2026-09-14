@@ -22,8 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final user = await AuthService().signInWithGoogle();
     setState(() => _isLoading = false);
     if (user != null && mounted) {
-      // Router redirect decides: premium -> '/', otherwise -> '/paywall'.
-      context.go('/');
+      context.go('/reminders');
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
