@@ -15,6 +15,15 @@ class AuthService extends ChangeNotifier {
   factory AuthService() => _instance;
 
   AuthService._internal() {
+    // Set initial status immediately from currentUser (works on cold start and resume)
+    _status = _auth.currentUser != null
+        ? AuthStatus.authenticated
+        : AuthStatus.unauthenticated;
+    if (!_initialAuthStateComplete.isCompleted) {
+      _initialAuthStateComplete.complete(_auth.currentUser);
+    }
+    notifyListeners();
+
     _authStateSubscription = _auth.authStateChanges().listen((user) {
       _status = user != null
           ? AuthStatus.authenticated

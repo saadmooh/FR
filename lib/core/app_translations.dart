@@ -183,6 +183,8 @@ class AppTranslations {
     'pleaseConfigureApiKey': 'Please configure AI API key in settings',
     'aiRescheduleFailed': 'AI reschedule failed',
     'analysisFailed': 'Analysis failed',
+    'unopenedPostsLimitReached': 'Unopened posts limit reached ({count}). Open or delete some reminders before saving new ones.',
+    'rescheduleLimitReached': 'Reschedule limit reached ({count}). This reminder cannot be rescheduled again this month.',
 
     // Success Messages
     'success': 'Success',
@@ -448,6 +450,8 @@ class AppTranslations {
     'pleaseConfigureApiKey': 'الرجاء تكوين مفتاح API في الإعدادات',
     'aiRescheduleFailed': 'فشلت إعادة جدولة الذكاء الاصطناعي',
     'analysisFailed': 'فشل التحليل',
+    'unopenedPostsLimitReached': 'تم الوصول إلى الحد الأقصى للتذكيرات غير المفتوحة ({count}). الرجاء فتح أو حذف بعض التذكيرات قبل حفظ جديدة.',
+    'rescheduleLimitReached': 'تم الوصول إلى الحد الأقصى لإعادة الجدولة ({count}). لا يمكن إعادة جدولة هذا التذكير مرة أخرى هذا الشهر.',
 
     // Success Messages
     'success': 'نجاح',
@@ -715,6 +719,8 @@ class AppTranslations {
         'Veuillez configurer la clé API dans les paramètres',
     'aiRescheduleFailed': 'La reprogrammation IA a échoué',
     'analysisFailed': 'L\'analyse a échoué',
+    'unopenedPostsLimitReached': 'Limite de rappels non ouverts atteinte ({count}). Ouvrez ou supprimez des rappels avant d\'en ajouter de nouveaux.',
+    'rescheduleLimitReached': 'Limite de reprogrammation atteinte ({count}). Ce rappel ne peut plus être reprogrammé ce mois-ci.',
 
     // Success Messages
     'success': 'Succès',

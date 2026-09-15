@@ -27,6 +27,7 @@ import 'services/ai_service.dart';
 import 'services/ai_proxy_service.dart';
 import 'services/local_timezone.dart';
 import 'services/notification_service.dart';
+import 'services/proxy_config_service.dart';
 import 'services/overdue_reminder_service.dart';
 import 'services/reschedule_lock_service.dart';
 import 'services/workmanager_service.dart';
@@ -47,6 +48,7 @@ late RevenueCatService revenueCatService;
 
 final ValueNotifier<String?> pendingSharedUrl = ValueNotifier<String?>(null);
 final ValueNotifier<String?> aiRescheduleError = ValueNotifier<String?>(null);
+String? initError;
 final ValueNotifier<int?> reminderOpenedId = ValueNotifier<int?>(null);
 
 const String _bgUiLogQueueKey = 'bg_ui_log_queue';
@@ -78,42 +80,8 @@ void main() async {
   try {
     await _initApp();
   } catch (e, stackTrace) {
-    // Show error screen instead of blank screen
     debugPrint('App initialization failed: $e\n$stackTrace');
-    runApp(
-      MaterialApp(
-        home: Scaffold(
-          backgroundColor: const Color(0xFF1A1A2E),
-          body: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.error_outline, color: Colors.red, size: 64),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Failed to start app',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    e.toString(),
-                    style: const TextStyle(color: Colors.white70, fontSize: 14),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    return;
+    initError = 'App initialization failed: $e';
   }
 }
 
@@ -157,7 +125,12 @@ Future<Store> _openMainStore() async {
 }
 
 Future<void> _initApp() async {
-  await Firebase.initializeApp();
+  try {
+    await Firebase.initializeApp();
+  } catch (e, stackTrace) {
+    debugPrint('Firebase initialization failed: $e\n$stackTrace');
+    if (initError == null) initError = 'Firebase initialization failed: $e';
+  }
 
   // Initialize Supabase (guarded: skip when --dart-define placeholders are used)
   if (AppConfig.isSupabaseConfigured) {
@@ -168,6 +141,7 @@ Future<void> _initApp() async {
       );
     } catch (e) {
       debugPrint('Supabase initialization failed: $e');
+      if (initError == null) initError = 'Supabase initialization failed: $e';
     }
   } else {
     debugPrint(
@@ -178,13 +152,29 @@ Future<void> _initApp() async {
 
   authService = AuthService();
   revenueCatService = RevenueCatService();
-  await revenueCatService.initialize();
+  try {
+    await revenueCatService.initialize();
+  } catch (e) {
+    debugPrint('RevenueCat initialization failed: $e');
+    if (initError == null) initError = 'RevenueCat initialization failed: $e';
+  }
 
   // Initialize timezone (resolves the device's IANA zone, not UTC)
-  await initLocalTimeZone();
+  try {
+    await initLocalTimeZone();
+  } catch (e) {
+    debugPrint('Timezone initialization failed: $e');
+    if (initError == null) initError = 'Timezone initialization failed: $e';
+  }
 
   // Initialize ObjectBox
-  store = await _openMainStore();
+  try {
+    store = await _openMainStore();
+  } catch (e) {
+    debugPrint('ObjectBox initialization failed: $e');
+    if (initError == null) initError = 'ObjectBox initialization failed: $e';
+    rethrow;
+  }
 
   // Initialize SharedPreferences
   final prefs = await SharedPreferences.getInstance();
@@ -208,6 +198,16 @@ Future<void> _initApp() async {
 
   // Initialize locale manager
   LocaleManager.instance.initialize(settingsRepository);
+
+  // Pre-fetch proxy config from Supabase and cache for 24 hours.
+  // Non-blocking: if it times out or fails, the app can still start.
+  if (AppConfig.isSupabaseConfigured) {
+    unawaited(
+      ProxyConfigService.instance.prefetch().timeout(
+        const Duration(seconds: 12),
+      ).catchError((_) {}),
+    );
+  }
 
   // Check for previous AI reschedule errors
   final lastError = prefs.getString('last_ai_reschedule_error');
@@ -234,6 +234,7 @@ Future<void> _initApp() async {
       );
     } catch (e) {
       debugPrint('WorkManager initialization failed: $e');
+      if (initError == null) initError = 'WorkManager initialization failed: $e';
     }
   }
 
@@ -241,12 +242,17 @@ Future<void> _initApp() async {
   final storeDir = await defaultStoreDirectory();
   notificationService.setStoreDirectoryPath(storeDir.path);
 
-  await notificationService.initialize(
-    reminderRepository: reminderRepository,
-    categoryStatRepository: categoryStatRepository,
-    freeTimeRepository: freeTimeRepository,
-    settingsRepository: settingsRepository,
-  );
+  try {
+    await notificationService.initialize(
+      reminderRepository: reminderRepository,
+      categoryStatRepository: categoryStatRepository,
+      freeTimeRepository: freeTimeRepository,
+      settingsRepository: settingsRepository,
+    );
+  } catch (e) {
+    debugPrint('Notification service initialization failed: $e');
+    if (initError == null) initError = 'Notification service initialization failed: $e';
+  }
 
   // Initialize overdue reminder service
   overdueReminderService = OverdueReminderService(
@@ -269,6 +275,7 @@ Future<void> _initApp() async {
   } catch (e, stackTrace) {
     debugPrint('[main] Failed to review overdue reminders on start: $e');
     debugPrint('Stack trace: $stackTrace');
+    if (initError == null) initError = 'Overdue check failed on start: $e';
     showUiLog(
       'Overdue check failed on start: $e',
       duration: const Duration(seconds: 6),
@@ -276,10 +283,20 @@ Future<void> _initApp() async {
   }
 
   // Request background permissions for reliable monitoring
-  await notificationService.requestBackgroundPermissions();
+  try {
+    await notificationService.requestBackgroundPermissions();
+  } catch (e) {
+    debugPrint('Background permissions failed: $e');
+    if (initError == null) initError = 'Background permissions failed: $e';
+  }
 
   // Handle app launch from notification (if terminated)
-  await notificationService.handleAppLaunchFromNotification();
+  try {
+    await notificationService.handleAppLaunchFromNotification();
+  } catch (e) {
+    debugPrint('Notification launch handling failed: $e');
+    if (initError == null) initError = 'Notification launch handling failed: $e';
+  }
 
   // Handle cold-start shared URL
   String? initialSharedUrl;

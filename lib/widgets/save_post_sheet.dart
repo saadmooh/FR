@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 import '../services/ai_service.dart';
 import '../services/metadata_service.dart';
 import '../services/notification_service.dart';
+import '../services/proxy_config_service.dart';
 import '../services/youtube_service.dart';
 import '../services/integrity_service.dart';
 import '../repositories/reminder_repository.dart';
@@ -136,6 +137,15 @@ class _SavePostSheetState extends State<SavePostSheet> {
 
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       setState(() => _error = Translations.pleaseEnterValidUrl(_locale));
+      return;
+    }
+
+    final unopenedLimit = await ProxyConfigService.instance.getUnopenedPostsLimit();
+    final currentUnread = widget.reminderRepository.getUnread().length;
+    if (currentUnread >= unopenedLimit) {
+      setState(() {
+        _error = Translations.unopenedPostsLimitReached(_locale, unopenedLimit);
+      });
       return;
     }
 

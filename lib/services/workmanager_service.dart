@@ -19,6 +19,7 @@ import '../services/ai_proxy_service.dart';
 import '../services/ai_reschedule_parser.dart';
 import '../services/local_timezone.dart';
 import '../services/notification_scheduler.dart';
+import '../services/proxy_config_service.dart';
 import '../services/reschedule_lock_service.dart';
 import '../services/reschedule_policy.dart';
 
@@ -425,6 +426,20 @@ Future<void> _workmanagerCallback() async {
         '🔒 [RaceGuard] Acquired reschedule lock for reminder $reminderId',
       );
 
+      final maxReschedulesPerMonth = await ProxyConfigService.instance
+          .getMonthlyRescheduleLimit(reminder.importance);
+      if (!reminder.canRescheduleThisMonth(maxReschedulesPerMonth)) {
+        await _log(
+          '🚫 [Reschedule] Reminder $reminderId exceeded monthly reschedule limit ($maxReschedulesPerMonth), skipping',
+        );
+        lockService.releaseLock(reminderId);
+        await _log(
+          '🔓 [RaceGuard] Released reschedule lock for reminder $reminderId',
+        );
+        store.close();
+        return true;
+      }
+
       Map<String, dynamic> aiResult = {};
       String? rawResponse;
 
@@ -508,6 +523,7 @@ Future<void> _workmanagerCallback() async {
       await _log('Updating reminder with new time: $finalTime');
       reminder.scheduledAt = finalTime;
       reminder.rescheduleAttempts++;
+      reminder.incrementMonthlyReschedule();
       final reason = aiResult['reason'] as String? ?? '';
       final reasonParts = reason.split(' | ');
       reminder.aiExplanation = reasonParts.isNotEmpty ? reasonParts[0] : reason;

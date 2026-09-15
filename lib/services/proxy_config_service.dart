@@ -11,7 +11,7 @@ class ProxyConfigService {
   // Cache per importance level
   final Map<String, int> _cachedLimits = {};
   final Map<String, DateTime> _lastFetchTimes = {};
-  static const Duration _cacheDuration = Duration(hours: 1);
+  static const Duration _cacheDuration = Duration(hours: 24);
 
   static const Map<String, int> _defaultLimits = {
     'Day': 5,
@@ -24,6 +24,8 @@ class ProxyConfigService {
     'Week': 'monthly_reschedule_limit_week',
     'Month': 'monthly_reschedule_limit_month',
   };
+  static const String _unopenedPostsLimitKey = 'unopened_posts_limit';
+  static const int _defaultUnopenedPostsLimit = 50;
 
   /// Fetches the monthly reschedule limit for a specific importance level.
   /// Returns cached value if available and not expired, otherwise fetches from Supabase.
@@ -51,7 +53,8 @@ class ProxyConfigService {
           .from(_configTable)
           .select('value')
           .eq('key', key)
-          .maybeSingle();
+          .maybeSingle()
+          .timeout(const Duration(seconds: 8));
 
       if (response != null && response['value'] != null) {
         final limit = (response['value'] as num).toInt();
@@ -81,6 +84,46 @@ class ProxyConfigService {
   Future<void> prefetch() async {
     for (final importance in _defaultLimits.keys) {
       await getMonthlyRescheduleLimit(importance);
+    }
+    await getUnopenedPostsLimit();
+  }
+
+  Future<int> getUnopenedPostsLimit() async {
+    if (_cachedLimits.containsKey(_unopenedPostsLimitKey) &&
+        _lastFetchTimes.containsKey(_unopenedPostsLimitKey) &&
+        DateTime.now().difference(_lastFetchTimes[_unopenedPostsLimitKey]!) < _cacheDuration) {
+      return _cachedLimits[_unopenedPostsLimitKey]!;
+    }
+
+    if (!AppConfig.isSupabaseConfigured) {
+      debugPrint('[ProxyConfigService] Supabase not configured, using default unopened posts limit');
+      return _defaultUnopenedPostsLimit;
+    }
+
+    try {
+      final client = Supabase.instance.client;
+      final response = await client
+          .from(_configTable)
+          .select('value')
+          .eq('key', _unopenedPostsLimitKey)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 8));
+
+      if (response != null && response['value'] != null) {
+        final limit = (response['value'] as num).toInt();
+        if (limit > 0) {
+          _cachedLimits[_unopenedPostsLimitKey] = limit;
+          _lastFetchTimes[_unopenedPostsLimitKey] = DateTime.now();
+          debugPrint('[ProxyConfigService] Fetched unopened posts limit: $limit');
+          return limit;
+        }
+      }
+
+      debugPrint('[ProxyConfigService] Unopened posts limit not found, using default');
+      return _defaultUnopenedPostsLimit;
+    } catch (e) {
+      debugPrint('[ProxyConfigService] Failed to fetch unopened posts limit: $e, using default');
+      return _defaultUnopenedPostsLimit;
     }
   }
 }

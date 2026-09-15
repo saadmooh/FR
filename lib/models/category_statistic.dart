@@ -6,7 +6,11 @@ class CategoryStatistic {
   int id = 0;
 
   String categoryEn;
+  String categoryAr;
+  String categoryFr;
   String complexityEn;
+  String complexityAr;
+  String complexityFr;
   int totalCount = 0;
   int openedCount = 0;
   int notOpenedCount = 0;
@@ -22,7 +26,11 @@ class CategoryStatistic {
   CategoryStatistic({
     this.id = 0,
     required this.categoryEn,
+    required this.categoryAr,
+    required this.categoryFr,
     required this.complexityEn,
+    required this.complexityAr,
+    required this.complexityFr,
     this.totalCount = 0,
     this.openedCount = 0,
     this.notOpenedCount = 0,

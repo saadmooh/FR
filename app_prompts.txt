@@ -1,0 +1,419 @@
+Bookmark Reminder - App Prompts Documentation
+=============================================
+
+This file documents all AI prompts and structured messages sent to external services in the app, with example input data.
+
+================================================================================
+1. AI SERVICE PROMPTS (lib/services/ai_service.dart)
+================================================================================
+
+All prompts are sent through the AI Proxy Service to a Supabase Edge Function (ai-proxy).
+The _callAI() method joins messages as "role: content\n\n" strings.
+
+--------------------------------------------------------------------------------
+Prompt 1: API Key Validation (testApiKey)
+--------------------------------------------------------------------------------
+Purpose: Validate that the AI API key is working.
+
+Prompt:
+  Say HAHA
+
+Variables: None (hardcoded test)
+
+--------------------------------------------------------------------------------
+Prompt 2: URL Metadata Extraction (fetchMetadata)
+--------------------------------------------------------------------------------
+Purpose: Extract metadata from a URL for bookmark creation.
+
+System Prompt:
+  You are a helpful assistant that extracts metadata from URLs. Always return valid JSON with no markdown formatting.
+
+User Prompt Template:
+  Give me the metadata of this URL: $url
+
+  Return a JSON object in exactly this structure:
+  {
+    "title": "page title or best guess from URL",
+    "description": "meta description or summary",
+    "og_title": "og:title if available",
+    "og_description": "og:description if available",
+    "og_image": "full image URL if available",
+    "site_name": "website name",
+    "language": "en",
+    "canonical_url": "$url"
+  }
+
+  Rules:
+  - If you cannot fetch the page, infer the title from the URL path
+  - Always return valid parseable JSON
+  - og_image must be a full https:// URL or empty string
+  - Never return null values, use empty string as fallback
+
+Variables:
+  - url (String): The URL to fetch metadata from
+
+Example:
+  url = "https://example.com/article/how-to-build-flutter-apps"
+
+Expected Response: JSON object with title, description, og_title, og_description, og_image, site_name, language, canonical_url
+
+--------------------------------------------------------------------------------
+Prompt 3: Content Classification (classifyContent)
+--------------------------------------------------------------------------------
+Purpose: Classify bookmark content into categories and complexity levels.
+
+System Prompt:
+  You are a content classification assistant. Always return valid JSON only, no markdown, no explanation.
+
+User Prompt Template:
+  Classify the following content and respond strictly with JSON:
+
+  Title: $title
+  Description: $description
+  Available Categories: [$availableCategories]
+
+  Classification rules:
+  - Choose the single most relevant category from the available list
+  - Evaluate complexity based on vocabulary, sentence structure, concept difficulty, and required background knowledge
+  - Do NOT default to Medium complexity — evaluate carefully
+  - Note: gambling, explicit content, and harmful topics are unethical
+
+  Respond with exactly this JSON structure with ALL THREE languages:
+  {
+    "category": { "en": "Productivity", "ar": "إنتاجية", "fr": "Productivité" },
+    "complexity_level": { "en": "Low", "ar": "بسيط", "fr": "Faible" },
+    "is_ethical": true,
+    "ethical_reasoning": "Reason in English | Reason in Arabic | Reason in French"
+  }
+
+Variables:
+  - title (String): The title of the content
+  - description (String?): Description or null, defaults to 'N/A'
+  - availableCategories (List<String>?): List of available categories, defaults to AppConstants.availableCategories
+
+Example:
+  title = "10 Tips for Remote Work Productivity"
+  description = "A comprehensive guide to staying productive while working from home."
+  availableCategories = ["Productivity", "Technology", "Business", "Health", "Education", "Entertainment", "News", "Sports", "Lifestyle", "Travel", "Food", "Art", "Music", "Books", "Gaming", "Social", "Other"]
+
+Expected Response:
+  {
+    "category": { "en": "Productivity", "ar": "إنتاجية", "fr": "Productivité" },
+    "complexity_level": { "en": "Medium", "ar": "متوسط", "fr": "Moyen" },
+    "is_ethical": true,
+    "ethical_reasoning": "Educational content | محتوى تعليمي | Contenu éducatif"
+  }
+
+--------------------------------------------------------------------------------
+Prompt 4: Optimal Reading Time Estimation (estimateBestTime)
+--------------------------------------------------------------------------------
+Purpose: Determine the best time to read a bookmark based on user preferences and schedule.
+
+System Prompt:
+  You are a scheduling assistant. Return ONLY a single-line valid JSON object. No markdown. No explanation outside JSON.
+
+User Prompt Template:
+  Estimate the optimal reading time for a post with these details:
+
+  Category: $category
+  Complexity: $complexity
+  Importance window: $importance (Day = same day, Week = within 7 days, Month = within 30 days)
+  Current time: $currentTime
+  Deadline: $maxTime
+  User free time slots: $userFreeTimesJson
+  Already scheduled reminders: $pendingRemindersJson
+
+  Scheduling rules (apply in this priority order):
+  1. Time MUST be after $currentTime
+  2. Time MUST be before $maxTime
+  3. Avoid overlapping with already scheduled reminders
+  4. Prefer times that fall within user free time slots
+  5. Apply importance-based spacing:
+     - Day: 3–8 hours from now
+     - Week: 1–4 days from now, prefer evening or morning slots
+     - Month: 7–20 days from now, prefer weekends or user free slots
+  6. For complex content, prefer morning hours (8–11 AM) when focus is high
+  7. For entertainment/social, prefer evening (7–10 PM)
+
+  Return only with ALL THREE languages:
+  {"best_time": "YYYY-MM-DD HH:MM:SS", "explanation": "Reason in English | Reason in Arabic | Reason in French"}
+
+Variables:
+  - category (String): Content category
+  - complexity (String): Complexity level (Low/Medium/High)
+  - importance (String): Importance window (Day/Week/Month)
+  - currentTime (DateTime): Current timestamp
+  - maxTime (DateTime): Deadline calculated from currentTime + importance window
+  - userFreeTimesJson (String?): JSON array of user's free time slots
+  - pendingRemindersJson (String?): JSON array of already scheduled reminders
+
+Example:
+  category = "Productivity"
+  complexity = "Medium"
+  importance = "Week"
+  currentTime = "2026-01-15T10:00:00.000Z"
+  maxTime = "2026-01-22T10:00:00.000Z"
+  userFreeTimesJson = [{"day":1,"start":"09:00","end":"12:00"},{"day":3,"start":"18:00","end":"21:00"}]
+  pendingRemindersJson = [{"scheduled_at":"2026-01-16T14:00:00.000Z","opened":false}]
+
+Expected Response:
+  {"best_time": "2026-01-17T09:00:00", "explanation": "Morning slot during free time | فترة صباحية خلال وقت الفراغ | Créneau matinal pendant le temps libre"}
+
+--------------------------------------------------------------------------------
+Prompt 5: Statistics Analysis (analyzeStats)
+--------------------------------------------------------------------------------
+Purpose: Analyze user reading activity patterns from statistics data.
+
+System Prompt:
+  You are a data analysis assistant. Respond with exactly the format requested, nothing else.
+
+User Prompt Template:
+  Based on the following post interaction statistics, describe in natural language when users are most active and likely to open their saved posts.
+
+  Statistics: $stats
+
+  Respond with a single string in this exact format (three languages separated by ' | '):
+  [English description] | [Arabic description] | [Chinese description]
+
+  Example:
+  "Posts are most opened on Monday mornings and Thursday evenings | المنشورات تُفتح أكثر صباح الاثنين ومساء الخميس | 帖子在周一早晨和周四晚上打开最多"
+
+  Write only the formatted string. No JSON, no extra text.
+
+Variables:
+  - stats (Map<String, dynamic>): JSON-encoded statistics including hourly activity, daily activity, avg open seconds
+
+Example:
+  stats = {
+    "hourlyActivity": {"9": 15, "10": 22, "14": 8, "20": 15},
+    "dailyActivity": {"1": 45, "3": 38, "5": 52},
+    "avgOpenSeconds": 3600
+  }
+
+Expected Response:
+  "Posts are most opened on Monday mornings and Thursday evenings | المنشورات تُفتح أكثر صباح الاثنين ومساء الخميس | 帖子在周一早晨和周四晚上打开最多"
+
+--------------------------------------------------------------------------------
+Prompt 6: Category Statistics Analysis (analyzeCategoryStatistics)
+--------------------------------------------------------------------------------
+Purpose: Analyze reading behavior for a specific content category and complexity.
+
+System Prompt:
+  You are a behavioral analytics assistant. Always return valid JSON only.
+
+User Prompt Template:
+  Analyze reading behavior for this content category and complexity:
+
+  Category: $categoryEn
+  Complexity: $complexityEn
+  Total saved: $totalCount
+  Total opened: $openedCount
+  Total expired unread: $notOpenedCount
+  Average time to open (seconds): $avgSecondsToOpen
+  Hours when opened most: $openedHoursJson
+  Days when opened most: $openedDaysJson
+  Hours when not opened: $notOpenedHoursJson
+  Days when not opened: $notOpenedDaysJson
+
+  Provide:
+  1. Pattern analysis for this category+complexity combination
+  2. Optimal reminder time windows
+  3. Key behavioral insights
+  4. Actionable recommendations
+
+  Return this exact JSON:
+  {
+    "analysis": "Detailed analysis in English",
+    "preferred_times": ["09:00-10:00", "18:00-19:00"],
+    "confidence_score": 0.75,
+    "insights": ["insight 1", "insight 2", "insight 3"]
+  }
+
+Variables (all from CategoryStatistic model):
+  - categoryEn (String): Category name in English
+  - complexityEn (String): Complexity level
+  - totalCount (int): Total bookmarks saved
+  - openedCount (int): Total bookmarks opened
+  - notOpenedCount (int): Total expired unread bookmarks
+  - avgSecondsToOpen (int?): Average seconds until opening
+  - openedHoursJson (String?): JSON of hours when opened most
+  - openedDaysJson (String?): JSON of days when opened most
+  - notOpenedHoursJson (String?): JSON of hours when not opened
+  - notOpenedDaysJson (String?): JSON of days when not opened
+
+Example:
+  categoryEn = "Technology"
+  complexityEn = "High"
+  totalCount = 150
+  openedCount = 90
+  notOpenedCount = 30
+  avgSecondsToOpen = 7200
+  openedHoursJson = {"9":12,"10":18,"14":8,"20":15}
+  openedDaysJson = {"1":25,"3":30,"5":20}
+  notOpenedHoursJson = {"6":5,"7":3,"15":8}
+  notOpenedDaysJson = {"0":10,"6":12}
+
+Expected Response:
+  {
+    "analysis": "Users prefer reading technology content in the morning (9-11 AM) and evening (8 PM). High complexity posts have lower open rates...",
+    "preferred_times": ["09:00-11:00", "20:00-21:00"],
+    "confidence_score": 0.85,
+    "insights": ["Morning reads have 40% higher engagement", "Evening slots work better for complex content", "Weekend engagement is 25% lower"]
+  }
+
+--------------------------------------------------------------------------------
+Prompt 7: AI Rescheduling (reschedulePost / reschedulePostRaw)
+--------------------------------------------------------------------------------
+Purpose: Reschedule unread reminders to better times based on past failures and user preferences.
+
+System Prompt:
+  You are a rescheduling assistant. Return only valid single-line JSON. The reason field must have no newlines.
+
+User Prompt Template:
+  Reschedule this unread post. Find a better time based on why previous attempts failed.
+
+  Category: $category
+  Complexity: $complexity
+  Importance window: $importance (Day = within 1 day, Week = within 7 days, Month = within 30 days)
+  Current time: $currentTime
+  Deadline: $maxTime
+  Previous scheduled attempts (all missed): $previousAttemptsJson
+  User free times: $userFreeTimesJson
+
+  Rules (apply in this priority order):
+  1. Time MUST be after $currentTime
+  2. Time MUST be before $maxTime
+  3. Choose a time that avoids patterns from failed attempts (different hour, different day)
+  4. Prefer times within user free slots
+  5. For complex content, prefer morning focus hours
+
+  Return only:
+  {"new_time": "YYYY-MM-DD HH:MM:SS", "reason": "Reason in English | السبب بالعربية"}
+
+Variables:
+  - previousAttemptsJson (String): JSON array of past schedule attempts with scheduled_at, opened, opened_at fields
+  - category (String): Content category
+  - complexity (String): Complexity level (Low/Medium/High)
+  - importance (String): Importance window (Day/Week/Month)
+  - userFreeTimesJson (String?): JSON array of user's free time slots
+  - currentTime (DateTime): Current timestamp
+
+Example:
+  category = "Productivity"
+  complexity = "Medium"
+  importance = "Week"
+  currentTime = "2026-01-15T10:00:00.000Z"
+  maxTime = "2026-01-22T10:00:00.000Z"
+  previousAttemptsJson = [
+    {"scheduled_at":"2026-01-15T08:00:00.000Z","opened":false,"opened_at":null},
+    {"scheduled_at":"2026-01-16T20:00:00.000Z","opened":false,"opened_at":null}
+  ]
+  userFreeTimesJson = [{"day":1,"start":"09:00","end":"12:00"},{"day":4,"start":"18:00","end":"21:00"}]
+
+Expected Response:
+  {"new_time": "2026-01-17T09:00:00", "reason": "Morning slot during free time | فترة صباحية خلال وقت الفراغ"}
+
+================================================================================
+2. AI PROXY PAYLOAD (lib/services/ai_proxy_service.dart)
+================================================================================
+
+All AI calls are routed through the Supabase Edge Function 'ai-proxy'.
+
+Request Body:
+{
+  "prompt": "<joined role:content string from messages list>",
+  "timestamp": 1705312800000,
+  "conversationHistory": [
+    {"role": "system", "content": "..."},
+    {"role": "user", "content": "..."}
+  ]
+}
+
+Headers (when available):
+  - X-Integrity-Token: Play Integrity token
+  - X-Request-Nonce: Generated nonce (SHA-256 hash of "prompt|userId|timestamp")
+  - X-Session-Token: Pro session JWT
+  - X-Debug-Build: "true" (if not strict integrity)
+  - X-Debug-Integrity: "true"
+
+Example Full Payload:
+{
+  "prompt": "system: You are a scheduling assistant. Return ONLY a single-line valid JSON object. No markdown. No explanation outside JSON.\n\nuser: Estimate the optimal reading time for a post with these details:\n\nCategory: Productivity\nComplexity: Medium\nImportance window: Week\nCurrent time: 2026-01-15T10:00:00.000Z\nDeadline: 2026-01-22T10:00:00.000Z\n...",
+  "timestamp": 1705312800000,
+  "conversationHistory": [
+    {"role": "system", "content": "You are a scheduling assistant..."},
+    {"role": "user", "content": "Estimate the optimal reading time..."}
+  ]
+}
+
+================================================================================
+3. INTEGRITY SERVICE (lib/services/integrity_service.dart)
+================================================================================
+
+Nonce Input Format:
+  "$prompt|$userId|$timestamp"
+
+Example:
+  "You are a scheduling assistant...|user_abc123|1705312800000"
+
+Output: SHA-256 hash of UTF-8 encoded input, truncated to 30 bytes, Base64URL-encoded (no padding)
+
+================================================================================
+4. SESSION TOKEN SERVICE (lib/services/session_token_service.dart)
+================================================================================
+
+Nonce Input Format:
+  "session-token|$userId|$timestamp"
+
+Example:
+  "session-token|user_abc123|1705312800000"
+
+================================================================================
+5. NOTIFICATION MESSAGES (lib/services/notification_service.dart)
+================================================================================
+
+These are structured messages sent via flutter_local_notifications.
+
+Scheduled Notification:
+  Title: "📖 Time to read: $reminderTitle"
+  Body: "$categoryEn · $complexityAr"
+
+  Example:
+    Title: "📖 Time to read: 10 Tips for Remote Work"
+    Body: "Productivity · متوسط"
+
+Rescheduled Notification (WorkManager background):
+  Title: "Reminder Rescheduled"
+  Body: "$reminderTitle\nNew time: $formattedTime\n$aiExplanation"
+
+  Example:
+    Title: "Reminder Rescheduled"
+    Body: "10 Tips for Remote Work\nNew time: 09:00\nMorning slot during free time | فترة صباحية خلال وقت الفراغ"
+
+Monitoring Failed Notification:
+  Title: "Monitoring Failed"
+  Body: "Reminder: $reminderId\nError: $errorText"
+
+  Example:
+    Title: "Monitoring Failed"
+    Body: "Reminder: 42\nError: Integrity check failed after 3 retries"
+
+================================================================================
+6. API ENDPOINTS REFERENCED
+================================================================================
+
+All AI calls route through the app's Supabase Edge Function, not directly to providers.
+
+Provider URLs (in lib/core/constants.dart):
+  - OpenRouter: https://openrouter.ai/api/v1/chat/completions
+  - OpenAI: https://api.openai.com/v1/chat/completions
+  - Anthropic: https://api.anthropic.com/v1/messages
+  - Mistral: https://api.mistral.ai/v1/chat/completions
+  - Cohere: https://api.cohere.ai/v1/chat
+
+Actual endpoint used:
+  - Supabase Edge Function: ai-proxy
+
+================================================================================
+END OF PROMPTS DOCUMENTATION
+================================================================================

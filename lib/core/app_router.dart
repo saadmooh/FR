@@ -73,7 +73,7 @@ class AppRouter {
           return isOnPaywall ? null : '/paywall';
         }
 
-        if (isOnLogin || isOnPaywall) {
+        if (isOnLogin || isOnPaywall || state.matchedLocation == '/') {
           return '/reminders';
         }
         return null;

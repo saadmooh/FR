@@ -367,7 +367,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             children: [
               Expanded(
                 child: Text(
-                  '${LocaleManager.instance.getCategory(stat.categoryEn, null, null)} (${LocaleManager.instance.getComplexity(stat.complexityEn, null, null)})',
+                  '${LocaleManager.instance.getCategory(stat.categoryEn, stat.categoryAr, stat.categoryFr)} (${LocaleManager.instance.getComplexity(stat.complexityEn, stat.complexityAr, stat.complexityFr)})',
                   style: const TextStyle(
                     color: AppColors.whiteTextPrimary,
                     fontWeight: FontWeight.w600,

@@ -32,13 +32,21 @@ class CategoryStatisticRepository {
 
   void recordSaved(Reminder reminder) {
     final categoryEn = reminder.categoryEn ?? 'Other';
+    final categoryAr = reminder.categoryAr ?? 'أخرى';
+    final categoryFr = reminder.categoryFr ?? 'Autre';
     final complexityEn = reminder.complexityEn ?? 'Medium';
+    final complexityAr = reminder.complexityAr ?? 'متوسط';
+    final complexityFr = reminder.complexityFr ?? 'Moyen';
 
     var stat = findByCategoryAndComplexity(categoryEn, complexityEn);
     if (stat == null) {
       stat = CategoryStatistic(
         categoryEn: categoryEn,
+        categoryAr: categoryAr,
+        categoryFr: categoryFr,
         complexityEn: complexityEn,
+        complexityAr: complexityAr,
+        complexityFr: complexityFr,
         totalCount: 1,
       );
     } else {
@@ -50,13 +58,21 @@ class CategoryStatisticRepository {
 
   void recordOpened(Reminder reminder) {
     final categoryEn = reminder.categoryEn ?? 'Other';
+    final categoryAr = reminder.categoryAr ?? 'أخرى';
+    final categoryFr = reminder.categoryFr ?? 'Autre';
     final complexityEn = reminder.complexityEn ?? 'Medium';
+    final complexityAr = reminder.complexityAr ?? 'متوسط';
+    final complexityFr = reminder.complexityFr ?? 'Moyen';
 
     var stat = findByCategoryAndComplexity(categoryEn, complexityEn);
     if (stat == null) {
       stat = CategoryStatistic(
         categoryEn: categoryEn,
+        categoryAr: categoryAr,
+        categoryFr: categoryFr,
         complexityEn: complexityEn,
+        complexityAr: complexityAr,
+        complexityFr: complexityFr,
         openedCount: 1,
       );
     } else {
@@ -96,13 +112,21 @@ class CategoryStatisticRepository {
 
   void recordNotOpened(Reminder reminder) {
     final categoryEn = reminder.categoryEn ?? 'Other';
+    final categoryAr = reminder.categoryAr ?? 'أخرى';
+    final categoryFr = reminder.categoryFr ?? 'Autre';
     final complexityEn = reminder.complexityEn ?? 'Medium';
+    final complexityAr = reminder.complexityAr ?? 'متوسط';
+    final complexityFr = reminder.complexityFr ?? 'Moyen';
 
     var stat = findByCategoryAndComplexity(categoryEn, complexityEn);
     if (stat == null) {
       stat = CategoryStatistic(
         categoryEn: categoryEn,
+        categoryAr: categoryAr,
+        categoryFr: categoryFr,
         complexityEn: complexityEn,
+        complexityAr: complexityAr,
+        complexityFr: complexityFr,
         notOpenedCount: 1,
       );
     } else {

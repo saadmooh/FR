@@ -268,7 +268,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
     id: const obx_int.IdUid(3, 5558201076700029749),
     name: 'CategoryStatistic',
-    lastPropertyId: const obx_int.IdUid(12, 476757389788043514),
+    lastPropertyId: const obx_int.IdUid(16, 1422205788521750121),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
@@ -341,6 +341,30 @@ final _entities = <obx_int.ModelEntity>[
         id: const obx_int.IdUid(12, 476757389788043514),
         name: 'lastUpdated',
         type: 10,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(13, 6707413706126630958),
+        name: 'categoryAr',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(14, 1812673803800818625),
+        name: 'categoryFr',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(15, 8218822207038839365),
+        name: 'complexityAr',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(16, 1422205788521750121),
+        name: 'complexityFr',
+        type: 9,
         flags: 0,
       ),
     ],
@@ -858,7 +882,11 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final notOpenedDaysJsonOffset = object.notOpenedDaysJson == null
             ? null
             : fbb.writeString(object.notOpenedDaysJson!);
-        fbb.startTable(13);
+        final categoryArOffset = fbb.writeString(object.categoryAr);
+        final categoryFrOffset = fbb.writeString(object.categoryFr);
+        final complexityArOffset = fbb.writeString(object.complexityAr);
+        final complexityFrOffset = fbb.writeString(object.complexityFr);
+        fbb.startTable(17);
         fbb.addInt64(0, object.id);
         fbb.addOffset(1, categoryEnOffset);
         fbb.addOffset(2, complexityEnOffset);
@@ -871,6 +899,10 @@ obx_int.ModelDefinition getObjectBoxModel() {
         fbb.addOffset(9, notOpenedHoursJsonOffset);
         fbb.addOffset(10, notOpenedDaysJsonOffset);
         fbb.addInt64(11, object.lastUpdated.millisecondsSinceEpoch);
+        fbb.addOffset(12, categoryArOffset);
+        fbb.addOffset(13, categoryFrOffset);
+        fbb.addOffset(14, complexityArOffset);
+        fbb.addOffset(15, complexityFrOffset);
         fbb.finish(fbb.endTable());
         return object.id;
       },
@@ -886,9 +918,21 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final categoryEnParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGet(buffer, rootOffset, 6, '');
+        final categoryArParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 28, '');
+        final categoryFrParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 30, '');
         final complexityEnParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGet(buffer, rootOffset, 8, '');
+        final complexityArParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 32, '');
+        final complexityFrParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 34, '');
         final totalCountParam = const fb.Int64Reader().vTableGet(
           buffer,
           rootOffset,
@@ -931,7 +975,11 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final object = CategoryStatistic(
           id: idParam,
           categoryEn: categoryEnParam,
+          categoryAr: categoryArParam,
+          categoryFr: categoryFrParam,
           complexityEn: complexityEnParam,
+          complexityAr: complexityArParam,
+          complexityFr: complexityFrParam,
           totalCount: totalCountParam,
           openedCount: openedCountParam,
           notOpenedCount: notOpenedCountParam,
@@ -1350,6 +1398,26 @@ class CategoryStatistic_ {
   /// See [CategoryStatistic.lastUpdated].
   static final lastUpdated = obx.QueryDateProperty<CategoryStatistic>(
     _entities[2].properties[11],
+  );
+
+  /// See [CategoryStatistic.categoryAr].
+  static final categoryAr = obx.QueryStringProperty<CategoryStatistic>(
+    _entities[2].properties[12],
+  );
+
+  /// See [CategoryStatistic.categoryFr].
+  static final categoryFr = obx.QueryStringProperty<CategoryStatistic>(
+    _entities[2].properties[13],
+  );
+
+  /// See [CategoryStatistic.complexityAr].
+  static final complexityAr = obx.QueryStringProperty<CategoryStatistic>(
+    _entities[2].properties[14],
+  );
+
+  /// See [CategoryStatistic.complexityFr].
+  static final complexityFr = obx.QueryStringProperty<CategoryStatistic>(
+    _entities[2].properties[15],
   );
 }
 

@@ -355,6 +355,14 @@ class Translations {
   static String analysisFailed(String locale) =>
       AppTranslations.getString('analysisFailed', locale: locale);
 
+  static String rescheduleLimitReached(String locale, int count) =>
+      AppTranslations.getString('rescheduleLimitReached', locale: locale)
+          .replaceAll('{count}', '$count');
+
+  static String unopenedPostsLimitReached(String locale, int count) =>
+      AppTranslations.getString('unopenedPostsLimitReached', locale: locale)
+          .replaceAll('{count}', '$count');
+
   static String success(String locale) =>
       AppTranslations.getString('success', locale: locale);
 

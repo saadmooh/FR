@@ -6,6 +6,7 @@ import '../repositories/free_time_repository.dart';
 import '../repositories/category_statistic_repository.dart';
 import '../services/notification_service.dart';
 import '../services/ai_service.dart';
+import '../services/proxy_config_service.dart';
 import '../models/reminder.dart';
 import '../widgets/modern_reminder_card.dart';
 import '../widgets/save_post_sheet.dart';
@@ -471,6 +472,14 @@ class _RemindersScreenState extends State<RemindersScreen>
   }
 
   Future<void> _rescheduleReminder(Reminder reminder) async {
+    final limit = await ProxyConfigService.instance.getMonthlyRescheduleLimit(reminder.importance);
+    if (!reminder.canRescheduleThisMonth(limit)) {
+      if (mounted) {
+        _showResult(false, Translations.rescheduleLimitReached(_locale, limit));
+      }
+      return;
+    }
+
     try {
       final freeTimes = widget.freeTimeRepository.getAllAsJson();
       final now = DateTime.now();
@@ -496,6 +505,7 @@ class _RemindersScreenState extends State<RemindersScreen>
         }
 
         reminder.scheduledAt = newTime;
+        reminder.incrementMonthlyReschedule();
         widget.reminderRepository.save(reminder);
 
         await widget.notificationService.cancelReminder(reminder.id);
