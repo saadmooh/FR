@@ -9,6 +9,7 @@ import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'objectbox.g.dart';
@@ -16,6 +17,7 @@ import 'package:objectbox_flutter_libs/objectbox_flutter_libs.dart';
 import 'core/app_config.dart';
 import 'core/app_theme.dart';
 import 'core/app_router.dart';
+import 'core/auth_diagnostics.dart';
 import 'core/constants.dart';
 import 'core/locale_manager.dart';
 import 'core/ui_messenger.dart';
@@ -72,17 +74,30 @@ Future<void> _showQueuedBgLogs(SharedPreferences prefs) async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Catch unhandled errors during initialization
-  FlutterError.onError = (details) {
-    FlutterError.presentError(details);
-  };
+  FlutterError.onError = (details) => FlutterError.presentError(details);
 
   try {
     await _initApp();
-  } catch (e, stackTrace) {
-    debugPrint('App initialization failed: $e\n$stackTrace');
+  } catch (e, st) {
+    debugPrint('App initialization failed: $e\n$st');
     initError = 'App initialization failed: $e';
+    runApp(MaterialApp(
+      home: Scaffold(
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: SelectableText('INIT ERROR:\n$e\n\n$st'),
+          ),
+        ),
+      ),
+    ));
   }
+}
+
+// AUTH-DIAG (temporary)
+void _boot(String step) {
+  debugPrint('[boot] $step');
+  unawaited(authDiag('boot_$step', details: {'step': step}));
 }
 
 /// Opens the ObjectBox store from the main isolate.
@@ -150,14 +165,26 @@ Future<void> _initApp() async {
     );
   }
 
+  // AUTH-DIAG (temporary)
+  firebase_auth.FirebaseAuth.instance.userChanges().listen((user) {
+    unawaited(authDiag('user_changed', details: {'uid': user?.uid}));
+  });
+  // AUTH-DIAG (temporary)
+  final authStart = DateTime.now().millisecondsSinceEpoch;
+  final authFirstFuture = firebase_auth.FirebaseAuth.instance.authStateChanges().first;
+  final authFirstTimeout = authFirstFuture.timeout(const Duration(seconds: 5), onTimeout: () => null);
+  unawaited(authFirstTimeout.then((user) {
+    final elapsed = DateTime.now().millisecondsSinceEpoch - authStart;
+    unawaited(authDiag('auth_first_event', details: {'uid': user?.uid, 'elapsedMillis': elapsed}));
+  }));
+
+  final u = firebase_auth.FirebaseAuth.instance.currentUser;
+  showUiLog('🔥 [AUTH-1] after Firebase.init: uid=${u?.uid}, email=${u?.email}');
+
+  // Initialize AuthService and wait for initial auth state to avoid race condition
   authService = AuthService();
-  revenueCatService = RevenueCatService();
-  try {
-    await revenueCatService.initialize();
-  } catch (e) {
-    debugPrint('RevenueCat initialization failed: $e');
-    if (initError == null) initError = 'RevenueCat initialization failed: $e';
-  }
+  await authService.waitForInitialAuth();
+  _boot('after_auth');
 
   // Initialize timezone (resolves the device's IANA zone, not UTC)
   try {
@@ -166,6 +193,7 @@ Future<void> _initApp() async {
     debugPrint('Timezone initialization failed: $e');
     if (initError == null) initError = 'Timezone initialization failed: $e';
   }
+  _boot('after_timezone');
 
   // Initialize ObjectBox
   try {
@@ -175,17 +203,17 @@ Future<void> _initApp() async {
     if (initError == null) initError = 'ObjectBox initialization failed: $e';
     rethrow;
   }
+  _boot('after_objectbox');
 
   // Initialize SharedPreferences
   final prefs = await SharedPreferences.getInstance();
+  _boot('after_prefs');
 
-  // Set default provider if not set
-  if (!prefs.containsKey(AppConstants.aiProviderKey)) {
-    await prefs.setString(
-      AppConstants.aiProviderKey,
-      AppConstants.defaultProvider,
-    );
-  }
+  // AUTH-DIAG (temporary)
+  showUiLog(
+    'DIAG remoteErr=${prefs.getString('auth_diag_last_remote_error')} '
+    'logCount=${prefs.getStringList('auth_diag_log')?.length ?? 0}',
+  );
 
   // Initialize repositories
   settingsRepository = AppSettingsRepository(prefs);
@@ -195,6 +223,20 @@ Future<void> _initApp() async {
 
   // Set repositories in settings for backup/restore
   settingsRepository.setRepositories(reminderRepository, freeTimeRepository);
+  _boot('after_repos');
+
+  // AUTH-DIAG (temporary)
+  try {
+    final reminderCount = reminderRepository.getTotalCount();
+    final loginMarker = prefs.getString('debug_login_marker');
+    unawaited(authDiag('app_start', details: {
+      'currentUser': firebase_auth.FirebaseAuth.instance.currentUser?.uid,
+      'debug_login_marker': loginMarker,
+      'reminderCount': reminderCount,
+    }));
+  } catch (_) {
+    // Guard: diagnostics must never break startup.
+  }
 
   // Initialize locale manager
   LocaleManager.instance.initialize(settingsRepository);
@@ -224,6 +266,9 @@ Future<void> _initApp() async {
   final aiProxy = AiProxyService.fromConfig();
   aiService = AIService(settingsRepository, aiProxy: aiProxy);
   notificationService = NotificationService();
+  revenueCatService = RevenueCatService();
+  await revenueCatService.initialize();
+  _boot('after_services');
 
   // Initialize WorkManager for background monitoring (Android/iOS only)
   if (Platform.isAndroid || Platform.isIOS) {
@@ -237,6 +282,7 @@ Future<void> _initApp() async {
       if (initError == null) initError = 'WorkManager initialization failed: $e';
     }
   }
+  _boot('after_workmanager');
 
   // Pass store directory path to notification service for WorkManager tasks
   final storeDir = await defaultStoreDirectory();
@@ -253,6 +299,7 @@ Future<void> _initApp() async {
     debugPrint('Notification service initialization failed: $e');
     if (initError == null) initError = 'Notification service initialization failed: $e';
   }
+  _boot('after_notif_init');
 
   // Initialize overdue reminder service
   overdueReminderService = OverdueReminderService(
@@ -264,31 +311,18 @@ Future<void> _initApp() async {
   );
 
   // Run initial overdue check on app start
-  try {
-    final rescheduledCount = await overdueReminderService
-        .reviewOverdueReminders();
-    if (rescheduledCount > 0) {
-      debugPrint(
-        '[main] Rescheduled $rescheduledCount overdue reminders on app start',
-      );
-    }
-  } catch (e, stackTrace) {
-    debugPrint('[main] Failed to review overdue reminders on start: $e');
-    debugPrint('Stack trace: $stackTrace');
-    if (initError == null) initError = 'Overdue check failed on start: $e';
-    showUiLog(
-      'Overdue check failed on start: $e',
-      duration: const Duration(seconds: 6),
-    );
-  }
+  _boot('before_overdue');
 
   // Request background permissions for reliable monitoring
   try {
-    await notificationService.requestBackgroundPermissions();
+    await notificationService
+        .requestBackgroundPermissions()
+        .timeout(const Duration(seconds: 5));
   } catch (e) {
     debugPrint('Background permissions failed: $e');
     if (initError == null) initError = 'Background permissions failed: $e';
   }
+  _boot('after_bgperm');
 
   // Handle app launch from notification (if terminated)
   try {
@@ -297,6 +331,7 @@ Future<void> _initApp() async {
     debugPrint('Notification launch handling failed: $e');
     if (initError == null) initError = 'Notification launch handling failed: $e';
   }
+  _boot('after_launch_notif');
 
   // Handle cold-start shared URL
   String? initialSharedUrl;
@@ -331,12 +366,22 @@ Future<void> _initApp() async {
   // Set router in notification service
   notificationService.setRouter(appRouter.router);
 
+  _boot('before_runapp');
+
   runApp(
     FlexReminderApp(
       initialSharedUrl: initialSharedUrl,
       aiRescheduleError: aiRescheduleError,
     ),
   );
+
+  unawaited(overdueReminderService.reviewOverdueReminders().then((c) {
+    if (c > 0) {
+      debugPrint('[main] Rescheduled $c overdue reminders on start');
+    }
+  }).catchError((e) {
+    showUiLog('Overdue check failed on start: $e');
+  }));
 }
 
 class FlexReminderApp extends StatefulWidget {

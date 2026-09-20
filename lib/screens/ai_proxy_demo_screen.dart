@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/ai_proxy_response.dart';
 import '../services/ai_proxy_service.dart';
+import '../core/auth_diagnostics.dart';
 
 class AiProxyDemoScreen extends StatefulWidget {
   const AiProxyDemoScreen({super.key});
@@ -45,6 +47,11 @@ class _AiProxyDemoScreenState extends State<AiProxyDemoScreen> {
   }
 
   Future<void> _signOut() async {
+    // AUTH-DIAG (temporary)
+    unawaited(authDiag('signout_called', details: {
+      'stack': StackTrace.current.toString(),
+      'location': 'lib/screens/ai_proxy_demo_screen.dart:48',
+    }));
     await Supabase.instance.client.auth.signOut();
     if (mounted) setState(() {});
   }

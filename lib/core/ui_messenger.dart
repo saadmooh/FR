@@ -4,7 +4,7 @@ final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
 const bool uiLogsEnabled = true;
-const bool snackBarsEnabled = false;
+const bool snackBarsEnabled = true;
 
 final List<String> _pending = [];
 

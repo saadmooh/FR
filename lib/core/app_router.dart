@@ -20,6 +20,7 @@ import '../services/revenuecat_service.dart';
 import 'app_theme.dart';
 import 'locale_manager.dart';
 import 'translations.dart';
+import 'ui_messenger.dart';
 
 class AppRouter {
   final ReminderRepository reminderRepository;
@@ -60,23 +61,29 @@ class AppRouter {
         final isPremium = revenueCatService.isPremium;
         final isOnLogin = state.matchedLocation == '/login';
         final isOnPaywall = state.matchedLocation == '/paywall';
+        final isOnSplash = state.matchedLocation == '/';
+        String? result;
 
         if (status == AuthStatus.loading) {
-          return '/';
+          result = isOnSplash ? null : '/';
+        } else if (status == AuthStatus.unauthenticated) {
+          result = isOnLogin ? null : '/login';
+        } else if (!isPremium) {
+          result = isOnPaywall ? null : '/paywall';
+        } else if (isOnLogin || isOnSplash) {
+          result = '/reminders';
+        } else {
+          result = null;
         }
 
-        if (status == AuthStatus.unauthenticated) {
-          return isOnLogin ? null : '/login';
-        }
-
-        if (!isPremium) {
-          return isOnPaywall ? null : '/paywall';
-        }
-
-        if (isOnLogin || isOnPaywall || state.matchedLocation == '/') {
-          return '/reminders';
-        }
-        return null;
+        showUiLog(
+          '🧭 [ROUTER] loc=${state.matchedLocation} '
+          'status=$status '
+          'signedIn=${authService.isSignedIn} '
+          'premium=$isPremium '
+          '→ redirect=$result',
+        );
+        return result;
       },
       routes: [
         GoRoute(

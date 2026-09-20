@@ -1,10 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/services.dart';
 import '../core/app_theme.dart';
 import '../core/init_error.dart';
+import '../core/auth_diagnostics.dart';
+import 'auth_diagnostics_screen.dart';
 
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
+
+  Future<void> _handleLongPress(BuildContext context) async {
+    final entries = await authDiagLoadLogs();
+    if (context.mounted) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => AuthDiagnosticsScreen(entries: entries),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,11 +31,14 @@ class SplashScreen extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Image.asset(
-                'assets/images/app_icon.png',
-                width: 96,
-                height: 96,
-                fit: BoxFit.contain,
+              GestureDetector(
+                onLongPress: () => _handleLongPress(context),
+                child: Image.asset(
+                  'assets/images/app_icon.png',
+                  width: 96,
+                  height: 96,
+                  fit: BoxFit.contain,
+                ),
               ),
               const SizedBox(height: 24),
               Text(

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
@@ -12,6 +13,7 @@ import '../core/app_theme.dart';
 import '../core/locale_manager.dart';
 import '../core/translations.dart';
 import '../core/constants.dart';
+import '../core/auth_diagnostics.dart';
 import '../models/reminder.dart';
 import '../models/free_time_slot.dart';
 
@@ -165,15 +167,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(color: AppColors.whiteTextSecondary),
             ),
           ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              await widget.authService.signOut();
-              if (mounted) {
-                context.go('/login');
-              }
-            },
-            child: Text(
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                // AUTH-DIAG (temporary)
+                unawaited(authDiag('signout_called', details: {
+                  'stack': StackTrace.current.toString(),
+                  'location': 'lib/screens/settings_screen.dart:171',
+                }));
+                await widget.authService.signOut();
+                if (mounted) {
+                  context.go('/login');
+                }
+              },
+              child: Text(
               Translations.signOut(_locale),
               style: TextStyle(color: AppColors.error),
             ),

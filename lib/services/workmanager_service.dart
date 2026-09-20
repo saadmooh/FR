@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:workmanager/workmanager.dart';
 import '../core/app_config.dart';
+import '../core/auth_diagnostics.dart';
 import '../repositories/reminder_repository.dart';
 import '../repositories/free_time_repository.dart';
 import '../repositories/app_settings_repository.dart';
@@ -83,16 +84,17 @@ Future<void> _log(String message) async {
 /// This works independently of app state, SharedPreferences, or UI reopening.
 Future<void> _remoteLog(String event, {Map<String, dynamic>? details}) async {
   try {
-    // Initialize Supabase if not already done in this isolate
-    final client = Supabase.instance.client;
-    final session = client.auth.currentSession;
-    if (session == null) {
+    SupabaseClient client;
+    try {
+      client = Supabase.instance.client;
+    } catch (_) {
       await Supabase.initialize(
         url: AppConfig.supabaseUrl,
         publishableKey: AppConfig.supabaseAnonKey,
       );
+      client = Supabase.instance.client;
     }
-    await Supabase.instance.client.from('debug_logs').insert([
+    await client.from('debug_logs').insert([
       {'event': event, 'details': details ?? {}},
     ]);
   } catch (e) {
@@ -161,15 +163,42 @@ Future<void> _initBackgroundServices() async {
       );
 
       if (firebaseUser != null) {
+        // AUTH-DIAG (temporary)
+        await authDiag('bg_before_gettoken', details: {
+          'uid': firebase_auth.FirebaseAuth.instance.currentUser?.uid,
+          'isolate': 'background',
+        });
         final idToken = await firebaseUser.getIdToken();
+        if (idToken == null && firebase_auth.FirebaseAuth.instance.currentUser == null) {
+          // AUTH-DIAG (temporary)
+          await authDiag('token_refresh_signed_out_user', details: {
+            'isolate': 'background',
+          });
+        }
+        // AUTH-DIAG (temporary)
+        await authDiag('bg_after_gettoken', details: {
+          'uid': firebase_auth.FirebaseAuth.instance.currentUser?.uid,
+          'isolate': 'background',
+          'idTokenLength': idToken?.length,
+        });
         if (idToken != null) {
           await _log(
             '🔑 [Firebase] Got ID token (length: ${idToken.length}), signing into Supabase...',
           );
+          // AUTH-DIAG (temporary)
+          await authDiag('bg_before_supabase_signin', details: {
+            'uid': firebase_auth.FirebaseAuth.instance.currentUser?.uid,
+            'isolate': 'background',
+          });
           await client.auth.signInWithIdToken(
             provider: OAuthProvider('custom:firebase'),
             idToken: idToken,
           );
+          // AUTH-DIAG (temporary)
+          await authDiag('bg_after_supabase_signin', details: {
+            'uid': firebase_auth.FirebaseAuth.instance.currentUser?.uid,
+            'isolate': 'background',
+          });
           await _log(
             '✅ [Supabase] Session restored from Firebase successfully',
           );
