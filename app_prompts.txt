@@ -153,7 +153,7 @@ Example:
   importance = "Week"
   currentTime = "2026-01-15T10:00:00.000Z"
   maxTime = "2026-01-22T10:00:00.000Z"
-  userFreeTimesJson = [{"day":1,"start":"09:00","end":"12:00"},{"day":3,"start":"18:00","end":"21:00"}]
+  userFreeTimesJson = [{"day":"sunday","start":"09:00","end":"12:00"},{"day":"wednesday","start":"18:00","end":"21:00"}]
   pendingRemindersJson = [{"scheduled_at":"2026-01-16T14:00:00.000Z","opened":false}]
 
 Expected Response:
@@ -308,7 +308,7 @@ Example:
     {"scheduled_at":"2026-01-15T08:00:00.000Z","opened":false,"opened_at":null},
     {"scheduled_at":"2026-01-16T20:00:00.000Z","opened":false,"opened_at":null}
   ]
-  userFreeTimesJson = [{"day":1,"start":"09:00","end":"12:00"},{"day":4,"start":"18:00","end":"21:00"}]
+  userFreeTimesJson = [{"day":"sunday","start":"09:00","end":"12:00"},{"day":"thursday","start":"18:00","end":"21:00"}]
 
 Expected Response:
   {"new_time": "2026-01-17T09:00:00", "reason": "Morning slot during free time | فترة صباحية خلال وقت الفراغ"}

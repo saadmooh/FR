@@ -14,12 +14,21 @@ class RevenueCatService extends ChangeNotifier {
 
   static const String _apiKey = 'goog_LfeTyBNEEqcHhnhRvnlRlzIvwbu';
 
+  final Completer<void> _initCompleter = Completer<void>();
+  bool _isInitialized = false;
+
   Offerings? _offerings;
   CustomerInfo? _customerInfo;
   bool _isPremium = false;
 
   bool get isPremium => _isPremium;
   Offerings? get offerings => _offerings;
+
+  Future<void> _waitForInit() async {
+    if (!_isInitialized) {
+      await _initCompleter.future;
+    }
+  }
 
   void _refreshSessionToken() {
     if (!_isPremium) return;
@@ -55,6 +64,11 @@ class RevenueCatService extends ChangeNotifier {
       _customerInfo = customerInfo;
       _updatePremiumStatus();
     });
+
+    _isInitialized = true;
+    if (!_initCompleter.isCompleted) {
+      _initCompleter.complete();
+    }
   }
 
   void _updatePremiumStatus() {
@@ -74,6 +88,7 @@ class RevenueCatService extends ChangeNotifier {
   }
 
   Future<void> fetchOfferings() async {
+    await _waitForInit();
     try {
       _offerings = await Purchases.getOfferings();
       if (_offerings?.current != null) {
@@ -86,6 +101,7 @@ class RevenueCatService extends ChangeNotifier {
   }
 
   Future<CustomerInfo?> purchasePackage(Package package) async {
+    await _waitForInit();
     try {
       debugPrint('Purchasing package: ${package.identifier}');
       final result = await Purchases.purchase(PurchaseParams.package(package));
@@ -105,6 +121,7 @@ class RevenueCatService extends ChangeNotifier {
   }
 
   Future<void> linkToUser(String firebaseUid) async {
+    await _waitForInit();
     try {
       if (!await Purchases.isAnonymous) {
         debugPrint(
@@ -139,6 +156,7 @@ class RevenueCatService extends ChangeNotifier {
   }
 
   Future<void> restoreAfterLogin() async {
+    await _waitForInit();
     try {
       final restored = await Purchases.restorePurchases();
       debugPrint('Restored entitlements: ${restored.entitlements.active}');
@@ -154,6 +172,7 @@ class RevenueCatService extends ChangeNotifier {
   }
 
   Future<bool> restorePurchases() async {
+    await _waitForInit();
     try {
       _customerInfo = await Purchases.restorePurchases();
       _updatePremiumStatus();
@@ -166,6 +185,7 @@ class RevenueCatService extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    await _waitForInit();
     try {
       if (await Purchases.isAnonymous) {
         debugPrint('RevenueCat logout skipped: user is anonymous');

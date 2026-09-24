@@ -356,12 +356,16 @@ class Translations {
       AppTranslations.getString('analysisFailed', locale: locale);
 
   static String rescheduleLimitReached(String locale, int count) =>
-      AppTranslations.getString('rescheduleLimitReached', locale: locale)
-          .replaceAll('{count}', '$count');
+      AppTranslations.getString(
+        'rescheduleLimitReached',
+        locale: locale,
+      ).replaceAll('{count}', '$count');
 
   static String unopenedPostsLimitReached(String locale, int count) =>
-      AppTranslations.getString('unopenedPostsLimitReached', locale: locale)
-          .replaceAll('{count}', '$count');
+      AppTranslations.getString(
+        'unopenedPostsLimitReached',
+        locale: locale,
+      ).replaceAll('{count}', '$count');
 
   static String success(String locale) =>
       AppTranslations.getString('success', locale: locale);
@@ -521,6 +525,15 @@ class Translations {
   static String signInFailed(String locale) =>
       AppTranslations.getString('signInFailed', locale: locale);
 
+  static String signInSuccess(String locale) =>
+      AppTranslations.getString('signInSuccess', locale: locale);
+
+  static String signOutSuccess(String locale) =>
+      AppTranslations.getString('signOutSuccess', locale: locale);
+
+  static String signOutFailed(String locale) =>
+      AppTranslations.getString('signOutFailed', locale: locale);
+
   static String signOut(String locale) =>
       AppTranslations.getString('signOut', locale: locale);
 
@@ -565,6 +578,15 @@ class Translations {
 
   static String premiumFeaturePriorityAI(String locale) =>
       AppTranslations.getString('premiumFeaturePriorityAI', locale: locale);
+
+  static String premiumFeatureYouTubePlaylist(String locale) =>
+      AppTranslations.getString(
+        'premiumFeatureYouTubePlaylist',
+        locale: locale,
+      );
+
+  static String premiumFeatureAutoReschedule(String locale) =>
+      AppTranslations.getString('premiumFeatureAutoReschedule', locale: locale);
 
   static String premiumFeatureExcelExport(String locale) =>
       AppTranslations.getString('premiumFeatureExcelExport', locale: locale);
@@ -645,8 +667,10 @@ class Translations {
       AppTranslations.getString('inactive', locale: locale);
 
   static String openedRate(String locale, int count) =>
-      AppTranslations.getString('openedRate', locale: locale)
-          .replaceAll('{count}', '$count');
+      AppTranslations.getString(
+        'openedRate',
+        locale: locale,
+      ).replaceAll('{count}', '$count');
 
   static String unopened(String locale) =>
       AppTranslations.getString('unopened', locale: locale);
@@ -667,8 +691,10 @@ class Translations {
       AppTranslations.getString('markAllAsRead', locale: locale);
 
   static String selectedCount(String locale, int count) =>
-      AppTranslations.getString('selectedCount', locale: locale)
-          .replaceAll('{count}', '$count');
+      AppTranslations.getString(
+        'selectedCount',
+        locale: locale,
+      ).replaceAll('{count}', '$count');
 
   static String retry(String locale) =>
       AppTranslations.getString('retry', locale: locale);

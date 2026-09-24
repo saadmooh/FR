@@ -55,3 +55,12 @@ flutter {
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
+
+// Pin firebase-auth to 23.2.0 (last stable before the 23.2.1 cold-start
+// session-drop/encryption bug). Protection against silent drift when the
+// Firebase BOM (via firebase_core) is bumped.
+configurations.all {
+    resolutionStrategy {
+        force("com.google.firebase:firebase-auth:23.2.0")
+    }
+}

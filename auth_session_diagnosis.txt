@@ -1,0 +1,257 @@
+================================================================================
+تقرير التشخيص: فقدان جلسة Firebase Auth عند الإقلاع البارد (cold start)
+التاريخ: 2026-09-24
+الحالة: تشخيص فقط - لم يتم تعديل أي ملف
+================================================================================
+
+الخلاصة (السبب الأرجح بالدليل)
+--------------------------------------------------------------------------------
+السبب هو (ب): «فقدان/عدم استمرار تخزين الجلسة» - لكن ليس بسبب كود في التطبيق،
+بل بسبب خطأ في مكتبة Android الأصلية com.google.firebase:firebase-auth:23.2.1
+التي يحملها المشروع حالياً عبر firebase-bom 33.16.0.
+
+هذا له توقيع مطابق تماماً لخطأ معروف وموثّق في Firebase
+(قضيتا firebase-android-sdk #7111 و #8064): الإصدار 23.2.1 أضاف تخزيناً مشفّراً
+للجلسة يفشل في استعادة المستخدم المحفوظ عند إعادة فتح التطبيق (cold start)،
+فيظهر currentUser == null رغم نجاح تسجيل الدخول قبلها.
+
+سلسلة الدليل (ملف/سطر):
+--------------------------------------------------------------------------------
+| # | الدليل                                                                  | الموضع |
+|---|-------------------------------------------------------------------------|--------|
+| 1 | firebase_core المحلول حالياً 3.15.2 يثبّت FirebaseSDKVersion=33.16.0     | ~/.pub-cache/hosted/pub.dev/firebase_core-3.15.2/android/gradle.properties:2 (تُستخدم في android/build.gradle:48) |
+| 2 | firebase_auth المحلول 5.7.0 يسحب com.google.firebase:firebase-auth عبر الـ BOM بدون إصدار صريح | ~/.pub-cache/hosted/pub.dev/firebase_auth-5.7.0/android/build.gradle (سطرا platform(BOM) + implementation firebase-auth) |
+| 3 | BOM 33.16.0 -> firebase-auth 23.2.1 (النسخة المعيوبة)                    | Maven: صفحة firebase-bom 33.16.0 -> Managed Dependencies -> Auth Lib |
+| 4 | لا يوجد override لإصدار Firebase في المشروع                               | android/build.gradle.kts ، android/settings.gradle.kts (فحص كامل) |
+| 5 | النسخة القديمة (التي كانت تعمل): firebase_core 3.12.1 -> FirebaseSDKVersion=33.9.0 -> firebase-auth 23.2.0 (ما قبل الخطأ) | pubspec.yaml في git (كل التواريخ ^3.12.1) + أرشيف firebase_core-3.12.1/android/gradle.properties:2 |
+| 6 | المشكلة الموثقة: «23.2.1 يوقّع المستخدمين خطأً خارج النظام، الإصلاح في 24.0.0» و«24.0.1 ما زال يفقد الجلسات المحفوظة» | firebase-android-sdk #7111 و #8064 (الإصدار الأخير الجيد = 23.2.0/23.1.0 قبل التخزين المشفّر) |
+
+النقطة 5 تشرح «النسخة القديمة كانت تعمل»: إعادة البناء مؤخراً (131.0.0+131 بتاريخ
+اليوم) مع ^3.12.1 في pubspec أعادت حل التبعيات بصمت إلى firebase_core 3.15.2 ->
+firebase-auth 23.2.1 (dependency drift عبر إعادة البناء بنفس الـ pubspec).
+
+================================================================================
+1) تهيئة Firebase
+================================================================================
+- هل Firebase.initializeApp() تنجح؟
+  الأغلب نعم. لو فشلت، كان FirebaseAuth.instance في lib/main.dart:169 سيرمي
+  استثناءً -> يُلتقط في main() وتظهر شاشة INIT ERROR. بما أن المستخدم يصل لشاشة
+  Login فالتهيئة نجحت. مع ذلك، try/catch في lib/main.dart:143-148 يبتلع الفشل
+  بصمت، ولا يوجد lib/firebase_options.dart، لذا التأكد بالسجل مطلوب (الـ diff أدناه).
+
+- استدعاء ثانٍ لـ Firebase.initializeApp في background isolate؟
+  نعم: lib/services/workmanager_service.dart:113-121 داخل _initBackgroundServices()
+  يستدعي Firebase.initializeApp() ثم FirebaseAuth.instance.authStateChanges().first.
+  هذا في isolate منفصل عن main (لا ينشئ instance مختلفاً يؤثر على main، والخطأ ملفوف
+  بـ try/catch) - لكنه يقرأ مخزن الجلسة (المعيب أصلاً في 23.2.1) خارج سياق الـ
+  Activity الرئيسي، ما يرجّح التفاقم لكنه ليس السبب الجذري.
+
+- google-services.json:
+  موجود في android/app/google-services.json (ونسخة في جذر المشروع).
+  package_name = com.saadmohammed2000.flex_reminder يطابق applicationId و namespace
+  في android/app/build.gradle.kts:9,24. المكوّن com.google.gms.google-services
+  مفعّل في android/app/build.gradle.kts:5.
+
+- SHA-1/SHA-256:
+  في google-services.json مسجّلة بصمة release e3d603f7... (سطر 53) وهي تطابق مفتاح
+  release E3D603F7E4E2A4F23000D3D8CB521EA1DF055E66 في sha1_fingerprints.txt
+  (الملف قديم/غير دقيق: يدّعي عدم التطابق بينما release مطابقة فعلاً).
+  بصمة debug 7567A646... غير مسجّلة -> تؤثر فقط على تسجيل الدخول في builds الـ debug
+  (خطأ 12500/12501) ولا علاقة لها باستعادة الجلسة (لا يوجد استدعاء Google على الإقلاع).
+
+================================================================================
+2) التخزين وفقدان الجلسة (محصورة)
+================================================================================
+- AndroidManifest: android/app/src/main/AndroidManifest.xml
+  - لا allowBackup (الافتراضي true)، لا fullBackupContent، لا dataExtractionRules،
+    لا android:process (عملية واحدة - جيد)، android:name="${applicationName}"
+    (بدون Application مخصّص). لا تفسّر إقلاعاً بارداً عادياً.
+
+- R8/proguard: android/app/build.gradle.kts لا يفعّل minifyEnabled/shrinkResources
+  إطلاقاً، ولا يوجد proguard-rules.pro. لا مشكلة حذف كلاسات.
+
+- أي كود يمسح التخزين؟ لا يوجد في كل المشروع:
+  - لا SharedPreferences.clear()
+  - لا deleteRecursively
+  - لا Store.removeDbFiles
+  - لا مسح لـ defaultStoreDirectory
+  الوحيد: حذف كيانات ObjectBox فردية، SessionTokenService.clear() (فقط عند
+  RevenueCatService.logout())، prefs.remove لمفاتيح تشخيص. لا شيء يمس Firebase Auth.
+
+- ObjectBox/WorkManager: ObjectBox يستخدم defaultStoreDirectory (لم يُمسح)،
+  WorkManager له قاعدة بياناته في databases/. لا تضارب. «إبقاء ObjectBox مفتوحاً»
+  لا علاقة له بالمصادقة.
+
+================================================================================
+3) استدعاءات signOut - لا يوجد أي استدعاء تلقائي
+================================================================================
+| الموضع                                        | النوع                          |
+|-----------------------------------------------|--------------------------------|
+| lib/screens/settings_screen.dart:181 (عبر _showSignOutDialog سطر 146-200) | يدوي فقط (زر + مربع تأكيد) |
+| lib/services/auth_service.dart:226 (signOut) و :249 (deleteAccount) | تعاريف؛ deleteAccount لا يُستدعى من أي مكان |
+| lib/screens/ai_proxy_demo_screen.dart:49-55   | شاشة مطوّر يدوية                |
+| lib/services/auth_service.dart:59-73 (listener) | يستدعي _restoreExternalSessions وليس signOut |
+| Supabase/RevenueCat                           | لا يوجد أي listener يستدعي signOut عند فشل المزامنة أو انتهاء التوكن. RevenueCatService.logout() يُستدعى فقط من AuthService.signOut() |
+
+الخلاصة: (ج) مستبعد تماماً - لا signOut ولا deleteAccount يُستدعى تلقائياً عند الإقلاع.
+
+================================================================================
+4) سجلات تشخيصية مقترحة (لم تُطبّق - التشخيص أولاً)
+================================================================================
+أ. التحقق من تهيئة Firebase (بعد Firebase.initializeApp() في lib/main.dart ~سطر 148):
+
+  // AUTH-DIAG (temporary)
+  try {
+    final app = firebase_core.Firebase.app();
+    debugPrint('[FB-INIT] apps=${firebase_core.Firebase.apps.length} '
+        'projectId=${app.options.projectId} appId=${app.options.appId}');
+    unawaited(authDiag('firebase_init_ok', details: {
+      'apps': firebase_core.Firebase.apps.length,
+      'projectId': app.options.projectId,
+      'appId': app.options.appId,
+      'hasApiKey': app.options.apiKey.isNotEmpty,
+    }));
+  } catch (e, st) {
+    debugPrint('[FB-INIT] FAILED: $e\n$st');
+    unawaited(authDiag('firebase_init_failed', details: {'error': '$e'}));
+  }
+
+ب. uid عند paused/resumed (في didChangeAppLifecycleState, lib/main.dart:470):
+
+  case AppLifecycleState.paused:
+    unawaited(authDiag('lc_paused',
+        details: {'uid': firebase_auth.FirebaseAuth.instance.currentUser?.uid}));
+    break;
+  case AppLifecycleState.resumed:
+    unawaited(authDiag('lc_resumed',
+        details: {'uid': firebase_auth.FirebaseAuth.instance.currentUser?.uid}));
+    await _runOverdueCheck();
+    // ...بقية الكود
+
+ج. stack trace عند تغيّر uid إلى null + إعادة فحص متأخرة (بجوار listener الموجود
+   في lib/main.dart:169):
+
+  String? _lastSeenUid; // متغيّر مؤقت عام في _initApp
+  firebase_auth.FirebaseAuth.instance.userChanges().listen((user) {
+    unawaited(authDiag('user_changed', details: {'uid': user?.uid}));
+    if (user == null && _lastSeenUid != null) {
+      unawaited(authDiag('user_lost', details: {
+        'previousUid': _lastSeenUid,
+        'stack': StackTrace.current.toString(),
+      }));
+    }
+    _lastSeenUid = user?.uid;
+  });
+  // هل تُستعاد الجلسة متأخراً؟ (يفرّق بين race وضياع حقيقي)
+  for (final s in [1, 5, 15, 45]) {
+    Future.delayed(Duration(seconds: s), () => unawaited(authDiag(
+        'uid_recheck_${s}s',
+        details: {'uid': firebase_auth.FirebaseAuth.instance.currentUser?.uid})));
+  }
+
+د. فحص التخزين عبر adb (الأهم لتأكيد السبب):
+
+  adb shell run-as com.saadmohammed2000.flex_reminder ls shared_prefs/   # يجب وجود com.google.firebase.auth.api.Store.*.xml
+  adb shell run-as com.saadmohammed2000.flex_reminder ls databases/      # firebase_auth قد يستخدم SQLite مشفّراً
+  adb logcat | grep -iE 'FirebaseAuth|AuthState|auth_storage'
+
+  سجّل محتوى shared_prefs بعد تسجيل الدخول وقارنه بعد إقلاع بارد:
+  - إذا بقيت الملفات لكن currentUser == null  -> مشكلة قراءة/فك تشفير (خطأ 23.2.1)
+  - إذا اختفت الملفات                         -> شيء يمسحها (مستبعد حسب الفحص أعلاه)
+
+================================================================================
+5) اختبار العزل (خطوات مقترحة)
+================================================================================
+1. الخط الأساسي: سجّل دخول -> أخرج من recents (اسحب) -> أعد الفتح (بدون uninstall)
+   -> كرر 3 مرات، واقرأ authDiag (شاشة Auth Diagnostics).
+   المتوقع: uid=null في auth_first_event و user_changed على الإقلاع.
+
+2. عزل الإضافات الجديدة (بناء بنسخة فيها Firebase فقط):
+   - عطّل Supabase: ابنِ بدون --dart-define (الافتراضي YOUR_SUPABASE_URL -> isSupabaseConfigured=false)
+   - عطّل WorkManager: علّق كتلة Workmanager().initialize(...) في lib/main.dart:276-286
+   - عطّل RevenueCat: علّق revenueCatService.initialize() في lib/main.dart:185-186
+   لو استمر الضياع -> المشكلة من Firebase نفسها (يدعم فرضية 23.2.1).
+   لو اختفى -> أعد الإضافات واحدة تلو الأخرى.
+
+3. الاختبار الحاسم: طبّق إصلاح تثبيت firebase-auth (أدناه) -> أعد البناء -> سجّل
+   دخول -> إقلاع بارد. القياس: هل يعود /reminders بدل /login؟
+   (جرّب: تثبيت جديد، وتثبيت محدّث فوق القديم للمتحقق من migration، وكلاهما release وdebug)
+
+4. release build: flutter build apk --release مع نفس --dart-define
+   (الأمر موجود في build_appbundle.txt). تذكّر أن debug signature 7567A646...
+   غير مسجّلة في Firebase Console - أضفها إن أردت اختبار تسجيل الدخول على debug.
+
+5. متحقق نهائي: cd android && ./gradlew :app:dependencies | grep firebase-auth
+   - يجب ألا تظهر 23.2.1 بعد الإصلاح.
+
+================================================================================
+الإصلاح المقترح (كـ diff - لم يُطبّق)
+================================================================================
+الإصلاح الأساسي: تثبيت firebase-auth على إصدار سليم
+android/app/build.gradle.kts:
+
+  diff:
+  ---
+  dependencies {
+      coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+  +
+  +    // Force a fixed firebase-auth: firebase_core 3.15.2 pulls BOM 33.16.0
+  +    // -> firebase-auth 23.2.1, which loses persisted sessions on cold start
+  +    // (firebase-android-sdk #7111 / #8064, fixed in 24.0.0+).
+  +    implementation("com.google.firebase:firebase-auth:24.2.0")
+  }
+
+  - Gradle يختار أعلى إصدار مطلوب (24.2.0 يتجاوز قيد BOM 23.2.1).
+  - إن حدث تعارض compileSdk، البديل المثبت عملياً في #8064 هو 24.0.1.
+  - بعد النشر: المستخدمون الذين فقدوا جلستهم في 23.2.1 سيحتاجون تسجيل دخول واحداً
+    إضافياً (لا يمكن استرجاع جلسة ضاعت من المخزن المشفّر المعطوب).
+
+إصلاحات ثانوية (تحصين):
+1. lib/services/workmanager_service.dart - لا تلمس FirebaseAuth في الـ background isolate:
+
+  diff:
+  ---
+  if (!_bgServicesInitialized) {
+    try {
+      await Firebase.initializeApp();
+  -      // Ensure auth state is loaded in this isolate before reading currentUser
+  -      await firebase_auth.FirebaseAuth.instance.authStateChanges().first;
+  +      // DON'T touch FirebaseAuth here: reading the (23.2.1-buggy) encrypted
+  +      // session store from a background isolate is unnecessary and risky.
+    } catch (_) {
+      // Already initialized or unavailable.
+    }
+  }
+
+2. lib/main.dart:143-148 - لا تبتلع فشل التهيئة بصمت:
+
+  diff:
+  ---
+  try {
+    await Firebase.initializeApp();
+  } catch (e, stackTrace) {
+    debugPrint('Firebase initialization failed: $e\n$stackTrace');
+    if (initError == null) initError = 'Firebase initialization failed: $e';
+  +    rethrow; // لا نكمل أبداً والحالة غير موثوقة
+  }
+
+================================================================================
+ما بقي غير مؤكد
+================================================================================
+1. تأكيد إصدار firebase-auth في APK القديم الذي كان يعمل: أُعيد بناؤه كـ <=23.2.0
+   عبر firebase_core 3.12.1 -> 33.9.0، لكن الـ lock الحالي زحف إلى 3.15.2 فلا يمكن
+   التحقق من الـ APK القديم نفسه من الريبو.
+
+2. مدى تأثير الـ background isolate: قراءة FirebaseAuth من isolate الخلفي قد تفاقم
+   إخفاق 23.2.1 على بعض الأجهزة، لكنه ليس السبب الجذري - يُحسم بالسجلات (بند 4-د).
+
+3. عامل الجهاز: قضيتا #7111/#8064 تُظهران تفاوتاً حسب الجهاز/المفتاح (بعض الأجهزة
+   تعود للعمل مع 24.0.1 لكن بنسبة أقل). لهذا ننصح بـ 24.2.0 الأحدث مع اختبار على
+   أجهزة مختلفة إن أمكن.
+
+4. الـ Debug SHA-1 (7567A646... غير مسجّل في Firebase Console): يؤثر على تسجيل
+   الدخول فقط، لا على الاستعادة - أُدرج احتياطاً، لكنه ليس السبب.
+
+--------------------------------------------------------------------------------
+نهاية التقرير - لم يتم تعديل أي ملف.
+================================================================================

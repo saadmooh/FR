@@ -181,6 +181,10 @@ Future<void> _initApp() async {
   final u = firebase_auth.FirebaseAuth.instance.currentUser;
   showUiLog('🔥 [AUTH-1] after Firebase.init: uid=${u?.uid}, email=${u?.email}');
 
+  // Initialize RevenueCat early to avoid race condition with auth state listener
+  revenueCatService = RevenueCatService();
+  await revenueCatService.initialize();
+
   // Initialize AuthService and wait for initial auth state to avoid race condition
   authService = AuthService();
   await authService.waitForInitialAuth();
@@ -266,8 +270,6 @@ Future<void> _initApp() async {
   final aiProxy = AiProxyService.fromConfig();
   aiService = AIService(settingsRepository, aiProxy: aiProxy);
   notificationService = NotificationService();
-  revenueCatService = RevenueCatService();
-  await revenueCatService.initialize();
   _boot('after_services');
 
   // Initialize WorkManager for background monitoring (Android/iOS only)
@@ -455,7 +457,6 @@ class _FlexReminderAppState extends State<FlexReminderApp>
     });
   }
 
-  @override
   @override
   void dispose() {
     IsolateNameServer.removePortNameMapping(bgLogPortName);

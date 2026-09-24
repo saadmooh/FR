@@ -14,6 +14,7 @@ import '../core/locale_manager.dart';
 import '../core/translations.dart';
 import '../core/constants.dart';
 import '../core/auth_diagnostics.dart';
+import '../core/ui_messenger.dart';
 import '../models/reminder.dart';
 import '../models/free_time_slot.dart';
 
@@ -66,10 +67,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final dir = await getTemporaryDirectory();
         final file = File('${dir.path}/$fileName');
         await file.writeAsBytes(bytes);
-        await Share.shareXFiles(
-          [XFile(file.path)],
-          text: AppConstants.appName,
-        );
+        await Share.shareXFiles([XFile(file.path)], text: AppConstants.appName);
         _showMessage(true, Translations.exportedSuccessfully(_locale));
         return;
       }
@@ -167,20 +165,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(color: AppColors.whiteTextSecondary),
             ),
           ),
-            TextButton(
-              onPressed: () async {
-                Navigator.pop(ctx);
-                // AUTH-DIAG (temporary)
-                unawaited(authDiag('signout_called', details: {
-                  'stack': StackTrace.current.toString(),
-                  'location': 'lib/screens/settings_screen.dart:171',
-                }));
-                await widget.authService.signOut();
-                if (mounted) {
-                  context.go('/login');
-                }
-              },
-              child: Text(
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              // AUTH-DIAG (temporary)
+              unawaited(
+                authDiag(
+                  'signout_called',
+                  details: {
+                    'stack': StackTrace.current.toString(),
+                    'location': 'lib/screens/settings_screen.dart:171',
+                  },
+                ),
+              );
+              final signedOut = await widget.authService.signOut();
+              if (!mounted) return;
+              if (signedOut) {
+                showAuthSnackBar(Translations.signOutSuccess(_locale));
+                context.go('/login');
+              } else {
+                showAuthSnackBar(
+                  Translations.signOutFailed(_locale),
+                  isError: true,
+                );
+              }
+            },
+            child: Text(
               Translations.signOut(_locale),
               style: TextStyle(color: AppColors.error),
             ),
@@ -194,9 +204,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.whiteBackground,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.zero,
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -205,8 +213,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Text(
               Translations.exportFormat(_locale),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppColors.whiteTextPrimary,
-                  ),
+                color: AppColors.whiteTextPrimary,
+              ),
             ),
             const SizedBox(height: 20),
             ListTile(
@@ -219,8 +227,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
             ListTile(
-              leading:
-                  const Icon(Icons.table_chart, color: AppColors.whiteAccent),
+              leading: const Icon(
+                Icons.table_chart,
+                color: AppColors.whiteAccent,
+              ),
               title: Text(Translations.excel(_locale)),
               subtitle: Text(Translations.excelFormatDesc(_locale)),
               onTap: () {
@@ -294,7 +304,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           const SizedBox(height: 8),
 
-          _buildSectionHeader(Translations.account(locale), Icons.account_circle_outlined),
+          _buildSectionHeader(
+            Translations.account(locale),
+            Icons.account_circle_outlined,
+          ),
           const SizedBox(height: 12),
           Container(
             decoration: BoxDecoration(
@@ -326,10 +339,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(
-                    Icons.logout,
-                    color: AppColors.error,
-                  ),
+                  leading: const Icon(Icons.logout, color: AppColors.error),
                   title: Text(
                     Translations.signOut(_locale),
                     style: TextStyle(color: AppColors.whiteTextPrimary),
@@ -341,7 +351,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 32),
 
-          _buildSectionHeader(Translations.language(locale), Icons.language_outlined),
+          _buildSectionHeader(
+            Translations.language(locale),
+            Icons.language_outlined,
+          ),
           const SizedBox(height: 12),
           Container(
             decoration: BoxDecoration(
@@ -356,10 +369,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
             child: ListTile(
-              leading: const Icon(
-                Icons.language,
-                color: AppColors.whiteAccent,
-              ),
+              leading: const Icon(Icons.language, color: AppColors.whiteAccent),
               title: Text(
                 LocaleManager.getLanguageName(_locale),
                 style: TextStyle(color: AppColors.whiteTextPrimary),
@@ -424,7 +434,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
 
-          _buildSectionHeader(Translations.backupRestore(locale), Icons.backup_outlined),
+          _buildSectionHeader(
+            Translations.backupRestore(locale),
+            Icons.backup_outlined,
+          ),
           const SizedBox(height: 12),
           Container(
             decoration: BoxDecoration(

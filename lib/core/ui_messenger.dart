@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_theme.dart';
+
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
@@ -26,6 +28,35 @@ void showUiLog(
       behavior: SnackBarBehavior.floating,
     ),
   );
+}
+
+/// Shows concise, user-facing authentication feedback.
+///
+/// Internal diagnostics continue to use [showUiLog] and are not shown as
+/// snackbars, so enabling auth feedback does not flood the UI with debug logs.
+void showAuthSnackBar(
+  String message, {
+  bool isError = false,
+  Duration duration = const Duration(seconds: 4),
+}) {
+  debugPrint('[AUTH-SNACKBAR] $message');
+  final messenger = scaffoldMessengerKey.currentState;
+  if (messenger == null) return;
+
+  messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+        ),
+        duration: duration,
+        backgroundColor: isError ? AppColors.error : AppColors.success,
+        behavior: SnackBarBehavior.floating,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      ),
+    );
 }
 
 /// Shows messages that arrived before MaterialApp was mounted (e.g. during

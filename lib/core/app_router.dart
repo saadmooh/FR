@@ -59,14 +59,19 @@ class AppRouter {
       redirect: (context, state) {
         final status = authService.status;
         final isPremium = revenueCatService.isPremium;
-        final isOnLogin = state.matchedLocation == '/login';
-        final isOnPaywall = state.matchedLocation == '/paywall';
-        final isOnSplash = state.matchedLocation == '/';
+        final location = state.matchedLocation;
+        final isOnLogin = location == '/login';
+        final isOnPaywall = location == '/paywall';
+        final isOnSplash = location == '/';
         String? result;
 
         if (status == AuthStatus.loading) {
+          // Firebase has not finished restoring the cached session yet:
+          // hold the user on the splash screen and never consider /login
+          // while the auth state is still being resolved.
           result = isOnSplash ? null : '/';
         } else if (status == AuthStatus.unauthenticated) {
+          // Only a confirmed signed-out state may land on the login screen.
           result = isOnLogin ? null : '/login';
         } else if (!isPremium) {
           result = isOnPaywall ? null : '/paywall';
@@ -74,6 +79,12 @@ class AppRouter {
           result = '/reminders';
         } else {
           result = null;
+        }
+
+        // Hard guarantee: /login is reachable exclusively from a confirmed
+        // `unauthenticated` state — never while still loading.
+        if (result == '/login' && status != AuthStatus.unauthenticated) {
+          result = '/';
         }
 
         showUiLog(

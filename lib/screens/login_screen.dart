@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../core/app_theme.dart';
 import '../core/translations.dart';
 import '../core/locale_manager.dart';
+import '../core/ui_messenger.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -19,19 +20,24 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
-    final user = await AuthService().signInWithGoogle();
-    setState(() => _isLoading = false);
-    if (user != null && mounted) {
-      context.go('/reminders');
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(Translations.signInFailed(_locale)),
-          backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-        ),
-      );
+    try {
+      final user = await AuthService().signInWithGoogle();
+      if (!mounted) return;
+
+      if (user != null) {
+        showAuthSnackBar(Translations.signInSuccess(_locale));
+        context.go('/reminders');
+      } else {
+        showAuthSnackBar(Translations.signInFailed(_locale), isError: true);
+      }
+    } catch (_) {
+      if (mounted) {
+        showAuthSnackBar(Translations.signInFailed(_locale), isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -59,19 +65,19 @@ class _LoginScreenState extends State<LoginScreen> {
               Text(
                 Translations.signInTitle(_locale),
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: AppColors.whiteTextPrimary,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  color: AppColors.whiteTextPrimary,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
               Text(
                 Translations.signInSubtitle(_locale),
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.whiteTextSecondary,
-                      fontSize: 16,
-                    ),
+                  color: AppColors.whiteTextSecondary,
+                  fontSize: 16,
+                ),
                 textAlign: TextAlign.center,
               ),
               const Spacer(),

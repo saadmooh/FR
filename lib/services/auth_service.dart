@@ -23,28 +23,46 @@ class AuthService extends ChangeNotifier {
         '1038373651011-aajl0k8goi5hknl4l0sqsnb78m7lnrfj.apps.googleusercontent.com',
   );
 
-  firebase_auth.User? _currentUser;
-  firebase_auth.User? get currentUser => _currentUser;
-  bool get isSignedIn => _currentUser != null;
+  // Read straight from Firebase (as before): always the freshest value from
+  // the local cache instead of a stale in-memory copy.
+  firebase_auth.User? get currentUser => _auth.currentUser;
+  bool get isSignedIn => _auth.currentUser != null;
   AuthStatus _status = AuthStatus.loading;
   AuthStatus get status => _status;
 
   StreamSubscription<firebase_auth.User?>? _authStateSubscription;
-  final Completer<firebase_auth.User?> _initialAuthStateComplete =
-      Completer<firebase_auth.User?>();
 
-  Future<firebase_auth.User?> get initialAuthState =>
-      _initialAuthStateComplete.future;
+  /// Signal that the very first auth state has been resolved.
+  /// It carries no value on purpose: the resolved state lives in [_status]
+  /// (while the user itself is always read live from `_auth`), and it must
+  /// never be completed with an early `null` before the Firebase cache has
+  /// been inspected.
+  final Completer<void> _initialAuthStateComplete = Completer<void>();
+
+  Future<void> get initialAuthState => _initialAuthStateComplete.future;
 
   AuthService._internal() {
+    // Inspect the user already persisted in Firebase's local cache BEFORE
+    // anything else. On a cold start this makes the app authenticated right
+    // away instead of sitting in `loading` (or worse: flipping to
+    // `unauthenticated`) while `authStateChanges()` warms up.
+    final cachedUser = _auth.currentUser;
+    if (cachedUser != null) {
+      _status = AuthStatus.authenticated;
+
+      // The cache check already happened, so the initial state is resolved.
+      if (!_initialAuthStateComplete.isCompleted) {
+        _initialAuthStateComplete.complete();
+      }
+    }
+
     _authStateSubscription = _auth.authStateChanges().listen((user) {
-      _currentUser = user;
       _status = user != null
           ? AuthStatus.authenticated
           : AuthStatus.unauthenticated;
 
       if (!_initialAuthStateComplete.isCompleted) {
-        _initialAuthStateComplete.complete(user);
+        _initialAuthStateComplete.complete();
       }
 
       if (user != null) {
@@ -56,14 +74,37 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> waitForInitialAuth() async {
+    // Fast path: a persisted session is already available in Firebase's
+    // cache, so there is nothing to wait for.
+    if (_auth.currentUser != null) {
+      if (_status == AuthStatus.loading) {
+        _status = AuthStatus.authenticated;
+        notifyListeners();
+      }
+      if (!_initialAuthStateComplete.isCompleted) {
+        _initialAuthStateComplete.complete();
+      }
+      return;
+    }
+
     if (_initialAuthStateComplete.isCompleted) return;
     try {
-      await _initialAuthStateComplete.future
-          .timeout(const Duration(seconds: 4));
+      await _initialAuthStateComplete.future.timeout(
+        const Duration(seconds: 4),
+      );
     } catch (_) {
-      _status = _auth.currentUser != null
-          ? AuthStatus.authenticated
-          : AuthStatus.unauthenticated;
+      // Timed out: re-check the cache one last time before deciding the
+      // session is gone. Never report `unauthenticated` while a user exists.
+      final cachedUser = _auth.currentUser;
+      if (cachedUser != null) {
+        _status = AuthStatus.authenticated;
+      } else {
+        _status = AuthStatus.unauthenticated;
+      }
+
+      if (!_initialAuthStateComplete.isCompleted) {
+        _initialAuthStateComplete.complete();
+      }
       notifyListeners();
     }
   }
@@ -82,19 +123,27 @@ class AuthService extends ChangeNotifier {
         idToken: googleAuth.idToken,
       );
 
-      final firebase_auth.UserCredential userCredential =
-          await _auth.signInWithCredential(credential);
+      final firebase_auth.UserCredential userCredential = await _auth
+          .signInWithCredential(credential);
       final user = userCredential.user;
 
       // AUTH-DIAG (temporary)
-      unawaited(authDiag('signin_done', details: {
-        'uid': user?.uid,
-        'currentUserAfterSignIn': _auth.currentUser?.uid,
-      }));
+      unawaited(
+        authDiag(
+          'signin_done',
+          details: {
+            'uid': user?.uid,
+            'currentUserAfterSignIn': _auth.currentUser?.uid,
+          },
+        ),
+      );
       // AUTH-DIAG (temporary)
       try {
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('debug_login_marker', DateTime.now().toIso8601String());
+        await prefs.setString(
+          'debug_login_marker',
+          DateTime.now().toIso8601String(),
+        );
       } catch (_) {}
 
       // AUTH-DIAG (temporary)
@@ -103,15 +152,26 @@ class AuthService extends ChangeNotifier {
       });
       // AUTH-DIAG (temporary)
       Future.delayed(const Duration(seconds: 10), () {
-        authDiag('signin_recheck_10s', details: {'uid': _auth.currentUser?.uid});
+        authDiag(
+          'signin_recheck_10s',
+          details: {'uid': _auth.currentUser?.uid},
+        );
       });
       // AUTH-DIAG (temporary)
       if (user != null) {
-        unawaited(user.getIdToken().then((token) {
-          if (token != null) {
-            authDiag('idtoken_success', details: {'tokenLength': token.length});
-          }
-        }).catchError((_) {}));
+        unawaited(
+          user
+              .getIdToken()
+              .then((token) {
+                if (token != null) {
+                  authDiag(
+                    'idtoken_success',
+                    details: {'tokenLength': token.length},
+                  );
+                }
+              })
+              .catchError((_) {}),
+        );
       }
 
       // RevenueCat linking + Supabase session sync run in the background so
@@ -124,7 +184,12 @@ class AuthService extends ChangeNotifier {
       return user;
     } on firebase_auth.FirebaseAuthException catch (e) {
       // AUTH-DIAG (temporary)
-      unawaited(authDiag('signin_error', details: {'code': e.code, 'message': e.message}));
+      unawaited(
+        authDiag(
+          'signin_error',
+          details: {'code': e.code, 'message': e.message},
+        ),
+      );
       rethrow;
     } catch (e) {
       showUiLog('Google sign-in failed: $e');
@@ -158,9 +223,14 @@ class AuthService extends ChangeNotifier {
     await _postSignInSync(user);
   }
 
-  Future<void> signOut() async {
+  Future<bool> signOut() async {
     // AUTH-DIAG (temporary)
-    unawaited(authDiag('signout_called', details: {'stack': StackTrace.current.toString()}));
+    unawaited(
+      authDiag(
+        'signout_called',
+        details: {'stack': StackTrace.current.toString()},
+      ),
+    );
     showUiLog('🚪 [AUTH-OUT] signOut called from:\n${StackTrace.current}');
     try {
       await RevenueCatService().logout();
@@ -169,15 +239,24 @@ class AuthService extends ChangeNotifier {
       if (AppConfig.isSupabaseConfigured) {
         await supabase.Supabase.instance.client.auth.signOut();
       }
+      return true;
     } catch (e) {
       showUiLog('Sign-out failed: $e');
+      return false;
     }
   }
 
   Future<void> deleteAccount() async {
     // AUTH-DIAG (temporary)
-    unawaited(authDiag('deleteaccount_called', details: {'stack': StackTrace.current.toString()}));
-    showUiLog('🚪 [AUTH-OUT] deleteAccount called from:\n${StackTrace.current}');
+    unawaited(
+      authDiag(
+        'deleteaccount_called',
+        details: {'stack': StackTrace.current.toString()},
+      ),
+    );
+    showUiLog(
+      '🚪 [AUTH-OUT] deleteAccount called from:\n${StackTrace.current}',
+    );
     try {
       await _auth.currentUser?.delete();
       await _googleSignIn.signOut();

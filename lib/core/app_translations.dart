@@ -172,7 +172,7 @@ class AppTranslations {
     'close': 'Close',
     'ok': 'OK',
 
-// Error Messages
+    // Error Messages
     'error': 'Error',
     'errorSavingPost': 'Error saving post',
     'refreshingSession': 'Refreshing session...',
@@ -183,8 +183,10 @@ class AppTranslations {
     'pleaseConfigureApiKey': 'Please configure AI API key in settings',
     'aiRescheduleFailed': 'AI reschedule failed',
     'analysisFailed': 'Analysis failed',
-    'unopenedPostsLimitReached': 'Unopened posts limit reached ({count}). Open or delete some reminders before saving new ones.',
-    'rescheduleLimitReached': 'Reschedule limit reached ({count}). This reminder cannot be rescheduled again this month.',
+    'unopenedPostsLimitReached':
+        'Unopened posts limit reached ({count}). Open or delete some reminders before saving new ones.',
+    'rescheduleLimitReached':
+        'Reschedule limit reached ({count}). This reminder cannot be rescheduled again this month.',
 
     // Success Messages
     'success': 'Success',
@@ -222,8 +224,12 @@ class AppTranslations {
     'signInTitle': 'Welcome to Bookmark Reminder',
     'signInSubtitle': 'Sign in to sync your reminders across devices',
     'signInWithGoogle': 'Continue with Google',
-    'signInTerms': 'By continuing, you agree to our Terms of Service and Privacy Policy',
+    'signInTerms':
+        'By continuing, you agree to our Terms of Service and Privacy Policy',
     'signInFailed': 'Sign-in failed. Please try again.',
+    'signInSuccess': 'Signed in successfully.',
+    'signOutSuccess': 'Signed out successfully.',
+    'signOutFailed': 'Sign-out failed. Please try again.',
     'signOut': 'Sign Out',
     'account': 'Account',
 
@@ -242,13 +248,15 @@ class AppTranslations {
     'popular': 'POPULAR',
     'premiumFeatureUnlimited': 'Unlimited reminders',
     'premiumFeatureCloudSync': 'Cloud sync across devices',
-    'premiumFeaturePriorityAI': 'Priority AI scheduling',
+    'premiumFeaturePriorityAI': 'AI scheduling from your habits',
     'premiumFeatureExcelExport': 'Export to Excel & JSON',
     'premiumFeatureAdvancedStats': 'Advanced statistics',
     'premiumFeatureNoAds': 'No ads',
+    'premiumFeatureYouTubePlaylist': 'YouTube playlist ordering',
+    'premiumFeatureAutoReschedule': 'Auto-rescheduling',
     'monthlyPlanTitle': 'Monthly Premium',
     'monthlyPlanDescription': 'Unlock all features, billed monthly',
-    'annualPlanTitle': 'Annual Premium (Save 50%)',
+    'annualPlanTitle': 'Annual Premium',
     'annualPlanDescription': 'Unlock all features, billed yearly',
 
     // Settings - Backup/Restore
@@ -450,8 +458,10 @@ class AppTranslations {
     'pleaseConfigureApiKey': 'الرجاء تكوين مفتاح API في الإعدادات',
     'aiRescheduleFailed': 'فشلت إعادة جدولة الذكاء الاصطناعي',
     'analysisFailed': 'فشل التحليل',
-    'unopenedPostsLimitReached': 'تم الوصول إلى الحد الأقصى للتذكيرات غير المفتوحة ({count}). الرجاء فتح أو حذف بعض التذكيرات قبل حفظ جديدة.',
-    'rescheduleLimitReached': 'تم الوصول إلى الحد الأقصى لإعادة الجدولة ({count}). لا يمكن إعادة جدولة هذا التذكير مرة أخرى هذا الشهر.',
+    'unopenedPostsLimitReached':
+        'تم الوصول إلى الحد الأقصى للتذكيرات غير المفتوحة ({count}). الرجاء فتح أو حذف بعض التذكيرات قبل حفظ جديدة.',
+    'rescheduleLimitReached':
+        'تم الوصول إلى الحد الأقصى لإعادة الجدولة ({count}). لا يمكن إعادة جدولة هذا التذكير مرة أخرى هذا الشهر.',
 
     // Success Messages
     'success': 'نجاح',
@@ -491,6 +501,9 @@ class AppTranslations {
     'signInWithGoogle': 'المتابعة مع Google',
     'signInTerms': 'بالمتابعة، أنت توافق على شروط الخدمة و سياسة الخصوصية',
     'signInFailed': 'فشل تسجيل الدخول. حاول مرة أخرى.',
+    'signInSuccess': 'تم تسجيل الدخول بنجاح.',
+    'signOutSuccess': 'تم تسجيل الخروج بنجاح.',
+    'signOutFailed': 'فشل تسجيل الخروج. حاول مرة أخرى.',
     'signOut': 'تسجيل الخروج',
     'account': 'الحساب',
 
@@ -509,13 +522,15 @@ class AppTranslations {
     'popular': 'شعبي',
     'premiumFeatureUnlimited': 'تذكيرات غير محدودة',
     'premiumFeatureCloudSync': 'مزامنة سحابية عبر الأجهزة',
-    'premiumFeaturePriorityAI': 'جدولة ذكاء اصطناعي أولوية',
+    'premiumFeaturePriorityAI': 'جدولة ذكية بناءً على عاداتك',
     'premiumFeatureExcelExport': 'تصدير إلى Excel و JSON',
     'premiumFeatureAdvancedStats': 'إحصائيات متقدمة',
     'premiumFeatureNoAds': 'بدون إعلانات',
+    'premiumFeatureYouTubePlaylist': 'ترتيب قوائم تشغيل يوتيوب',
+    'premiumFeatureAutoReschedule': 'إعادة جدولة تلقائية',
     'monthlyPlanTitle': 'بريميوم شهري',
     'monthlyPlanDescription': 'افتح جميع الميزات، مع فاتورة شهرية',
-    'annualPlanTitle': 'بريميوم سنوي (وفر 50%)',
+    'annualPlanTitle': 'بريميوم سنوي',
     'annualPlanDescription': 'افتح جميع الميزات، مع فاتورة سنوية',
 
     // Settings - Backup/Restore
@@ -719,8 +734,10 @@ class AppTranslations {
         'Veuillez configurer la clé API dans les paramètres',
     'aiRescheduleFailed': 'La reprogrammation IA a échoué',
     'analysisFailed': 'L\'analyse a échoué',
-    'unopenedPostsLimitReached': 'Limite de rappels non ouverts atteinte ({count}). Ouvrez ou supprimez des rappels avant d\'en ajouter de nouveaux.',
-    'rescheduleLimitReached': 'Limite de reprogrammation atteinte ({count}). Ce rappel ne peut plus être reprogrammé ce mois-ci.',
+    'unopenedPostsLimitReached':
+        'Limite de rappels non ouverts atteinte ({count}). Ouvrez ou supprimez des rappels avant d\'en ajouter de nouveaux.',
+    'rescheduleLimitReached':
+        'Limite de reprogrammation atteinte ({count}). Ce rappel ne peut plus être reprogrammé ce mois-ci.',
 
     // Success Messages
     'success': 'Succès',
@@ -756,10 +773,15 @@ class AppTranslations {
 
     // Auth / Login
     'signInTitle': 'Bienvenue sur Bookmark Reminder',
-    'signInSubtitle': 'Connectez-vous pour synchroniser vos rappels sur tous vos appareils',
+    'signInSubtitle':
+        'Connectez-vous pour synchroniser vos rappels sur tous vos appareils',
     'signInWithGoogle': 'Continuer avec Google',
-    'signInTerms': "En continuant, vous acceptez nos Conditions d'utilisation et notre Politique de confidentialité",
+    'signInTerms':
+        "En continuant, vous acceptez nos Conditions d'utilisation et notre Politique de confidentialité",
     'signInFailed': "Échec de la connexion. Veuillez réessayer.",
+    'signInSuccess': 'Connexion réussie.',
+    'signOutSuccess': 'Déconnexion réussie.',
+    'signOutFailed': 'Échec de la déconnexion. Veuillez réessayer.',
     'signOut': 'Se déconnecter',
     'account': 'Compte',
 
@@ -778,14 +800,18 @@ class AppTranslations {
     'popular': 'POPULAIRE',
     'premiumFeatureUnlimited': 'Rappels illimités',
     'premiumFeatureCloudSync': 'Synchronisation cloud entre appareils',
-    'premiumFeaturePriorityAI': 'Planification IA prioritaire',
+    'premiumFeaturePriorityAI': 'Planification IA selon vos habitudes',
     'premiumFeatureExcelExport': 'Exporter vers Excel & JSON',
     'premiumFeatureAdvancedStats': 'Statistiques avancées',
     'premiumFeatureNoAds': 'Sans publicités',
+    'premiumFeatureYouTubePlaylist': 'Ordre des playlists YouTube',
+    'premiumFeatureAutoReschedule': 'Réorganisation automatique',
     'monthlyPlanTitle': 'Premium mensuel',
-    'monthlyPlanDescription': 'Débloquez toutes les fonctionnalités, facturé mensuellement',
-    'annualPlanTitle': 'Premium annuel (Économisez 50%)',
-    'annualPlanDescription': 'Débloquez toutes les fonctionnalités, facturé annuellement',
+    'monthlyPlanDescription':
+        'Débloquez toutes les fonctionnalités, facturé mensuellement',
+    'annualPlanTitle': 'Premium annuel',
+    'annualPlanDescription':
+        'Débloquez toutes les fonctionnalités, facturé annuellement',
 
     // Settings - Backup/Restore
     'exportFormat': 'Format d\'exportation',

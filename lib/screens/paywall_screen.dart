@@ -148,9 +148,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
   List<String> _getPremiumFeatures() {
     return [
-      Translations.premiumFeatureUnlimited(_locale),
-      Translations.premiumFeatureCloudSync(_locale),
       Translations.premiumFeaturePriorityAI(_locale),
+      Translations.premiumFeatureYouTubePlaylist(_locale),
+      Translations.premiumFeatureAutoReschedule(_locale),
       Translations.premiumFeatureExcelExport(_locale),
       Translations.premiumFeatureAdvancedStats(_locale),
       Translations.premiumFeatureNoAds(_locale),
