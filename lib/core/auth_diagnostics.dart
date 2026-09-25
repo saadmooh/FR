@@ -8,8 +8,12 @@ const _logKey = 'auth_diag_log';
 const _errKey = 'auth_diag_last_remote_error';
 const _maxEntries = 100;
 
-Future<void> authDiag(String event,
-    {Map<String, dynamic>? details, String isolate = 'main'}) async {
+Future<void> authDiag(
+  String event, {
+  Map<String, dynamic>? details,
+  String isolate = 'main',
+  bool remote = true,
+}) async {
   final timestamp = DateTime.now().toIso8601String();
   final remoteDetails = <String, dynamic>{
     ...?details,
@@ -19,7 +23,9 @@ Future<void> authDiag(String event,
   };
 
   showUiLog('🔥 [AUTH-DIAG] $event | $remoteDetails');
-  showUiLog('🔥 [AUTH-DIAG] $event | uid=${details?['uid'] ?? details?['currentUser']}');
+  showUiLog(
+    '🔥 [AUTH-DIAG] $event | uid=${details?['uid'] ?? details?['currentUser']}',
+  );
 
   SharedPreferences? prefs;
   try {
@@ -34,7 +40,7 @@ Future<void> authDiag(String event,
     showUiLog('[AUTH-DIAG] local write failed: $e');
   }
 
-  if (!AppConfig.isSupabaseConfigured) return;
+  if (!remote || !AppConfig.isSupabaseConfigured) return;
 
   try {
     SupabaseClient client;

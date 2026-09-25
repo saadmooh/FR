@@ -6,6 +6,7 @@ import '../core/app_theme.dart';
 import '../core/constants.dart';
 import '../core/translations.dart';
 import '../core/locale_manager.dart';
+import '../core/ui_messenger.dart';
 import '../services/revenuecat_service.dart';
 
 class PaywallScreen extends StatefulWidget {
@@ -70,12 +71,15 @@ class _PaywallScreenState extends State<PaywallScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final customerInfo =
-          await RevenueCatService().purchasePackage(_selectedPackage!);
+      final customerInfo = await RevenueCatService().purchasePackage(
+        _selectedPackage!,
+      );
       if (!mounted) return;
 
-      final isPremium = customerInfo?.entitlements.active
-              .containsKey(AppConstants.premiumEntitlementId) ??
+      final isPremium =
+          customerInfo?.entitlements.active.containsKey(
+            AppConstants.premiumEntitlementId,
+          ) ??
           false;
 
       if (isPremium) {
@@ -108,7 +112,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
   }
 
   void _showSuccessAndClose() {
-    ScaffoldMessenger.of(context).showSnackBar(
+    showAppSnackBar(
+      context,
       SnackBar(
         content: Text(Translations.premiumActivated(_locale)),
         backgroundColor: AppColors.success,
@@ -120,7 +125,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    showAppSnackBar(
+      context,
       SnackBar(
         content: Text(message),
         backgroundColor: AppColors.error,
@@ -134,8 +140,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
     setState(() => _isLoading = true);
     try {
       final customerInfo = await Purchases.restorePurchases();
-      final isPremium = customerInfo.entitlements.active
-          .containsKey(AppConstants.premiumEntitlementId);
+      final isPremium = customerInfo.entitlements.active.containsKey(
+        AppConstants.premiumEntitlementId,
+      );
 
       if (isPremium && mounted) {
         _showSuccessAndClose();
@@ -191,19 +198,19 @@ class _PaywallScreenState extends State<PaywallScreen> {
                   Text(
                     Translations.premiumTitle(_locale),
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          color: AppColors.whiteTextPrimary,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      color: AppColors.whiteTextPrimary,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
                   Text(
                     Translations.premiumSubtitle(_locale),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.whiteTextSecondary,
-                          fontSize: 14,
-                        ),
+                      color: AppColors.whiteTextSecondary,
+                      fontSize: 14,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 32),
@@ -339,9 +346,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         ? Translations.monthlyPlanDescription(_locale)
                         : Translations.annualPlanDescription(_locale),
                     style: TextStyle(
-                    color: AppColors.whiteTextSecondary,
-                    fontSize: 12,
-                  ),
+                      color: AppColors.whiteTextSecondary,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
@@ -372,8 +379,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed:
-                  _isLoading || _selectedPackage == null ? null : _purchase,
+              onPressed: _isLoading || _selectedPackage == null
+                  ? null
+                  : _purchase,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.whiteAccent,
                 foregroundColor: Colors.white,

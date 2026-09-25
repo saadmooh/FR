@@ -113,19 +113,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final reminderRepo = widget.settingsRepository.getReminderRepository();
       final freeTimeRepo = widget.settingsRepository.getFreeTimeRepository();
 
+      int importedReminders = 0;
       for (final reminder in reminders) {
         reminder.id = 0;
+        // Skip posts whose link already exists (link = identity of a post).
+        if (reminderRepo.findByUrl(reminder.url) != null) continue;
         reminderRepo.save(reminder);
+        importedReminders++;
       }
 
       for (final freeTime in freeTimes) {
         freeTime.id = 0;
-        freeTimeRepo.save(freeTime);
+        // Merges with any overlapping/adjacent slot instead of duplicating.
+        freeTimeRepo.saveMerged(freeTime);
       }
 
       _showMessage(
         true,
-        '${reminders.length} ${Translations.remindersImported(_locale)} ${freeTimes.length} ${Translations.freeTimesImported(_locale)}',
+        '$importedReminders ${Translations.remindersImported(_locale)} ${freeTimes.length} ${Translations.freeTimesImported(_locale)}',
       );
     } catch (e) {
       _showMessage(false, '${Translations.importFailed(_locale)}: $e');
@@ -133,7 +138,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showMessage(bool success, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    showAppSnackBar(
+      context,
       SnackBar(
         content: Text(message),
         backgroundColor: success ? AppColors.accent : AppColors.error,

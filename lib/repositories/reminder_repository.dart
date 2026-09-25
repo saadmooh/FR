@@ -1,3 +1,4 @@
+import '../core/url_normalizer.dart';
 import '../models/reminder.dart';
 import '../objectbox.g.dart';
 import 'package:flutter/foundation.dart';
@@ -13,6 +14,36 @@ class ReminderRepository {
 
   Reminder? getById(int id) {
     return _box.get(id);
+  }
+
+  /// Finds a reminder whose [url] matches [targetUrl], treating the link as
+  /// the identity of the post (tracking params / trailing slash ignored).
+  Reminder? findByUrl(String targetUrl) {
+    final normalizedTarget = normalizeUrl(targetUrl);
+
+    // Fast path: exact match on the stored value.
+    final query = _box.query(Reminder_.url.equals(targetUrl)).build();
+    final exact = query.find();
+    query.close();
+    if (exact.isNotEmpty) return exact.first;
+
+    // Fallback: compare normalized forms (stored rows may contain variants).
+    for (final reminder in _box.getAll()) {
+      if (normalizeUrl(reminder.url) == normalizedTarget) {
+        return reminder;
+      }
+    }
+    return null;
+  }
+
+  /// All reminders sharing the same (normalized) link — used for cleanup of
+  /// duplicates created before URL-based dedupe existed.
+  List<Reminder> findAllByUrl(String targetUrl) {
+    final normalizedTarget = normalizeUrl(targetUrl);
+    return _box
+        .getAll()
+        .where((r) => normalizeUrl(r.url) == normalizedTarget)
+        .toList();
   }
 
   List<Reminder> getAll() {
@@ -44,7 +75,9 @@ class ReminderRepository {
   List<Reminder> getMissed() {
     final now = DateTime.now().millisecondsSinceEpoch;
     final unread = getUnread();
-    return unread.where((r) => r.scheduledAt.millisecondsSinceEpoch < now).toList();
+    return unread
+        .where((r) => r.scheduledAt.millisecondsSinceEpoch < now)
+        .toList();
   }
 
   bool delete(int id) {
@@ -53,10 +86,15 @@ class ReminderRepository {
 
   /// Deletes a reminder and cancels its associated notification and WorkManager task.
   /// Pass a callback to cancel the notification (e.g., `notificationService.cancelReminder`).
-  Future<void> deleteWithCleanup(int id, Future<void> Function(int) cancelNotification) async {
+  Future<void> deleteWithCleanup(
+    int id,
+    Future<void> Function(int) cancelNotification,
+  ) async {
     debugPrint('[ReminderRepository] deleteWithCleanup called for id=$id');
     await cancelNotification(id);
-    debugPrint('[ReminderRepository] Notification cancelled, removing from box');
+    debugPrint(
+      '[ReminderRepository] Notification cancelled, removing from box',
+    );
     _box.remove(id);
     debugPrint('[ReminderRepository] Removed from box');
   }
@@ -116,11 +154,13 @@ class ReminderRepository {
     if (reminder == null) return [];
     final query = _box
         .query(
-          Reminder_.url.equals(reminder.url).and(
-            Reminder_.createdAt.lessThan(
-              reminder.createdAt.millisecondsSinceEpoch + 1,
-            ),
-          ),
+          Reminder_.url
+              .equals(reminder.url)
+              .and(
+                Reminder_.createdAt.lessThan(
+                  reminder.createdAt.millisecondsSinceEpoch + 1,
+                ),
+              ),
         )
         .build();
     final results = query.find();

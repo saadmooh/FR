@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:google_fonts/google_fonts.dart';
 import '../core/app_theme.dart';
+import '../core/ui_messenger.dart';
 
 class AuthDiagnosticsScreen extends StatelessWidget {
   final List<String> entries;
@@ -13,17 +14,19 @@ class AuthDiagnosticsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currentUser = firebase_auth.FirebaseAuth.instance.currentUser;
-    final logText = entries.map((e) {
-      try {
-        final map = jsonDecode(e) as Map<String, dynamic>;
-        final ts = map['timestamp'] ?? '';
-        final ev = map['event'] ?? '';
-        final det = map['details'] ?? {};
-        return '$ts | $ev | $det';
-      } catch (_) {
-        return e;
-      }
-    }).join('\n');
+    final logText = entries
+        .map((e) {
+          try {
+            final map = jsonDecode(e) as Map<String, dynamic>;
+            final ts = map['timestamp'] ?? '';
+            final ev = map['event'] ?? '';
+            final det = map['details'] ?? {};
+            return '$ts | $ev | $det';
+          } catch (_) {
+            return e;
+          }
+        })
+        .join('\n');
 
     return Scaffold(
       backgroundColor: AppColors.whiteBackground,
@@ -76,7 +79,8 @@ class AuthDiagnosticsScreen extends StatelessWidget {
           ElevatedButton.icon(
             onPressed: () {
               Clipboard.setData(ClipboardData(text: logText));
-              ScaffoldMessenger.of(context).showSnackBar(
+              showAppSnackBar(
+                context,
                 const SnackBar(
                   content: Text('Log copied to clipboard'),
                   behavior: SnackBarBehavior.floating,

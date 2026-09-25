@@ -8,6 +8,7 @@ import '../widgets/stat_card.dart';
 import '../core/app_theme.dart';
 import '../core/locale_manager.dart';
 import '../core/translations.dart';
+import '../core/ui_messenger.dart';
 
 class StatisticsScreen extends StatefulWidget {
   final ReminderRepository reminderRepository;
@@ -42,7 +43,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       case 'ar':
         return parts.length > 1 ? parts[1] : pipeSeparated;
       case 'fr':
-        return parts.length > 2 ? parts[2] : (parts.length > 1 ? parts[1] : pipeSeparated);
+        return parts.length > 2
+            ? parts[2]
+            : (parts.length > 1 ? parts[1] : pipeSeparated);
       default:
         return parts.isNotEmpty ? parts[0] : pipeSeparated;
     }
@@ -70,7 +73,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 
   void _showResult(bool success, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    showAppSnackBar(
+      context,
       SnackBar(
         content: Text(message),
         backgroundColor: success ? AppColors.accent : AppColors.error,
@@ -435,10 +439,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           const SizedBox(height: 8),
           Text(
             Translations.openedRate(_locale, (openRate * 100).round()),
-            style: TextStyle(
-              color: AppColors.whiteTextSecondary,
-              fontSize: 12,
-            ),
+            style: TextStyle(color: AppColors.whiteTextSecondary, fontSize: 12),
           ),
           if (analysis != null) ...[
             const SizedBox(height: 16),

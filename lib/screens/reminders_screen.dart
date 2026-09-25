@@ -15,6 +15,7 @@ import '../core/app_theme.dart';
 import '../core/constants.dart';
 import '../core/locale_manager.dart';
 import '../core/translations.dart';
+import '../core/ui_messenger.dart';
 
 enum SortOption { dateNewest, dateOldest, category, importance }
 
@@ -203,7 +204,8 @@ class _RemindersScreenState extends State<RemindersScreen>
   void _showAiRescheduleErrorIfNeeded() {
     final error = widget.aiRescheduleError.value;
     if (error != null && error.isNotEmpty && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      showAppSnackBar(
+        context,
         SnackBar(
           content: Text('AI reschedule failed: $error'),
           backgroundColor: AppColors.error,
@@ -271,7 +273,8 @@ class _RemindersScreenState extends State<RemindersScreen>
   }
 
   void _showResult(bool success, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    showAppSnackBar(
+      context,
       SnackBar(
         content: Text(message),
         backgroundColor: success ? AppColors.accent : AppColors.error,
@@ -299,7 +302,9 @@ class _RemindersScreenState extends State<RemindersScreen>
       _unopenedError = null;
       _openedError = null;
       _loadFilterOptions();
-      debugPrint('[RemindersScreen] Loaded ${_unopenedReminders.length} unopened, ${_openedReminders.length} opened');
+      debugPrint(
+        '[RemindersScreen] Loaded ${_unopenedReminders.length} unopened, ${_openedReminders.length} opened',
+      );
     } catch (e) {
       _unopenedError = e.toString();
       _openedError = e.toString();
@@ -308,8 +313,7 @@ class _RemindersScreenState extends State<RemindersScreen>
   }
 
   Future<void> _refreshTab(bool isOpened) async {
-    final refreshing =
-        isOpened ? _refreshingOpened : _refreshingUnopened;
+    final refreshing = isOpened ? _refreshingOpened : _refreshingUnopened;
     if (refreshing) return;
     if (isOpened) {
       _refreshingOpened = true;
@@ -405,9 +409,7 @@ class _RemindersScreenState extends State<RemindersScreen>
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.whiteBackground,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.zero,
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -472,7 +474,9 @@ class _RemindersScreenState extends State<RemindersScreen>
   }
 
   Future<void> _rescheduleReminder(Reminder reminder) async {
-    final limit = await ProxyConfigService.instance.getMonthlyRescheduleLimit(reminder.importance);
+    final limit = await ProxyConfigService.instance.getMonthlyRescheduleLimit(
+      reminder.importance,
+    );
     if (!reminder.canRescheduleThisMonth(limit)) {
       if (mounted) {
         _showResult(false, Translations.rescheduleLimitReached(_locale, limit));
@@ -512,7 +516,8 @@ class _RemindersScreenState extends State<RemindersScreen>
         await widget.notificationService.scheduleReminder(reminder);
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          showAppSnackBar(
+            context,
             SnackBar(
               content: Text('Rescheduled to ${reminder.scheduledAt}'),
               backgroundColor: AppColors.accent,
@@ -565,11 +570,15 @@ class _RemindersScreenState extends State<RemindersScreen>
 
     if (confirm == true) {
       debugPrint('[RemindersScreen] Deleting reminder ${reminder.id}');
-      await widget.reminderRepository.deleteWithCleanup(reminder.id, widget.notificationService.cancelReminder);
+      await widget.reminderRepository.deleteWithCleanup(
+        reminder.id,
+        widget.notificationService.cancelReminder,
+      );
       debugPrint('[RemindersScreen] Delete completed, reloading data');
       _loadRemindersAndSync();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        showAppSnackBar(
+          context,
           SnackBar(
             content: Text(Translations.deletePost(_locale)),
             behavior: SnackBarBehavior.floating,
@@ -581,7 +590,9 @@ class _RemindersScreenState extends State<RemindersScreen>
   }
 
   void _loadRemindersAndSync() {
-    debugPrint('[RemindersScreen] _loadRemindersAndSync called, mounted=$mounted');
+    debugPrint(
+      '[RemindersScreen] _loadRemindersAndSync called, mounted=$mounted',
+    );
     _loadInitialData();
     if (mounted) {
       debugPrint('[RemindersScreen] Calling setState');
@@ -601,8 +612,9 @@ class _RemindersScreenState extends State<RemindersScreen>
   void _enterSelection(Reminder reminder, bool isOpened) {
     setState(() {
       _isSelectionMode = true;
-      final selectedIds =
-          isOpened ? _openedTab.selectedIds : _unopenedTab.selectedIds;
+      final selectedIds = isOpened
+          ? _openedTab.selectedIds
+          : _unopenedTab.selectedIds;
       selectedIds.add(reminder.id);
     });
   }
@@ -616,8 +628,9 @@ class _RemindersScreenState extends State<RemindersScreen>
 
   void _toggleReminderSelection(int id, bool isOpened) {
     setState(() {
-      final selectedIds =
-          isOpened ? _openedTab.selectedIds : _unopenedTab.selectedIds;
+      final selectedIds = isOpened
+          ? _openedTab.selectedIds
+          : _unopenedTab.selectedIds;
       if (selectedIds.contains(id)) {
         selectedIds.remove(id);
       } else {
@@ -696,9 +709,7 @@ class _RemindersScreenState extends State<RemindersScreen>
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.whiteBackground,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.zero,
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) => SafeArea(
           child: Padding(
@@ -713,8 +724,8 @@ class _RemindersScreenState extends State<RemindersScreen>
                     Text(
                       Translations.filters(_locale),
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: AppColors.whiteTextPrimary,
-                          ),
+                        color: AppColors.whiteTextPrimary,
+                      ),
                     ),
                     if (tab.hasActiveFilters)
                       TextButton(
@@ -862,9 +873,7 @@ class _RemindersScreenState extends State<RemindersScreen>
                     ),
                     child: Text(
                       Translations.applyFilters(_locale),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
                 ),
@@ -888,18 +897,14 @@ class _RemindersScreenState extends State<RemindersScreen>
       selectedColor: AppColors.accent.withValues(alpha: 0.2),
       checkmarkColor: AppColors.accent,
       labelStyle: TextStyle(
-        color: isSelected
-            ? AppColors.accent
-            : AppColors.whiteTextSecondary,
+        color: isSelected ? AppColors.accent : AppColors.whiteTextSecondary,
         fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
       ),
       backgroundColor: AppColors.whiteSurface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.zero,
         side: BorderSide(
-          color: isSelected
-              ? AppColors.whiteAccent
-              : AppColors.whiteBorder,
+          color: isSelected ? AppColors.whiteAccent : AppColors.whiteBorder,
         ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -929,22 +934,25 @@ class _RemindersScreenState extends State<RemindersScreen>
         title: _isSearchVisible
             ? _buildAnimatedSearchField()
             : _isSelectionMode
-                ? Text(
-                    Translations.selectedCount(
-                      _locale,
-                      _currentTab.selectedIds.length,
-                    ),
-                    style: Theme.of(context).appBarTheme.titleTextStyle,
-                  )
-                : Text(
-                    AppConstants.appName,
-                    style: Theme.of(context).appBarTheme.titleTextStyle,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+            ? Text(
+                Translations.selectedCount(
+                  _locale,
+                  _currentTab.selectedIds.length,
+                ),
+                style: Theme.of(context).appBarTheme.titleTextStyle,
+              )
+            : Text(
+                AppConstants.appName,
+                style: Theme.of(context).appBarTheme.titleTextStyle,
+                overflow: TextOverflow.ellipsis,
+              ),
         actions: [
           if (_isSelectionMode) ...[
             IconButton(
-              icon: const Icon(Icons.close, color: AppColors.whiteTextSecondary),
+              icon: const Icon(
+                Icons.close,
+                color: AppColors.whiteTextSecondary,
+              ),
               onPressed: _toggleSelectionMode,
               tooltip: Translations.cancel(_locale),
             ),
@@ -1072,9 +1080,7 @@ class _RemindersScreenState extends State<RemindersScreen>
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.whiteSurface,
-        border: Border(
-          top: BorderSide(color: AppColors.whiteBorder),
-        ),
+        border: Border(top: BorderSide(color: AppColors.whiteBorder)),
         boxShadow: [
           BoxShadow(
             color: AppColors.whiteShadow,
@@ -1171,8 +1177,10 @@ class _RemindersScreenState extends State<RemindersScreen>
                     },
                   ),
             border: InputBorder.none,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
           ),
         ),
       ),
@@ -1286,7 +1294,7 @@ class _RemindersScreenState extends State<RemindersScreen>
           children: [
             if (tab.hasActiveFilters)
               Padding(
-                 padding: const EdgeInsetsDirectional.only(end: 10),
+                padding: const EdgeInsetsDirectional.only(end: 10),
                 child: Container(
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFF0F0),
@@ -1364,11 +1372,7 @@ class _RemindersScreenState extends State<RemindersScreen>
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          Icon(
-            Icons.sort,
-            size: 18,
-            color: AppColors.whiteTextSecondary,
-          ),
+          Icon(Icons.sort, size: 18, color: AppColors.whiteTextSecondary),
           const SizedBox(width: 8),
           Text(
             Translations.sortBy(_locale),
@@ -1472,9 +1476,7 @@ class _RemindersScreenState extends State<RemindersScreen>
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.whiteBackground,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.zero,
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       builder: (context) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -1486,13 +1488,13 @@ class _RemindersScreenState extends State<RemindersScreen>
                 type == 'category'
                     ? Translations.category(_locale)
                     : type == 'complexity'
-                        ? Translations.complexity(_locale)
-                        : type == 'domain'
-                            ? Translations.domain(_locale)
-                            : Translations.importance(_locale),
+                    ? Translations.complexity(_locale)
+                    : type == 'domain'
+                    ? Translations.domain(_locale)
+                    : Translations.importance(_locale),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppColors.whiteTextPrimary,
-                    ),
+                  color: AppColors.whiteTextPrimary,
+                ),
               ),
               const SizedBox(height: 16),
               if (type == 'category')
@@ -1741,29 +1743,26 @@ class _RemindersScreenState extends State<RemindersScreen>
     _TabFilterState tab,
   ) {
     return SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          final reminder = reminders[index];
-          final isSelected = tab.selectedIds.contains(reminder.id);
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            child: ModernReminderCard(
-              reminder: reminder,
-              inSelectionMode: _isSelectionMode,
-              isSelected: isSelected,
-              onSelectionToggle: () =>
-                  _toggleReminderSelection(reminder.id, isOpened),
-              onTap: _isSelectionMode
-                  ? null
-                  : () => context.push('/post/${reminder.id}'),
-              onLongPress: _isSelectionMode
-                  ? null
-                  : () => _enterSelection(reminder, isOpened),
-            ),
-          );
-        },
-        childCount: reminders.length,
-      ),
+      delegate: SliverChildBuilderDelegate((context, index) {
+        final reminder = reminders[index];
+        final isSelected = tab.selectedIds.contains(reminder.id);
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          child: ModernReminderCard(
+            reminder: reminder,
+            inSelectionMode: _isSelectionMode,
+            isSelected: isSelected,
+            onSelectionToggle: () =>
+                _toggleReminderSelection(reminder.id, isOpened),
+            onTap: _isSelectionMode
+                ? null
+                : () => context.push('/post/${reminder.id}'),
+            onLongPress: _isSelectionMode
+                ? null
+                : () => _enterSelection(reminder, isOpened),
+          ),
+        );
+      }, childCount: reminders.length),
     );
   }
 }

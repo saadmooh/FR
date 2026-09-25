@@ -5,6 +5,7 @@ import '../widgets/free_time_tile.dart';
 import '../core/app_theme.dart';
 import '../core/locale_manager.dart';
 import '../core/translations.dart';
+import '../core/ui_messenger.dart';
 
 class FreeTimesScreen extends StatefulWidget {
   final FreeTimeRepository freeTimeRepository;
@@ -54,7 +55,8 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
     widget.freeTimeRepository.delete(slot.id);
     _loadSlots();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      showAppSnackBar(
+        context,
         SnackBar(
           content: Text(Translations.timeSlotDeleted(_locale)),
           backgroundColor: AppColors.accent,
@@ -90,7 +92,9 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.whiteAccent),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppColors.whiteAccent,
+                ),
               ),
             )
           : ListView.builder(
@@ -126,7 +130,9 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
                                 width: 40,
                                 height: 40,
                                 decoration: BoxDecoration(
-                                  color: AppColors.accent.withValues(alpha: 0.1),
+                                  color: AppColors.accent.withValues(
+                                    alpha: 0.1,
+                                  ),
                                   borderRadius: BorderRadius.zero,
                                 ),
                                 child: const Icon(
@@ -159,7 +165,9 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: AppColors.accent.withValues(alpha: 0.1),
+                                    color: AppColors.accent.withValues(
+                                      alpha: 0.1,
+                                    ),
                                     borderRadius: BorderRadius.zero,
                                   ),
                                   child: Text(
@@ -197,8 +205,9 @@ class _FreeTimesScreenState extends State<FreeTimesScreen> {
                               Icon(
                                 Icons.event_available,
                                 size: 16,
-                                color: AppColors.whiteTextSecondary
-                                    .withValues(alpha: 0.5),
+                                color: AppColors.whiteTextSecondary.withValues(
+                                  alpha: 0.5,
+                                ),
                               ),
                               const SizedBox(width: 8),
                               Text(
@@ -308,7 +317,8 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
 
   void _save() {
     if (!_validateTimes()) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      showAppSnackBar(
+        context,
         SnackBar(
           content: Text(Translations.endTimeMustBeAfter(_locale)),
           backgroundColor: AppColors.error,
@@ -327,11 +337,12 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
           '${_endTime.hour.toString().padLeft(2, '0')}:${_endTime.minute.toString().padLeft(2, '0')}',
     );
 
-    widget.freeTimeRepository.save(slot);
+    widget.freeTimeRepository.saveMerged(slot);
     Navigator.of(context).pop();
     widget.onSave();
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    showAppSnackBar(
+      context,
       SnackBar(
         content: Text(Translations.timeSlotAdded(_locale)),
         backgroundColor: AppColors.accent,
@@ -431,13 +442,17 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.zero,
                     borderSide: BorderSide(
-                      color: AppColors.whiteTextSecondary.withValues(alpha: 0.3),
+                      color: AppColors.whiteTextSecondary.withValues(
+                        alpha: 0.3,
+                      ),
                     ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.zero,
                     borderSide: BorderSide(
-                      color: AppColors.whiteTextSecondary.withValues(alpha: 0.3),
+                      color: AppColors.whiteTextSecondary.withValues(
+                        alpha: 0.3,
+                      ),
                     ),
                   ),
                   suffixIcon: const Icon(
@@ -466,13 +481,17 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.zero,
                     borderSide: BorderSide(
-                      color: AppColors.whiteTextSecondary.withValues(alpha: 0.3),
+                      color: AppColors.whiteTextSecondary.withValues(
+                        alpha: 0.3,
+                      ),
                     ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.zero,
                     borderSide: BorderSide(
-                      color: AppColors.whiteTextSecondary.withValues(alpha: 0.3),
+                      color: AppColors.whiteTextSecondary.withValues(
+                        alpha: 0.3,
+                      ),
                     ),
                   ),
                   suffixIcon: const Icon(
@@ -497,8 +516,10 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
                   onPressed: () => Navigator.of(context).pop(),
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.whiteTextSecondary,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
                   ),
                   child: Text(Translations.cancel(_locale)),
                 ),
@@ -509,8 +530,10 @@ class _AddFreeTimeDialogState extends State<AddFreeTimeDialog> {
                     backgroundColor: AppColors.whiteAccent,
                     foregroundColor: AppColors.whiteBackground,
                     elevation: 2,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.zero,
                     ),

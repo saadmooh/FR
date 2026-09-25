@@ -31,6 +31,7 @@ class AuthService extends ChangeNotifier {
   AuthStatus get status => _status;
 
   StreamSubscription<firebase_auth.User?>? _authStateSubscription;
+  String? _lastObservedUid;
 
   /// Signal that the very first auth state has been resolved.
   /// It carries no value on purpose: the resolved state lives in [_status]
@@ -57,9 +58,35 @@ class AuthService extends ChangeNotifier {
     }
 
     _authStateSubscription = _auth.authStateChanges().listen((user) {
+      final previousUid = _lastObservedUid;
+      final nextUid = user?.uid;
+      _lastObservedUid = nextUid;
       _status = user != null
           ? AuthStatus.authenticated
           : AuthStatus.unauthenticated;
+
+      if (previousUid != null && nextUid == null) {
+        unawaited(
+          authDiag(
+            'auth_service_uid_to_null',
+            details: {
+              'previousUid': previousUid,
+              'uid': nextUid,
+              'stack': StackTrace.current.toString(),
+            },
+          ),
+        );
+      }
+      unawaited(
+        authDiag(
+          'auth_service_state',
+          details: {
+            'previousUid': previousUid,
+            'uid': nextUid,
+            'status': _status.name,
+          },
+        ),
+      );
 
       if (!_initialAuthStateComplete.isCompleted) {
         _initialAuthStateComplete.complete();
@@ -92,9 +119,19 @@ class AuthService extends ChangeNotifier {
       await _initialAuthStateComplete.future.timeout(
         const Duration(seconds: 4),
       );
-    } catch (_) {
+    } catch (e, stackTrace) {
       // Timed out: re-check the cache one last time before deciding the
       // session is gone. Never report `unauthenticated` while a user exists.
+      unawaited(
+        authDiag(
+          'auth_initial_timeout',
+          details: {
+            'uid': _auth.currentUser?.uid,
+            'error': '$e',
+            'stack': '$stackTrace',
+          },
+        ),
+      );
       final cachedUser = _auth.currentUser;
       if (cachedUser != null) {
         _status = AuthStatus.authenticated;

@@ -277,6 +277,9 @@ class Translations {
   static String reminderScheduledFor(String locale) =>
       AppTranslations.getString('reminderScheduledFor', locale: locale);
 
+  static String alreadySavedPost(String locale) =>
+      AppTranslations.getString('alreadySavedPost', locale: locale);
+
   static String freeTimes(String locale) =>
       AppTranslations.getString('freeTimes', locale: locale);
 

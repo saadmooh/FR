@@ -21,6 +21,7 @@ import '../core/constants.dart';
 import '../core/locale_manager.dart';
 import '../core/translations.dart';
 import '../core/app_config.dart';
+import '../core/ui_messenger.dart';
 
 class SavePostSheet extends StatefulWidget {
   final String? initialUrl;
@@ -105,7 +106,8 @@ class _SavePostSheetState extends State<SavePostSheet> {
   }
 
   void _showResult(bool success, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    showAppSnackBar(
+      context,
       SnackBar(
         content: Text(message),
         backgroundColor: success ? AppColors.accent : AppColors.error,
@@ -115,9 +117,16 @@ class _SavePostSheetState extends State<SavePostSheet> {
     );
   }
 
-  void _showResultWithToken(bool success, String message, {String? integrityToken}) {
-    final tokenInfo = integrityToken != null ? '\n\nIntegrity Token: $integrityToken' : '';
-    ScaffoldMessenger.of(context).showSnackBar(
+  void _showResultWithToken(
+    bool success,
+    String message, {
+    String? integrityToken,
+  }) {
+    final tokenInfo = integrityToken != null
+        ? '\n\nIntegrity Token: $integrityToken'
+        : '';
+    showAppSnackBar(
+      context,
       SnackBar(
         content: Text('$message$tokenInfo'),
         backgroundColor: success ? AppColors.accent : AppColors.error,
@@ -140,7 +149,16 @@ class _SavePostSheetState extends State<SavePostSheet> {
       return;
     }
 
-    final unopenedLimit = await ProxyConfigService.instance.getUnopenedPostsLimit();
+    // The link is the identity of a post: never create a second row for it.
+    final existing = widget.reminderRepository.findByUrl(url);
+    if (existing != null && !existing.isOpened) {
+      // Already saved and still unread -> block, no API calls, no snackbar.
+      setState(() => _error = Translations.alreadySavedPost(_locale));
+      return;
+    }
+
+    final unopenedLimit = await ProxyConfigService.instance
+        .getUnopenedPostsLimit();
     final currentUnread = widget.reminderRepository.getUnread().length;
     if (currentUnread >= unopenedLimit) {
       setState(() {
@@ -196,8 +214,8 @@ class _SavePostSheetState extends State<SavePostSheet> {
 
       if (!mounted) return;
 
-      final scheduledAt = bestTimeResult['bestTime'] ??
-          now.add(const Duration(hours: 24));
+      final scheduledAt =
+          bestTimeResult['bestTime'] ?? now.add(const Duration(hours: 24));
 
       final categoryData = classification['category'] ?? {};
       final categoryEnVal =
@@ -244,9 +262,8 @@ class _SavePostSheetState extends State<SavePostSheet> {
         complexityEn: complexityEnVal,
         complexityAr: complexityArVal,
         complexityFr: complexityFrVal,
-        isEthical: classification['is_ethical'] ??
-            classification['isEthical'] ??
-            true,
+        isEthical:
+            classification['is_ethical'] ?? classification['isEthical'] ?? true,
         ethicalReasoning: ethicalEn,
         ethicalReasoningAr: ethicalAr,
         ethicalReasoningFr: ethicalFr,
@@ -273,10 +290,22 @@ class _SavePostSheetState extends State<SavePostSheet> {
         }
       }
 
+      if (existing != null) {
+        // Re-save of an already-OPENED post: reuse its row (same id => same
+        // notification id) so no duplicate is created. The freshly built
+        // object resets isOpened/openedAt and the reschedule counters; only
+        // createdAt is carried over so the reschedule history stays intact.
+        reminder.id = existing.id;
+        reminder.createdAt = existing.createdAt;
+      }
+
       final id = widget.reminderRepository.save(reminder);
       reminder.id = id;
 
-      widget.categoryStatRepository.recordSaved(reminder);
+      if (existing == null) {
+        // Count a save only for genuinely new posts, not re-saves.
+        widget.categoryStatRepository.recordSaved(reminder);
+      }
 
       await widget.notificationService.scheduleReminder(reminder);
 
@@ -293,7 +322,9 @@ class _SavePostSheetState extends State<SavePostSheet> {
       );
     } catch (e) {
       // INTEGRITY_TRACE_POINT_002: Final exception caught in UI
-      debugPrint('INTEGRITY_TRACE: Caught exception type=${e.runtimeType}, message=$e');
+      debugPrint(
+        'INTEGRITY_TRACE: Caught exception type=${e.runtimeType}, message=$e',
+      );
 
       // Handle 401 UNAUTHENTICATED by trying to refresh Supabase session
       if (e is AiProxyException &&
@@ -333,11 +364,14 @@ class _SavePostSheetState extends State<SavePostSheet> {
           originalCode = e.code;
           originalMessage = e.message;
           httpStatus = e.statusCode;
-          
+
           // Determine source based on error code and diagnostic
-          if (e.code == 'INTEGRITY_FAILED' || e.code == 'INTEGRITY_MISSING' || e.code == 'INTEGRITY_DISABLED') {
+          if (e.code == 'INTEGRITY_FAILED' ||
+              e.code == 'INTEGRITY_MISSING' ||
+              e.code == 'INTEGRITY_DISABLED') {
             // Check if diagnostic indicates client-side failure
-            if (diagnostic != null && diagnostic.stage == 'token_request_failed') {
+            if (diagnostic != null &&
+                diagnostic.stage == 'token_request_failed') {
               source = 'CLIENT';
               backendRequestSent = false;
               backendResponseReceived = false;
@@ -371,7 +405,8 @@ class _SavePostSheetState extends State<SavePostSheet> {
 
         // Determine token status from diagnostic
         if (diagnostic != null) {
-          tokenRequested = diagnostic.nonceLength != null && diagnostic.nonceLength! > 0;
+          tokenRequested =
+              diagnostic.nonceLength != null && diagnostic.nonceLength! > 0;
           tokenReceived = diagnostic.tokenReceived == true;
         } else if (e is AiProxyException) {
           // Fallback: if we got to backend, token was likely received
@@ -391,31 +426,55 @@ class _SavePostSheetState extends State<SavePostSheet> {
         traceBuffer.writeln('HTTP status: ${httpStatus?.toString() ?? 'NONE'}');
         traceBuffer.writeln('Message: ${originalMessage ?? 'N/A'}');
         traceBuffer.writeln('');
-        traceBuffer.writeln('Integrity token requested: ${tokenRequested ? 'YES' : 'NO'}');
-        traceBuffer.writeln('Integrity token received: ${tokenReceived ? 'YES' : 'NO'}');
-        traceBuffer.writeln('Backend request started: ${backendRequestSent ? 'YES' : 'NO'}');
-        traceBuffer.writeln('Backend response received: ${backendResponseReceived ? 'YES' : 'NO'}');
+        traceBuffer.writeln(
+          'Integrity token requested: ${tokenRequested ? 'YES' : 'NO'}',
+        );
+        traceBuffer.writeln(
+          'Integrity token received: ${tokenReceived ? 'YES' : 'NO'}',
+        );
+        traceBuffer.writeln(
+          'Backend request started: ${backendRequestSent ? 'YES' : 'NO'}',
+        );
+        traceBuffer.writeln(
+          'Backend response received: ${backendResponseReceived ? 'YES' : 'NO'}',
+        );
         if (diagnostic != null) {
           traceBuffer.writeln('');
           traceBuffer.writeln('--- Diagnostic ---');
           traceBuffer.writeln('Stage: ${diagnostic.stage ?? 'N/A'}');
-          traceBuffer.writeln('Token received: ${diagnostic.tokenReceived == true ? 'YES' : 'NO'}');
+          traceBuffer.writeln(
+            'Token received: ${diagnostic.tokenReceived == true ? 'YES' : 'NO'}',
+          );
           if (diagnostic.tokenLength != null) {
             traceBuffer.writeln('Token length: ${diagnostic.tokenLength}');
           }
-          traceBuffer.writeln('Backend status: ${diagnostic.backendStatus?.toString() ?? 'N/A'}');
-          traceBuffer.writeln('App recognition: ${diagnostic.appRecognitionVerdict ?? 'N/A'}');
+          traceBuffer.writeln(
+            'Backend status: ${diagnostic.backendStatus?.toString() ?? 'N/A'}',
+          );
+          traceBuffer.writeln(
+            'App recognition: ${diagnostic.appRecognitionVerdict ?? 'N/A'}',
+          );
           traceBuffer.writeln('Package: ${diagnostic.packageName ?? 'N/A'}');
-          traceBuffer.writeln('Package matches: ${diagnostic.packageNameMatches == true ? 'YES' : (diagnostic.packageNameMatches == false ? 'NO' : 'N/A')}');
-          traceBuffer.writeln('Request hash: ${diagnostic.requestHashMatches == true ? 'MATCH' : (diagnostic.requestHashMatches == false ? 'MISMATCH' : 'N/A')}');
-          if (diagnostic.deviceRecognitionVerdict != null && diagnostic.deviceRecognitionVerdict!.isNotEmpty) {
-            traceBuffer.writeln('Device integrity: ${diagnostic.deviceRecognitionVerdict!.join(', ')}');
+          traceBuffer.writeln(
+            'Package matches: ${diagnostic.packageNameMatches == true ? 'YES' : (diagnostic.packageNameMatches == false ? 'NO' : 'N/A')}',
+          );
+          traceBuffer.writeln(
+            'Request hash: ${diagnostic.requestHashMatches == true ? 'MATCH' : (diagnostic.requestHashMatches == false ? 'MISMATCH' : 'N/A')}',
+          );
+          if (diagnostic.deviceRecognitionVerdict != null &&
+              diagnostic.deviceRecognitionVerdict!.isNotEmpty) {
+            traceBuffer.writeln(
+              'Device integrity: ${diagnostic.deviceRecognitionVerdict!.join(', ')}',
+            );
           }
           if (diagnostic.tokenAgeSeconds != null) {
             traceBuffer.writeln('Token age: ${diagnostic.tokenAgeSeconds}s');
           }
-          if (diagnostic.failedChecks != null && diagnostic.failedChecks!.isNotEmpty) {
-            traceBuffer.writeln('Failed checks: ${diagnostic.failedChecks!.join(', ')}');
+          if (diagnostic.failedChecks != null &&
+              diagnostic.failedChecks!.isNotEmpty) {
+            traceBuffer.writeln(
+              'Failed checks: ${diagnostic.failedChecks!.join(', ')}',
+            );
           }
         }
         traceBuffer.writeln('━━━━━━━━━━━━━━━━━━━━');
@@ -424,22 +483,34 @@ class _SavePostSheetState extends State<SavePostSheet> {
         String errorMessage;
         if (e is AiProxyException) {
           if (e.statusCode == 401 && e.code == 'UNAUTHENTICATED') {
-            errorMessage = '${Translations.errorSavingPost(_locale)}: [Supabase Auth] ${e.message} (Code: ${e.code}, Status: ${e.statusCode})';
-          } else if (e.code == 'INTEGRITY_FAILED' || e.code == 'INTEGRITY_MISSING' || e.code == 'INTEGRITY_DISABLED') {
-            errorMessage = '${Translations.errorSavingPost(_locale)}: [Google Play Integrity] ${e.message} (Code: ${e.code}, Status: ${e.statusCode})';
+            errorMessage =
+                '${Translations.errorSavingPost(_locale)}: [Supabase Auth] ${e.message} (Code: ${e.code}, Status: ${e.statusCode})';
+          } else if (e.code == 'INTEGRITY_FAILED' ||
+              e.code == 'INTEGRITY_MISSING' ||
+              e.code == 'INTEGRITY_DISABLED') {
+            errorMessage =
+                '${Translations.errorSavingPost(_locale)}: [Google Play Integrity] ${e.message} (Code: ${e.code}, Status: ${e.statusCode})';
           } else if (e.code == 'SUPABASE_NOT_CONFIGURED') {
-            errorMessage = '${Translations.errorSavingPost(_locale)}: [Supabase Config] ${e.message} (Code: ${e.code}, Status: ${e.statusCode})';
-          } else if (e.code.startsWith('UPSTREAM_') || e.code == 'BAD_RESPONSE' || e.code == 'UNKNOWN') {
-            errorMessage = '${Translations.errorSavingPost(_locale)}: [Supabase Edge Function] ${e.message} (Code: ${e.code}, Status: ${e.statusCode})';
+            errorMessage =
+                '${Translations.errorSavingPost(_locale)}: [Supabase Config] ${e.message} (Code: ${e.code}, Status: ${e.statusCode})';
+          } else if (e.code.startsWith('UPSTREAM_') ||
+              e.code == 'BAD_RESPONSE' ||
+              e.code == 'UNKNOWN') {
+            errorMessage =
+                '${Translations.errorSavingPost(_locale)}: [Supabase Edge Function] ${e.message} (Code: ${e.code}, Status: ${e.statusCode})';
           } else if (e.code.startsWith('RATE_LIMIT')) {
-            errorMessage = '${Translations.errorSavingPost(_locale)}: [Supabase Rate Limit] ${e.message} (Code: ${e.code}, Status: ${e.statusCode})';
+            errorMessage =
+                '${Translations.errorSavingPost(_locale)}: [Supabase Rate Limit] ${e.message} (Code: ${e.code}, Status: ${e.statusCode})';
           } else if (e.code == 'NETWORK_ERROR' || e.code == 'TIMEOUT') {
-            errorMessage = '${Translations.errorSavingPost(_locale)}: [Network] ${e.message} (Code: ${e.code}, Status: ${e.statusCode}, Retryable: ${e.isRetryable})';
+            errorMessage =
+                '${Translations.errorSavingPost(_locale)}: [Network] ${e.message} (Code: ${e.code}, Status: ${e.statusCode}, Retryable: ${e.isRetryable})';
           } else {
-            errorMessage = '${Translations.errorSavingPost(_locale)}: [AI Proxy] ${e.message} (Code: ${e.code}, Status: ${e.statusCode}, Retryable: ${e.isRetryable})';
+            errorMessage =
+                '${Translations.errorSavingPost(_locale)}: [AI Proxy] ${e.message} (Code: ${e.code}, Status: ${e.statusCode}, Retryable: ${e.isRetryable})';
           }
         } else if (e is IntegrityException) {
-          errorMessage = '${Translations.errorSavingPost(_locale)}: [IntegrityService] ${e.message} (Code: ${e.code})';
+          errorMessage =
+              '${Translations.errorSavingPost(_locale)}: [IntegrityService] ${e.message} (Code: ${e.code})';
         } else {
           errorMessage = '${Translations.errorSavingPost(_locale)}: $e';
         }
@@ -452,7 +523,8 @@ class _SavePostSheetState extends State<SavePostSheet> {
         traceBuffer.writeln(errorMessage);
 
         // Show combined trace + error SnackBar
-        ScaffoldMessenger.of(context).showSnackBar(
+        showAppSnackBar(
+          context,
           SnackBar(
             content: SingleChildScrollView(
               child: SelectableText(
@@ -518,8 +590,8 @@ class _SavePostSheetState extends State<SavePostSheet> {
             Text(
               Translations.savePost(_locale),
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: AppColors.whiteTextPrimary,
-                  ),
+                color: AppColors.whiteTextPrimary,
+              ),
             ),
             const SizedBox(height: 20),
 
@@ -529,8 +601,7 @@ class _SavePostSheetState extends State<SavePostSheet> {
               style: TextStyle(color: AppColors.whiteTextPrimary),
               decoration: InputDecoration(
                 hintText: Translations.enterUrl(_locale),
-                hintStyle:
-                    TextStyle(color: AppColors.whiteTextSecondary),
+                hintStyle: TextStyle(color: AppColors.whiteTextSecondary),
                 prefixIcon: const Icon(
                   Icons.link,
                   color: AppColors.whiteTextSecondary,
@@ -545,8 +616,7 @@ class _SavePostSheetState extends State<SavePostSheet> {
                   ),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderSide:
-                      const BorderSide(color: AppColors.whiteAccent),
+                  borderSide: const BorderSide(color: AppColors.whiteAccent),
                 ),
               ),
             ),
@@ -620,9 +690,7 @@ class _SavePostSheetState extends State<SavePostSheet> {
                 backgroundColor: AppColors.whiteAccent,
                 foregroundColor: AppColors.whiteBackground,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.zero,
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                 elevation: 0,
               ),
               child: Text(

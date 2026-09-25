@@ -81,16 +81,18 @@ void main() async {
   } catch (e, st) {
     debugPrint('App initialization failed: $e\n$st');
     initError = 'App initialization failed: $e';
-    runApp(MaterialApp(
-      home: Scaffold(
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: SelectableText('INIT ERROR:\n$e\n\n$st'),
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: SelectableText('INIT ERROR:\n$e\n\n$st'),
+            ),
           ),
         ),
       ),
-    ));
+    );
   }
 }
 
@@ -98,6 +100,78 @@ void main() async {
 void _boot(String step) {
   debugPrint('[boot] $step');
   unawaited(authDiag('boot_$step', details: {'step': step}));
+}
+
+/// Prints a Firebase Auth UID without making the diagnostic path fatal.
+void _logAuthUid(String phase, {bool persist = false, String? event}) {
+  try {
+    final uid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+    debugPrint('[AUTH-UID] phase=$phase uid=$uid');
+    if (persist) {
+      unawaited(
+        authDiag(
+          event ?? 'uid_snapshot',
+          details: {'phase': phase, 'uid': uid},
+        ),
+      );
+    }
+  } catch (e, stackTrace) {
+    debugPrint('[AUTH-UID] phase=$phase unavailable: $e\n$stackTrace');
+    if (persist) {
+      unawaited(
+        authDiag(
+          'uid_snapshot_error',
+          details: {'phase': phase, 'error': '$e'},
+        ),
+      );
+    }
+  }
+}
+
+/// Prints the Firebase app identity so main/background isolates can be compared.
+void _logFirebaseSnapshot(String phase, {bool persist = false}) {
+  try {
+    final apps = Firebase.apps;
+    final app = Firebase.app();
+    final details = <String, dynamic>{
+      'phase': phase,
+      'apps': apps.length,
+      'appNames': apps.map((item) => item.name).toList(),
+      'appName': app.name,
+      'projectId': app.options.projectId,
+      'appId': app.options.appId,
+      'initError': initError,
+    };
+    debugPrint(
+      '[FIREBASE] phase=$phase apps=${apps.length} '
+      'appNames=${details['appNames']} '
+      'projectId=${details['projectId']} appId=${details['appId']} '
+      'initError=$initError',
+    );
+    if (persist) {
+      unawaited(authDiag('firebase_snapshot', details: details));
+    }
+  } catch (e, stackTrace) {
+    debugPrint('[FIREBASE] phase=$phase unavailable: $e\n$stackTrace');
+    if (persist) {
+      unawaited(
+        authDiag(
+          'firebase_snapshot_error',
+          details: {'phase': phase, 'error': '$e'},
+        ),
+      );
+    }
+  }
+}
+
+/// Rechecks the UID after startup so a late native restore is distinguishable
+/// from a real sign-out/expired persisted session.
+void _scheduleAuthUidRechecks() {
+  for (final seconds in const [1, 5, 15, 45]) {
+    Future<void>.delayed(Duration(seconds: seconds), () {
+      _logAuthUid('recheck_${seconds}s', persist: true, event: 'uid_recheck');
+    });
+  }
 }
 
 /// Opens the ObjectBox store from the main isolate.
@@ -136,16 +210,28 @@ Future<Store> _openMainStore() async {
       }
     }
   }
-  throw StateError('Failed to open ObjectBox store after $maxAttempts attempts');
+  throw StateError(
+    'Failed to open ObjectBox store after $maxAttempts attempts',
+  );
 }
 
 Future<void> _initApp() async {
+  // AUTH-DIAG (temporary): read the Auth instance before initialization too.
+  _logAuthUid('before_firebase_init');
+  var firebaseInitOk = false;
   try {
     await Firebase.initializeApp();
+    firebaseInitOk = true;
   } catch (e, stackTrace) {
     debugPrint('Firebase initialization failed: $e\n$stackTrace');
     if (initError == null) initError = 'Firebase initialization failed: $e';
   }
+
+  // Print immediately, but defer authDiag/Supabase access until Supabase has
+  // been initialized below. This keeps the diagnostic itself from changing
+  // startup order.
+  _logFirebaseSnapshot('after_firebase_init');
+  _logAuthUid('after_firebase_init');
 
   // Initialize Supabase (guarded: skip when --dart-define placeholders are used)
   if (AppConfig.isSupabaseConfigured) {
@@ -165,21 +251,81 @@ Future<void> _initApp() async {
     );
   }
 
+  // AUTH-DIAG (temporary): persist the same Firebase identity after startup
+  // dependencies have been initialized.
+  _logFirebaseSnapshot('after_firebase_init_persisted', persist: true);
+  _logAuthUid('after_firebase_init_persisted', persist: true);
+  unawaited(
+    authDiag(
+      'firebase_init_result',
+      details: {'ok': firebaseInitOk, 'initError': initError},
+    ),
+  );
+
   // AUTH-DIAG (temporary)
+  String? lastSeenUid;
+  try {
+    lastSeenUid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+  } catch (_) {
+    // The Firebase initialization diagnostic above records the real error.
+  }
   firebase_auth.FirebaseAuth.instance.userChanges().listen((user) {
-    unawaited(authDiag('user_changed', details: {'uid': user?.uid}));
+    final previousUid = lastSeenUid;
+    final nextUid = user?.uid;
+    if (previousUid != null && nextUid == null) {
+      unawaited(
+        authDiag(
+          'uid_to_null',
+          details: {
+            'previousUid': previousUid,
+            'uid': nextUid,
+            'source': 'main.userChanges',
+            'stack': StackTrace.current.toString(),
+          },
+        ),
+      );
+    }
+    lastSeenUid = nextUid;
+    unawaited(
+      authDiag(
+        'user_changed',
+        details: {'uid': nextUid, 'previousUid': previousUid},
+      ),
+    );
   });
   // AUTH-DIAG (temporary)
   final authStart = DateTime.now().millisecondsSinceEpoch;
-  final authFirstFuture = firebase_auth.FirebaseAuth.instance.authStateChanges().first;
-  final authFirstTimeout = authFirstFuture.timeout(const Duration(seconds: 5), onTimeout: () => null);
-  unawaited(authFirstTimeout.then((user) {
-    final elapsed = DateTime.now().millisecondsSinceEpoch - authStart;
-    unawaited(authDiag('auth_first_event', details: {'uid': user?.uid, 'elapsedMillis': elapsed}));
-  }));
+  var authFirstTimedOut = false;
+  final authFirstFuture = firebase_auth.FirebaseAuth.instance
+      .authStateChanges()
+      .first;
+  final authFirstTimeout = authFirstFuture.timeout(
+    const Duration(seconds: 5),
+    onTimeout: () {
+      authFirstTimedOut = true;
+      return null;
+    },
+  );
+  unawaited(
+    authFirstTimeout.then((user) {
+      final elapsed = DateTime.now().millisecondsSinceEpoch - authStart;
+      unawaited(
+        authDiag(
+          'auth_first_event',
+          details: {
+            'uid': user?.uid,
+            'elapsedMillis': elapsed,
+            'timedOut': authFirstTimedOut,
+          },
+        ),
+      );
+    }),
+  );
 
   final u = firebase_auth.FirebaseAuth.instance.currentUser;
-  showUiLog('🔥 [AUTH-1] after Firebase.init: uid=${u?.uid}, email=${u?.email}');
+  showUiLog(
+    '🔥 [AUTH-1] after Firebase.init: uid=${u?.uid}, email=${u?.email}',
+  );
 
   // Initialize RevenueCat early to avoid race condition with auth state listener
   revenueCatService = RevenueCatService();
@@ -188,6 +334,7 @@ Future<void> _initApp() async {
   // Initialize AuthService and wait for initial auth state to avoid race condition
   authService = AuthService();
   await authService.waitForInitialAuth();
+  _scheduleAuthUidRechecks();
   _boot('after_auth');
 
   // Initialize timezone (resolves the device's IANA zone, not UTC)
@@ -225,6 +372,13 @@ Future<void> _initApp() async {
   freeTimeRepository = FreeTimeRepository(store);
   categoryStatRepository = CategoryStatisticRepository(store);
 
+  // One-time cleanup: merge free-time slots that overlap or touch each other.
+  try {
+    freeTimeRepository.normalizeAll();
+  } catch (e) {
+    debugPrint('Free time normalization failed: $e');
+  }
+
   // Set repositories in settings for backup/restore
   settingsRepository.setRepositories(reminderRepository, freeTimeRepository);
   _boot('after_repos');
@@ -233,11 +387,16 @@ Future<void> _initApp() async {
   try {
     final reminderCount = reminderRepository.getTotalCount();
     final loginMarker = prefs.getString('debug_login_marker');
-    unawaited(authDiag('app_start', details: {
-      'currentUser': firebase_auth.FirebaseAuth.instance.currentUser?.uid,
-      'debug_login_marker': loginMarker,
-      'reminderCount': reminderCount,
-    }));
+    unawaited(
+      authDiag(
+        'app_start',
+        details: {
+          'currentUser': firebase_auth.FirebaseAuth.instance.currentUser?.uid,
+          'debug_login_marker': loginMarker,
+          'reminderCount': reminderCount,
+        },
+      ),
+    );
   } catch (_) {
     // Guard: diagnostics must never break startup.
   }
@@ -249,9 +408,10 @@ Future<void> _initApp() async {
   // Non-blocking: if it times out or fails, the app can still start.
   if (AppConfig.isSupabaseConfigured) {
     unawaited(
-      ProxyConfigService.instance.prefetch().timeout(
-        const Duration(seconds: 12),
-      ).catchError((_) {}),
+      ProxyConfigService.instance
+          .prefetch()
+          .timeout(const Duration(seconds: 12))
+          .catchError((_) {}),
     );
   }
 
@@ -281,7 +441,9 @@ Future<void> _initApp() async {
       );
     } catch (e) {
       debugPrint('WorkManager initialization failed: $e');
-      if (initError == null) initError = 'WorkManager initialization failed: $e';
+      if (initError == null) {
+        initError = 'WorkManager initialization failed: $e';
+      }
     }
   }
   _boot('after_workmanager');
@@ -299,7 +461,9 @@ Future<void> _initApp() async {
     );
   } catch (e) {
     debugPrint('Notification service initialization failed: $e');
-    if (initError == null) initError = 'Notification service initialization failed: $e';
+    if (initError == null) {
+      initError = 'Notification service initialization failed: $e';
+    }
   }
   _boot('after_notif_init');
 
@@ -317,9 +481,9 @@ Future<void> _initApp() async {
 
   // Request background permissions for reliable monitoring
   try {
-    await notificationService
-        .requestBackgroundPermissions()
-        .timeout(const Duration(seconds: 5));
+    await notificationService.requestBackgroundPermissions().timeout(
+      const Duration(seconds: 5),
+    );
   } catch (e) {
     debugPrint('Background permissions failed: $e');
     if (initError == null) initError = 'Background permissions failed: $e';
@@ -331,7 +495,9 @@ Future<void> _initApp() async {
     await notificationService.handleAppLaunchFromNotification();
   } catch (e) {
     debugPrint('Notification launch handling failed: $e');
-    if (initError == null) initError = 'Notification launch handling failed: $e';
+    if (initError == null) {
+      initError = 'Notification launch handling failed: $e';
+    }
   }
   _boot('after_launch_notif');
 
@@ -377,13 +543,18 @@ Future<void> _initApp() async {
     ),
   );
 
-  unawaited(overdueReminderService.reviewOverdueReminders().then((c) {
-    if (c > 0) {
-      debugPrint('[main] Rescheduled $c overdue reminders on start');
-    }
-  }).catchError((e) {
-    showUiLog('Overdue check failed on start: $e');
-  }));
+  unawaited(
+    overdueReminderService
+        .reviewOverdueReminders()
+        .then((c) {
+          if (c > 0) {
+            debugPrint('[main] Rescheduled $c overdue reminders on start');
+          }
+        })
+        .catchError((e) {
+          showUiLog('Overdue check failed on start: $e');
+        }),
+  );
 }
 
 class FlexReminderApp extends StatefulWidget {
@@ -408,6 +579,9 @@ class _FlexReminderAppState extends State<FlexReminderApp>
 
     WidgetsBinding.instance.addObserver(this);
 
+    // AUTH-DIAG (temporary): first Flutter frame after the native cold start.
+    _logAuthUid('first_open', persist: true, event: 'first_open');
+
     // Set initial shared URL
     if (widget.initialSharedUrl != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -425,18 +599,31 @@ class _FlexReminderAppState extends State<FlexReminderApp>
     receivePort.listen((message) {
       if (message is String) {
         showUiLog(message, duration: const Duration(seconds: 5));
-      } else if (message is Map && message['command'] == 'trigger_overdue_check') {
+      } else if (message is Map &&
+          message['command'] == 'trigger_overdue_check') {
         // Trigger overdue check in foreground
         debugPrint('[main] Received trigger_overdue_check from background');
-        unawaited(overdueReminderService.reviewOverdueReminders().then((count) {
-          if (count > 0) {
-            debugPrint('[main] Foreground overdue check rescheduled $count reminders');
-            showUiLog('Rescheduled $count overdue reminders', duration: const Duration(seconds: 4));
-          } else {
-            debugPrint('[main] Foreground overdue check: no overdue reminders found');
-            showUiLog('Overdue check completed — no overdue reminders', duration: const Duration(seconds: 3));
-          }
-        }));
+        unawaited(
+          overdueReminderService.reviewOverdueReminders().then((count) {
+            if (count > 0) {
+              debugPrint(
+                '[main] Foreground overdue check rescheduled $count reminders',
+              );
+              showUiLog(
+                'Rescheduled $count overdue reminders',
+                duration: const Duration(seconds: 4),
+              );
+            } else {
+              debugPrint(
+                '[main] Foreground overdue check: no overdue reminders found',
+              );
+              showUiLog(
+                'Overdue check completed — no overdue reminders',
+                duration: const Duration(seconds: 3),
+              );
+            }
+          }),
+        );
       }
     });
 
@@ -469,11 +656,37 @@ class _FlexReminderAppState extends State<FlexReminderApp>
   void didChangeAppLifecycleState(AppLifecycleState state) async {
     switch (state) {
       case AppLifecycleState.paused:
+        // AUTH-DIAG (temporary)
+        _logAuthUid(
+          'lifecycle_paused',
+          persist: true,
+          event: 'lifecycle_paused',
+        );
+        // Store stays open for the entire process lifetime
+        break;
       case AppLifecycleState.detached:
+        // AUTH-DIAG (temporary)
+        _logAuthUid(
+          'lifecycle_detached',
+          persist: true,
+          event: 'lifecycle_detached',
+        );
         // Store stays open for the entire process lifetime
         break;
       case AppLifecycleState.resumed:
+        // AUTH-DIAG (temporary)
+        _logAuthUid(
+          'lifecycle_resumed',
+          persist: true,
+          event: 'lifecycle_resumed',
+        );
         await _runOverdueCheck();
+        // AUTH-DIAG (temporary): check again after startup AI/background work.
+        _logAuthUid(
+          'lifecycle_resumed_after_overdue',
+          persist: true,
+          event: 'lifecycle_resumed_after_overdue',
+        );
         final prefs = await SharedPreferences.getInstance();
         await _showQueuedBgLogs(prefs);
         flushPendingUiLogs();

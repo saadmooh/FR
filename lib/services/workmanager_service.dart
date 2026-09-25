@@ -113,10 +113,57 @@ Future<void> _initBackgroundServices() async {
   if (!_bgServicesInitialized) {
     try {
       await Firebase.initializeApp();
-      // Ensure auth state is loaded in this isolate before reading currentUser
-      await firebase_auth.FirebaseAuth.instance.authStateChanges().first;
-    } catch (_) {
-      // Already initialized or unavailable.
+      final apps = Firebase.apps;
+      final app = Firebase.app();
+      debugPrint(
+        '[BG-FIREBASE] initialized apps=${apps.length} '
+        'appNames=${apps.map((item) => item.name).toList()} '
+        'projectId=${app.options.projectId} appId=${app.options.appId}',
+      );
+      // Do not initialize Supabase from this pre-Supabase diagnostic call.
+      await authDiag(
+        'bg_firebase_init',
+        details: {
+          'apps': apps.length,
+          'appNames': apps.map((item) => item.name).toList(),
+          'appName': app.name,
+          'projectId': app.options.projectId,
+          'appId': app.options.appId,
+        },
+        isolate: 'background',
+        remote: false,
+      );
+
+      var authFirstTimedOut = false;
+      await firebase_auth.FirebaseAuth.instance
+          .authStateChanges()
+          .first
+          .timeout(
+            const Duration(seconds: 5),
+            onTimeout: () {
+              authFirstTimedOut = true;
+              return null;
+            },
+          );
+      await authDiag(
+        'bg_firebase_auth_first',
+        details: {
+          'uid': firebase_auth.FirebaseAuth.instance.currentUser?.uid,
+          'timedOut': authFirstTimedOut,
+        },
+        isolate: 'background',
+        remote: false,
+      );
+    } catch (e, stackTrace) {
+      debugPrint('[BG-FIREBASE] init/auth failed: $e\n$stackTrace');
+      await authDiag(
+        'bg_firebase_init_error',
+        details: {'error': '$e', 'stack': '$stackTrace'},
+        isolate: 'background',
+        remote: false,
+      );
+      // Already initialized or unavailable. The task will report the missing
+      // Firebase user below instead of calling signOut.
     }
   }
 
@@ -164,41 +211,56 @@ Future<void> _initBackgroundServices() async {
 
       if (firebaseUser != null) {
         // AUTH-DIAG (temporary)
-        await authDiag('bg_before_gettoken', details: {
-          'uid': firebase_auth.FirebaseAuth.instance.currentUser?.uid,
-          'isolate': 'background',
-        });
+        await authDiag(
+          'bg_before_gettoken',
+          details: {
+            'uid': firebase_auth.FirebaseAuth.instance.currentUser?.uid,
+          },
+          isolate: 'background',
+        );
         final idToken = await firebaseUser.getIdToken();
-        if (idToken == null && firebase_auth.FirebaseAuth.instance.currentUser == null) {
+        if (idToken == null &&
+            firebase_auth.FirebaseAuth.instance.currentUser == null) {
           // AUTH-DIAG (temporary)
-          await authDiag('token_refresh_signed_out_user', details: {
-            'isolate': 'background',
-          });
+          await authDiag(
+            'token_refresh_signed_out_user',
+            details: {},
+            isolate: 'background',
+          );
         }
         // AUTH-DIAG (temporary)
-        await authDiag('bg_after_gettoken', details: {
-          'uid': firebase_auth.FirebaseAuth.instance.currentUser?.uid,
-          'isolate': 'background',
-          'idTokenLength': idToken?.length,
-        });
+        await authDiag(
+          'bg_after_gettoken',
+          details: {
+            'uid': firebase_auth.FirebaseAuth.instance.currentUser?.uid,
+            'idTokenLength': idToken?.length,
+          },
+          isolate: 'background',
+        );
         if (idToken != null) {
           await _log(
             '🔑 [Firebase] Got ID token (length: ${idToken.length}), signing into Supabase...',
           );
           // AUTH-DIAG (temporary)
-          await authDiag('bg_before_supabase_signin', details: {
-            'uid': firebase_auth.FirebaseAuth.instance.currentUser?.uid,
-            'isolate': 'background',
-          });
+          await authDiag(
+            'bg_before_supabase_signin',
+            details: {
+              'uid': firebase_auth.FirebaseAuth.instance.currentUser?.uid,
+            },
+            isolate: 'background',
+          );
           await client.auth.signInWithIdToken(
             provider: OAuthProvider('custom:firebase'),
             idToken: idToken,
           );
           // AUTH-DIAG (temporary)
-          await authDiag('bg_after_supabase_signin', details: {
-            'uid': firebase_auth.FirebaseAuth.instance.currentUser?.uid,
-            'isolate': 'background',
-          });
+          await authDiag(
+            'bg_after_supabase_signin',
+            details: {
+              'uid': firebase_auth.FirebaseAuth.instance.currentUser?.uid,
+            },
+            isolate: 'background',
+          );
           await _log(
             '✅ [Supabase] Session restored from Firebase successfully',
           );
@@ -358,11 +420,14 @@ Future<void> _workmanagerCallback() async {
       await _initNotificationsInBackground();
 
       // Early check: if main app already has store open, trigger foreground overdue check
-      final dirPath = (storeDirectoryPath != null && storeDirectoryPath.isNotEmpty)
+      final dirPath =
+          (storeDirectoryPath != null && storeDirectoryPath.isNotEmpty)
           ? storeDirectoryPath
           : (await defaultStoreDirectory()).path;
       if (Store.isOpen(dirPath)) {
-        await _log('Main app has store open, triggering foreground overdue check');
+        await _log(
+          'Main app has store open, triggering foreground overdue check',
+        );
 
         // Send command to main isolate to run overdue check
         try {

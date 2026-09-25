@@ -14,6 +14,7 @@ import '../models/reminder.dart';
 import '../core/app_theme.dart';
 import '../core/locale_manager.dart';
 import '../core/translations.dart';
+import '../core/ui_messenger.dart';
 
 class PostDetailScreen extends StatefulWidget {
   final int id;
@@ -93,7 +94,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 
   void _showResult(bool success, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    showAppSnackBar(
+      context,
       SnackBar(
         content: Text(message),
         backgroundColor: success ? AppColors.accent : AppColors.error,
@@ -138,8 +140,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             await widget.notificationService.cancelReminder(_reminder!.id);
             await widget.notificationService.scheduleReminder(_reminder!);
           }
-        } catch (e) {
-        }
+        } catch (e) {}
       }
     } else {
       urlToOpen = _reminder!.url;
@@ -167,7 +168,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   Future<void> _reschedule() async {
     if (_reminder == null) return;
 
-    final limit = await ProxyConfigService.instance.getMonthlyRescheduleLimit(_reminder!.importance);
+    final limit = await ProxyConfigService.instance.getMonthlyRescheduleLimit(
+      _reminder!.importance,
+    );
     if (!_reminder!.canRescheduleThisMonth(limit)) {
       if (mounted) {
         _showResult(false, Translations.rescheduleLimitReached(_locale, limit));
@@ -247,11 +250,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
     if (confirm == true) {
       debugPrint('[PostDetailScreen] Deleting reminder ${_reminder!.id}');
-      await widget.reminderRepository.deleteWithCleanup(_reminder!.id, widget.notificationService.cancelReminder);
+      await widget.reminderRepository.deleteWithCleanup(
+        _reminder!.id,
+        widget.notificationService.cancelReminder,
+      );
       debugPrint('[PostDetailScreen] Delete completed');
       widget.reminderOpenedId.value = _reminder!.id;
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        showAppSnackBar(
+          context,
           SnackBar(
             content: Text(Translations.deletePost(_locale)),
             behavior: SnackBarBehavior.floating,
@@ -268,11 +275,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     if (_isLoading) {
       return Scaffold(
         backgroundColor: AppColors.whiteBackground,
-        body: Center(
-          child: CircularProgressIndicator(
-            color: AppColors.accent,
-          ),
-        ),
+        body: Center(child: CircularProgressIndicator(color: AppColors.accent)),
       );
     }
 
@@ -316,8 +319,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            expandedHeight:
-                imageUrl != null && imageUrl.isNotEmpty ? 220 : 100,
+            expandedHeight: imageUrl != null && imageUrl.isNotEmpty ? 220 : 100,
             pinned: true,
             backgroundColor: AppColors.whiteBackground,
             leading: IconButton(
@@ -360,7 +362,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         width: double.infinity,
                         placeholder: (context, url) => Container(
                           color: AppColors.whiteSurface,
-                          child: const Center(child: CircularProgressIndicator()),
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
                         ),
                         errorWidget: (context, url, error) => Container(
                           color: AppColors.whiteSurface,
@@ -392,8 +396,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   Text(
                     _reminder!.title,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          color: AppColors.whiteTextPrimary,
-                        ),
+                      color: AppColors.whiteTextPrimary,
+                    ),
                   ),
 
                   if (_reminder!.isPlaylist == true) ...[
@@ -440,9 +444,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     Text(
                       _reminder!.description!,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.whiteTextSecondary,
-                            height: 1.5,
-                          ),
+                        color: AppColors.whiteTextSecondary,
+                        height: 1.5,
+                      ),
                     ),
                   const SizedBox(height: 24),
 
@@ -473,8 +477,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             _reminder!.categoryFr,
                           ),
                         ),
-                        const Divider(
-                            color: AppColors.whiteBorder, height: 24),
+                        const Divider(color: AppColors.whiteBorder, height: 24),
                         _buildMetadataRow(
                           Translations.complexityLabel(_locale),
                           LocaleManager.instance.getComplexity(
@@ -503,14 +506,18 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             valueColor: AppColors.whiteAccent,
                           ),
                           const Divider(
-                              color: AppColors.whiteBorder, height: 24),
+                            color: AppColors.whiteBorder,
+                            height: 24,
+                          ),
                           _buildMetadataRow(
                             'Watching',
                             'Video ${(_reminder!.playlistCurrentIndex ?? 0) + 1} of ${_reminder!.playlistTotalItems ?? 0}',
                             valueColor: AppColors.whiteAccent,
                           ),
                           const Divider(
-                              color: AppColors.whiteBorder, height: 24),
+                            color: AppColors.whiteBorder,
+                            height: 24,
+                          ),
                         ],
                         _buildMetadataRow(
                           Translations.statusLabel(_locale),
@@ -558,8 +565,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                               const SizedBox(width: 8),
                               Text(
                                 Translations.aiAnalysis(_locale),
-                                style: Theme.of(context)
-                                    .textTheme.titleMedium
+                                style: Theme.of(context).textTheme.titleMedium
                                     ?.copyWith(color: AppColors.whiteAccent),
                               ),
                             ],
@@ -588,8 +594,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.whiteAccent,
                         foregroundColor: AppColors.whiteBackground,
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.zero,
                         ),
@@ -614,8 +619,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.whiteAccent,
                         side: const BorderSide(color: AppColors.whiteAccent),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.zero,
                         ),
@@ -643,10 +647,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       onPressed: _delete,
                       child: Text(
                         Translations.delete(_locale),
-                        style: TextStyle(
-                          color: AppColors.error,
-                          fontSize: 16,
-                        ),
+                        style: TextStyle(color: AppColors.error, fontSize: 16),
                       ),
                     ),
                   ),
@@ -663,10 +664,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: TextStyle(color: AppColors.whiteTextSecondary),
-        ),
+        Text(label, style: TextStyle(color: AppColors.whiteTextSecondary)),
         Text(
           value,
           style: TextStyle(

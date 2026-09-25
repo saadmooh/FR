@@ -6,7 +6,20 @@ final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
 const bool uiLogsEnabled = true;
-const bool snackBarsEnabled = true;
+
+/// Global snackbar switch. While false, no snackbar is shown anywhere in the
+/// app (direct calls go through [showAppSnackBar], shared helpers are gated
+/// here as well).
+const bool snackBarsEnabled = false;
+
+/// Shows [snackbar] on the nearest scaffold messenger.
+///
+/// No-op while [snackBarsEnabled] is false — the single choke point that
+/// lets the whole app's snackbar feedback be switched off in one place.
+void showAppSnackBar(BuildContext context, SnackBar snackbar) {
+  if (!snackBarsEnabled) return;
+  ScaffoldMessenger.of(context).showSnackBar(snackbar);
+}
 
 final List<String> _pending = [];
 
@@ -40,6 +53,7 @@ void showAuthSnackBar(
   Duration duration = const Duration(seconds: 4),
 }) {
   debugPrint('[AUTH-SNACKBAR] $message');
+  if (!snackBarsEnabled) return;
   final messenger = scaffoldMessengerKey.currentState;
   if (messenger == null) return;
 

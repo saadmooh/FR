@@ -140,6 +140,7 @@ class AppTranslations {
     'findingBestTime': 'Finding best time...',
     'reminderSaved': 'Reminder saved!',
     'reminderScheduledFor': 'Reminder scheduled for',
+    'alreadySavedPost': 'This post is already saved and unread.',
 
     // Free Times Screen
     'freeTimes': 'Free Times',
@@ -415,6 +416,7 @@ class AppTranslations {
     'findingBestTime': 'جاري إيجاد أفضل وقت...',
     'reminderSaved': 'تم حفظ التذكير!',
     'reminderScheduledFor': 'التذكير مجدول في',
+    'alreadySavedPost': 'هذا المنشور محفوظ بالفعل وغير مفتوح.',
 
     // Free Times Screen
     'freeTimes': 'الأوقات الحرة',
@@ -690,6 +692,7 @@ class AppTranslations {
     'findingBestTime': 'Recherche du meilleur moment...',
     'reminderSaved': 'Rappel enregistré!',
     'reminderScheduledFor': 'Rappel programmé pour',
+    'alreadySavedPost': 'Cette publication est déjà enregistrée et non lue.',
 
     // Free Times Screen
     'freeTimes': 'Temps libres',

@@ -9,6 +9,7 @@ import '../services/ai_service.dart';
 import '../core/app_theme.dart';
 import '../core/locale_manager.dart';
 import '../core/translations.dart';
+import '../core/ui_messenger.dart';
 
 class EditReminderScreen extends StatefulWidget {
   final Reminder reminder;
@@ -137,10 +138,7 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
 
   Future<void> _rescheduleWithAI() async {
     if (!widget.aiService.hasApiKey()) {
-      _showSnackBar(
-        Translations.pleaseConfigureApiKey(_locale),
-        isError: true,
-      );
+      _showSnackBar(Translations.pleaseConfigureApiKey(_locale), isError: true);
       return;
     }
 
@@ -167,10 +165,12 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
       final freeTimes = widget.freeTimeRepository.getAllAsJson();
       final pendingReminders = widget.reminderRepository
           .getPendingReminders()
-          .map((r) => {
-            'scheduledAt': r.scheduledAt.toIso8601String(),
-            'title': r.title,
-          })
+          .map(
+            (r) => {
+              'scheduledAt': r.scheduledAt.toIso8601String(),
+              'title': r.title,
+            },
+          )
           .toList();
 
       final result = await widget.aiService.estimateBestTime(
@@ -179,8 +179,7 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
         importance: _selectedImportance,
         currentTime: currentTime,
         maxTime: maxTime,
-        userFreeTimesJson:
-            freeTimes.isNotEmpty ? jsonEncode(freeTimes) : null,
+        userFreeTimesJson: freeTimes.isNotEmpty ? jsonEncode(freeTimes) : null,
         pendingRemindersJson: pendingReminders.isNotEmpty
             ? jsonEncode(pendingReminders)
             : null,
@@ -197,10 +196,7 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
           result['explanation'] ?? Translations.reminderScheduled(_locale),
         );
       } else {
-        _showSnackBar(
-          Translations.aiRescheduleFailed(_locale),
-          isError: true,
-        );
+        _showSnackBar(Translations.aiRescheduleFailed(_locale), isError: true);
       }
     } catch (e) {
       _showSnackBar(
@@ -242,7 +238,8 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    showAppSnackBar(
+      context,
       SnackBar(
         content: Text(message),
         backgroundColor: isError ? AppColors.error : AppColors.accent,
@@ -527,8 +524,8 @@ class _EditReminderScreenState extends State<EditReminderScreen> {
                               option == 'Day'
                                   ? Icons.today
                                   : option == 'Week'
-                                      ? Icons.date_range
-                                      : Icons.calendar_month,
+                                  ? Icons.date_range
+                                  : Icons.calendar_month,
                             ),
                           ),
                         )
